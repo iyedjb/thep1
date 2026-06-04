@@ -1,0 +1,504 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: Ads Intelligence Platform API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication
+  - name: dashboard
+    description: Dashboard KPIs and charts
+  - name: campaigns
+    description: Campaign management
+  - name: keywords
+    description: Keyword research and AI analysis
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResult"
+        "401":
+          description: Invalid credentials
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get KPI summary
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Dashboard KPI summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/performance:
+    get:
+      operationId: getPerformance
+      tags: [dashboard]
+      summary: Get performance time series
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Performance data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PerformancePoint"
+
+  /dashboard/conversions-by-campaign:
+    get:
+      operationId: getConversionsByCampaign
+      tags: [dashboard]
+      summary: Get conversions grouped by campaign
+      responses:
+        "200":
+          description: Conversions by campaign
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CampaignConversion"
+
+  /campaigns:
+    get:
+      operationId: listCampaigns
+      tags: [campaigns]
+      summary: List all campaigns
+      responses:
+        "200":
+          description: List of campaigns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Campaign"
+    post:
+      operationId: createCampaign
+      tags: [campaigns]
+      summary: Create a campaign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CampaignInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+
+  /campaigns/{id}:
+    get:
+      operationId: getCampaign
+      tags: [campaigns]
+      summary: Get a campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Campaign
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateCampaign
+      tags: [campaigns]
+      summary: Update a campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CampaignUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+    delete:
+      operationId: deleteCampaign
+      tags: [campaigns]
+      summary: Delete a campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /keywords:
+    get:
+      operationId: listKeywords
+      tags: [keywords]
+      summary: List keyword analyses
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of keywords
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Keyword"
+    post:
+      operationId: createKeyword
+      tags: [keywords]
+      summary: Add a keyword for analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/KeywordInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Keyword"
+
+  /keywords/{id}/analyze:
+    post:
+      operationId: analyzeKeyword
+      tags: [keywords]
+      summary: Run AI analysis on a keyword
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: AI analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KeywordAnalysisResult"
+
+  /keywords/trends:
+    get:
+      operationId: getKeywordTrends
+      tags: [keywords]
+      summary: Get keyword search trends
+      parameters:
+        - name: keyword
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Trend data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrendPoint"
+
+  /keywords/intent-breakdown:
+    get:
+      operationId: getIntentBreakdown
+      tags: [keywords]
+      summary: Get search intent distribution
+      responses:
+        "200":
+          description: Intent breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/IntentSlice"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    LoginInput:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+
+    AuthResult:
+      type: object
+      required: [user, token]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+
+    User:
+      type: object
+      required: [id, email, name]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        name:
+          type: string
+        createdAt:
+          type: string
+
+    DashboardSummary:
+      type: object
+      required: [cpcAvg, cpa, ctr, roas, conversions, totalCost, cpcChange, cpaChange, ctrChange, roasChange]
+      properties:
+        cpcAvg:
+          type: number
+        cpa:
+          type: number
+        ctr:
+          type: number
+        roas:
+          type: number
+        conversions:
+          type: integer
+        totalCost:
+          type: number
+        cpcChange:
+          type: number
+        cpaChange:
+          type: number
+        ctrChange:
+          type: number
+        roasChange:
+          type: number
+
+    PerformancePoint:
+      type: object
+      required: [date, clicks, conversions, cost]
+      properties:
+        date:
+          type: string
+        clicks:
+          type: integer
+        conversions:
+          type: integer
+        cost:
+          type: number
+
+    CampaignConversion:
+      type: object
+      required: [name, value, percentage]
+      properties:
+        name:
+          type: string
+        value:
+          type: integer
+        percentage:
+          type: number
+
+    Campaign:
+      type: object
+      required: [id, name, status, budget, cpc, ctr, roas, conversions, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        status:
+          type: string
+        budget:
+          type: number
+        cpc:
+          type: number
+        ctr:
+          type: number
+        roas:
+          type: number
+        conversions:
+          type: integer
+        createdAt:
+          type: string
+
+    CampaignInput:
+      type: object
+      required: [name, budget]
+      properties:
+        name:
+          type: string
+        budget:
+          type: number
+        status:
+          type: string
+
+    CampaignUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        budget:
+          type: number
+        status:
+          type: string
+
+    Keyword:
+      type: object
+      required: [id, keyword, searchVolume, competition, cpc, location, period, createdAt]
+      properties:
+        id:
+          type: integer
+        keyword:
+          type: string
+        searchVolume:
+          type: integer
+        competition:
+          type: string
+        cpc:
+          type: number
+        location:
+          type: string
+        period:
+          type: string
+        analysis:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+
+    KeywordInput:
+      type: object
+      required: [keyword]
+      properties:
+        keyword:
+          type: string
+        location:
+          type: string
+
+    KeywordAnalysisResult:
+      type: object
+      required: [id, analysis]
+      properties:
+        id:
+          type: integer
+        analysis:
+          type: string
+
+    TrendPoint:
+      type: object
+      required: [month, volume]
+      properties:
+        month:
+          type: string
+        volume:
+          type: integer
+
+    IntentSlice:
+      type: object
+      required: [intent, percentage]
+      properties:
+        intent:
+          type: string
+        percentage:
+          type: number

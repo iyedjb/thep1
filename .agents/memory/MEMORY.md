@@ -1,0 +1,1 @@
+- [React-Vite port registration](react-vite-port-registration.md) — every new react-vite artifact needs a `[[ports]]` entry in `.replit` or `restart_workflow` always times out with DIDNT_OPEN_A_PORT.
