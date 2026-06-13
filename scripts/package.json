@@ -9,6 +9,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "google-ads-api": "^23.0.1",
     "tsx": "catalog:"
   }
 }

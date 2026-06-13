@@ -16,4 +16,6 @@ export interface Campaign {
   roas: number;
   conversions: number;
   createdAt: string;
+  targetAges?: string[];
+  targetGenders?: string[];
 }

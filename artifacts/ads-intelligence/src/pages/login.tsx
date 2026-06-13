@@ -6,8 +6,23 @@ import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Activity, Sparkles, FileText, MessageSquare, Share2, Shield, TrendingUp, Cpu } from "lucide-react";
+import { Activity, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: any) => void;
+          renderButton: (element: HTMLElement, config: any) => void;
+          prompt: () => void;
+        };
+      };
+    };
+  }
+}
 
 const loginSchema = z.object({
   email: z.string().email("E-mail inválido"),
@@ -39,6 +54,46 @@ export default function Login() {
   const [, setLocation] = useLocation();
   const loginMutation = useLogin();
   const { toast } = useToast();
+  const [showPassword, setShowPassword] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Initialize Google Identity Services
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId || !window.google) return;
+
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: handleGoogleCredential,
+    });
+  }, []);
+
+  const handleGoogleCredential = async (response: { credential: string }) => {
+    setGoogleLoading(true);
+    try {
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: response.credential }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Falha no login com Google");
+      localStorage.setItem("ads_token", data.token);
+      setLocation("/dashboard");
+    } catch (err: any) {
+      toast({ title: "Erro no login com Google", description: err.message, variant: "destructive" });
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleGoogleClick = () => {
+    if (window.google) {
+      window.google.accounts.id.prompt();
+    } else {
+      toast({ title: "Google Sign-In indisponível", description: "Recarregue a página e tente novamente.", variant: "destructive" });
+    }
+  };
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -90,7 +145,7 @@ export default function Login() {
                   <FormItem>
                     <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">E-mail corporativo</FormLabel>
                     <FormControl>
-                      <Input placeholder="voce@empresa.com.br" {...field} className="rounded-2xl bg-slate-50/50 py-5" data-testid="input-email" />
+                      <Input placeholder="voce@empresa.com.br" {...field} className="rounded-2xl bg-slate-50/50 border-slate-200/80 py-5 focus-visible:ring-sky-500/20 focus-visible:ring-4 focus-visible:border-sky-500 transition-all duration-200" data-testid="input-email" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -104,7 +159,22 @@ export default function Login() {
                   <FormItem>
                     <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Senha</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} className="rounded-2xl bg-slate-50/50 py-5" data-testid="input-password" />
+                      <div className="relative">
+                        <Input 
+                          type={showPassword ? "text" : "password"} 
+                          placeholder="••••••••" 
+                          {...field} 
+                          className="rounded-2xl bg-slate-50/50 border-slate-200/80 py-5 pr-12 focus-visible:ring-sky-500/20 focus-visible:ring-4 focus-visible:border-sky-500 transition-all duration-200" 
+                          data-testid="input-password" 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                        </button>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -113,7 +183,7 @@ export default function Login() {
 
               <Button 
                 type="submit" 
-                className="w-full rounded-full py-5 font-semibold bg-[#0ea5e9] hover:bg-[#0ea5e9]/90 text-white mt-2 transition-colors" 
+                className="w-full rounded-full py-6 font-semibold bg-[#0ea5e9] hover:bg-[#0ea5e9]/90 text-white mt-4 transition-all shadow-md shadow-sky-500/10 hover:shadow-lg hover:shadow-sky-500/20 active:scale-[0.98] cursor-pointer" 
                 disabled={loginMutation.isPending}
                 data-testid="button-submit-login"
               >
@@ -133,10 +203,16 @@ export default function Login() {
               <div className="flex justify-center">
                 <button
                   type="button"
-                  onClick={() => toast({ title: "Google Login", description: "Implementação em andamento." })}
-                  className="w-10 h-10 border border-border/80 hover:bg-slate-50 rounded-full flex items-center justify-center transition-colors shadow-sm"
+                  onClick={handleGoogleClick}
+                  disabled={googleLoading}
+                  className="w-10 h-10 border border-border/80 hover:bg-slate-50 rounded-full flex items-center justify-center transition-colors shadow-sm disabled:opacity-50"
+                  title="Entrar com Google"
                 >
-                  <GoogleIcon />
+                  {googleLoading ? (
+                    <div className="w-4 h-4 border-2 border-slate-300 border-t-blue-500 rounded-full animate-spin" />
+                  ) : (
+                    <GoogleIcon />
+                  )}
                 </button>
               </div>
 
@@ -151,70 +227,23 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right side - Presentation Info */}
-      <div className="hidden lg:flex w-[55%] bg-[#f4f9fd] bg-dots-grid items-center justify-center p-12 relative border-l border-border/40">
-        <div className="w-full max-w-xl p-10 bg-white border border-white/80 shadow-[0_15px_45px_rgba(30,100,250,0.05)] rounded-[2.5rem] flex flex-col">
-          {/* Header 4 Icons */}
-          <div className="grid grid-cols-4 gap-4 mb-8">
-            <div className="flex flex-col items-center text-center gap-1.5">
-              <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-semibold text-muted-foreground mt-1">IA 24/7</span>
-            </div>
-            <div className="flex flex-col items-center text-center gap-1.5">
-              <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
-                <FileText className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-semibold text-muted-foreground mt-1">Relatórios</span>
-            </div>
-            <div className="flex flex-col items-center text-center gap-1.5">
-              <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
-                <MessageSquare className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-semibold text-muted-foreground mt-1">Suporte</span>
-            </div>
-            <div className="flex flex-col items-center text-center gap-1.5">
-              <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
-                <Share2 className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-semibold text-muted-foreground mt-1">Integração</span>
-            </div>
-          </div>
+      {/* Right side - Presentation Info (Full Image with Text Overlay) */}
+      <div 
+        className="hidden lg:flex w-[55%] bg-cover bg-center items-center justify-center relative border-l border-border/40 overflow-hidden"
+        style={{ backgroundImage: `url('/images/auth_bg.png')` }}
+      >
+        {/* Subtle Dark Overlay to make the text pop */}
+        <div className="absolute inset-0 bg-black/15 mix-blend-multiply" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10" />
 
-          {/* Title and description */}
-          <div className="text-left mb-8">
-            <h1 className="text-3xl font-extrabold text-foreground tracking-tight mb-4">
-              Sua Jornada de Performance Começa Aqui!
-            </h1>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              Acesse ferramentas de inteligência, otimize campanhas de Google Ads em tempo real e acompanhe seu crescimento com relatórios intuitivos.
-            </p>
-          </div>
-
-          {/* Pill tags */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-[#f8fafc]/80 border border-slate-100/80 rounded-[22px] p-5 flex flex-col items-center text-center hover:scale-[1.02] transition-transform duration-200 shadow-2xs">
-              <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
-                <Cpu className="w-5 h-5" />
-              </div>
-              <span className="text-sm font-extrabold text-foreground">24/7</span>
-              <span className="text-[10px] font-semibold text-slate-400 mt-0.5">Suporte IA</span>
-            </div>
-            <div className="bg-[#f8fafc]/80 border border-slate-100/80 rounded-[22px] p-5 flex flex-col items-center text-center hover:scale-[1.02] transition-transform duration-200 shadow-2xs">
-              <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
-                <Shield className="w-5 h-5" />
-              </div>
-              <span className="text-sm font-extrabold text-slate-800">100%</span>
-              <span className="text-[10px] font-semibold text-slate-400 mt-0.5">Seguro</span>
-            </div>
-            <div className="bg-[#f8fafc]/80 border border-slate-100/80 rounded-[22px] p-5 flex flex-col items-center text-center hover:scale-[1.02] transition-transform duration-200 shadow-2xs">
-              <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
-                <TrendingUp className="w-5 h-5" />
-              </div>
-              <span className="text-sm font-extrabold text-foreground">ROAS</span>
-              <span className="text-[10px] font-semibold text-slate-400 mt-0.5">Otimizado</span>
-            </div>
+        {/* Text Overlay */}
+        <div className="relative z-10 flex items-center gap-3 bg-white/10 backdrop-blur-md px-6 py-4 rounded-3xl border border-white/20 shadow-2xl select-none max-w-lg mx-6 animate-fade-in hover:bg-white/15 transition-all duration-300">
+          <span className="text-white text-base md:text-lg font-medium tracking-wide">
+            Success starts with
+          </span>
+          <div className="flex items-center gap-2 bg-[#0ea5e9] text-white px-4 py-1.5 rounded-2xl font-bold text-sm shadow-md hover:scale-[1.03] active:scale-[0.98] transition-all">
+            <Activity className="w-4 h-4" />
+            Ads Intelligence
           </div>
         </div>
       </div>

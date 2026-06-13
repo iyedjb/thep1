@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Activity, LayoutDashboard, Target, Key, FileText, LogOut } from "lucide-react";
+import { Activity, LayoutDashboard, Target, Key, FileText, LogOut, TrendingUp, Sparkles } from "lucide-react";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 
 export function AppSidebar() {
@@ -62,10 +62,26 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === "/creator"} size="lg" className="rounded-2xl h-12 px-4 [&>svg]:w-5 [&>svg]:h-5 [&>span]:text-base transition-all duration-200">
+                  <Link href="/creator" data-testid="link-creator">
+                    <Sparkles />
+                    <span>Criador de Pontes</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={location === "/keywords"} size="lg" className="rounded-2xl h-12 px-4 [&>svg]:w-5 [&>svg]:h-5 [&>span]:text-base transition-all duration-200">
                   <Link href="/keywords" data-testid="link-keywords">
                     <Key />
                     <span>Palavras-chave</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === "/trends"} size="lg" className="rounded-2xl h-12 px-4 [&>svg]:w-5 [&>svg]:h-5 [&>span]:text-base transition-all duration-200">
+                  <Link href="/trends" data-testid="link-trends">
+                    <TrendingUp />
+                    <span>Google Trends</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

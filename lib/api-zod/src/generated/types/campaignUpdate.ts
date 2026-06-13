@@ -10,4 +10,6 @@ export interface CampaignUpdate {
   name?: string;
   budget?: number;
   status?: string;
+  targetAges?: string[];
+  targetGenders?: string[];
 }

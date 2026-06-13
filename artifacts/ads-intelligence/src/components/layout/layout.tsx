@@ -3,6 +3,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
 import { useGetMe } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
+import { GoogleAdsStatusBanner } from "./google-ads-status-banner";
 
 export function Layout({ children }: { children: ReactNode }) {
   const { data: user, isError, isLoading } = useGetMe();

@@ -4,6 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileText, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -16,6 +17,64 @@ function formatPercent(value: number) {
 export default function Reports() {
   const { data: summary, isLoading: loadingSummary } = useGetDashboardSummary({ days: 30 });
   const { data: campaigns, isLoading: loadingCampaigns } = useListCampaigns();
+  const { toast } = useToast();
+
+  const handleExportCSV = () => {
+    if (!campaigns || campaigns.length === 0) {
+      toast({ title: "Nenhum dado para exportar", variant: "destructive" });
+      return;
+    }
+
+    const headers = ["Campanha", "Status", "Orçamento (R$)", "CPC (R$)", "CTR (%)", "Conversões", "CPA (R$)", "ROAS"];
+    const rows = campaigns.map((c) => {
+      const cpa = c.conversions > 0 ? (c.budget * c.cpc) / c.conversions : 0;
+      return [
+        c.name,
+        c.status,
+        c.budget.toFixed(2),
+        c.cpc.toFixed(2),
+        c.ctr.toFixed(1),
+        c.conversions.toString(),
+        cpa.toFixed(2),
+        c.roas.toFixed(2),
+      ];
+    });
+
+    // Add summary row
+    const totalBudget = campaigns.reduce((s, c) => s + c.budget, 0);
+    const totalConversions = campaigns.reduce((s, c) => s + c.conversions, 0);
+    const avgCpc = campaigns.reduce((s, c) => s + c.cpc, 0) / campaigns.length;
+    const avgCtr = campaigns.reduce((s, c) => s + c.ctr, 0) / campaigns.length;
+    const avgRoas = campaigns.reduce((s, c) => s + c.roas, 0) / campaigns.length;
+    const totalCpa = totalConversions > 0 ? (totalBudget * avgCpc) / totalConversions : 0;
+
+    rows.push([
+      "TOTAL / MÉDIA",
+      "-",
+      totalBudget.toFixed(2),
+      avgCpc.toFixed(2),
+      avgCtr.toFixed(1),
+      totalConversions.toString(),
+      totalCpa.toFixed(2),
+      avgRoas.toFixed(2),
+    ]);
+
+    // BOM for Excel UTF-8 compatibility
+    const BOM = "\uFEFF";
+    const csvContent = BOM + [headers.join(";"), ...rows.map((r) => r.join(";"))].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `relatorio-campanhas-${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast({ title: "Relatório exportado com sucesso!" });
+  };
 
   return (
     <div className="p-8 space-y-8">
@@ -24,7 +83,7 @@ export default function Reports() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Relatórios</h1>
           <p className="text-muted-foreground mt-1">Análise agregada e exportação de dados</p>
         </div>
-        <Button variant="outline">
+        <Button variant="outline" onClick={handleExportCSV} disabled={loadingCampaigns || !campaigns?.length}>
           <Download className="mr-2 h-4 w-4" /> Exportar CSV
         </Button>
       </div>
@@ -83,7 +142,6 @@ export default function Reports() {
                 <TableRow>
                   <TableHead>Campanha</TableHead>
                   <TableHead className="text-right">Orçamento</TableHead>
-                  <TableHead className="text-right">Custo</TableHead>
                   <TableHead className="text-right">CPC</TableHead>
                   <TableHead className="text-right">CTR</TableHead>
                   <TableHead className="text-right">Conversões</TableHead>
@@ -93,14 +151,14 @@ export default function Reports() {
               </TableHeader>
               <TableBody>
                 {campaigns?.map((campaign) => {
-                  // Synthetic data for columns not directly on campaign object for the report
-                  const cost = campaign.budget * 0.85; // Example
-                  const cpa = cost / (campaign.conversions || 1);
+                  // Real CPA computed from campaign metrics
+                  const cpa = campaign.conversions > 0 
+                    ? (campaign.budget * campaign.cpc) / campaign.conversions 
+                    : 0;
                   return (
                     <TableRow key={campaign.id}>
                       <TableCell className="font-medium">{campaign.name}</TableCell>
                       <TableCell className="text-right">{formatCurrency(campaign.budget)}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(cost)}</TableCell>
                       <TableCell className="text-right">{formatCurrency(campaign.cpc)}</TableCell>
                       <TableCell className="text-right">{formatPercent(campaign.ctr)}</TableCell>
                       <TableCell className="text-right">{new Intl.NumberFormat("pt-BR").format(campaign.conversions)}</TableCell>

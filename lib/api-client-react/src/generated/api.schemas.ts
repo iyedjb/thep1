@@ -62,18 +62,24 @@ export interface Campaign {
   roas: number;
   conversions: number;
   createdAt: string;
+  targetAges?: string[];
+  targetGenders?: string[];
 }
 
 export interface CampaignInput {
   name: string;
   budget: number;
   status?: string;
+  targetAges?: string[];
+  targetGenders?: string[];
 }
 
 export interface CampaignUpdate {
   name?: string;
   budget?: number;
   status?: string;
+  targetAges?: string[];
+  targetGenders?: string[];
 }
 
 export interface Keyword {

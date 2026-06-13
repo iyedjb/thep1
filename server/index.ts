@@ -1,10 +1,20 @@
-import { spawn, ChildProcess } from "child_process";
+import { spawn, ChildProcess, execSync } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
+
+let pnpmCmd = "pnpm";
+let pnpmArgs: string[] = [];
+
+try {
+  execSync("pnpm --version", { stdio: "ignore", shell: true });
+} catch {
+  pnpmCmd = "npx";
+  pnpmArgs = ["pnpm"];
+}
 
 interface Service {
   name: string;
@@ -19,24 +29,24 @@ const services: Service[] = [
   {
     name: "API",
     cwd: path.join(rootDir, "artifacts/api-server"),
-    command: "pnpm",
-    args: ["run", "start"],
+    command: pnpmCmd,
+    args: [...pnpmArgs, "run", "start"],
     env: { PORT: "3002", NODE_ENV: "development" },
     color: "\x1b[36m", // Cyan
   },
   {
     name: "Sandbox",
     cwd: path.join(rootDir, "artifacts/mockup-sandbox"),
-    command: "pnpm",
-    args: ["run", "dev"],
+    command: pnpmCmd,
+    args: [...pnpmArgs, "run", "dev"],
     env: { PORT: "3000", BASE_PATH: "/" },
     color: "\x1b[35m", // Magenta
   },
   {
     name: "Ads",
     cwd: path.join(rootDir, "artifacts/ads-intelligence"),
-    command: "pnpm",
-    args: ["run", "dev"],
+    command: pnpmCmd,
+    args: [...pnpmArgs, "run", "dev"],
     env: { PORT: "3001" },
     color: "\x1b[32m", // Green
   },
@@ -90,8 +100,8 @@ async function start() {
   try {
     await runCommand(
       path.join(rootDir, "artifacts/api-server"),
-      "pnpm",
-      ["run", "build"],
+      pnpmCmd,
+      [...pnpmArgs, "run", "build"],
       { PORT: "3002", NODE_ENV: "development" }
     );
     console.log("\x1b[1m\x1b[34m[System] API server built successfully.\x1b[0m");

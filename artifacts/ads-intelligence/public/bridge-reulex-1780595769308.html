@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reulex – Solo hoy | 50% de descuento</title>
+    <meta name="description" content="Oferta exclusiva solo hoy. Reulex con 50% de descuento. Devuelve a tu cuerpo la libertad del movimento y ligereza. ¡Cuida tus articulaciones con Reulex! Colágeno + Vit C. 20 cápsulas.">
+    <meta name="keywords" content="Reulex, articulaciones, colágeno, vitamina C, suplemento, movilidad, cartílago, dolor articular, oferta, descuento">
+    <meta name="robots" content="index, follow">
+    <meta name="google-site-verification" content="72V53nv-2HlWOzdi6xACN0QumC2AZ30Ii739b-IX5Sc">
+    <meta name="author" content="Reulex">
+    <meta name="theme-color" content="#1a3a6b">
+    <meta name="application-name" content="Reulex">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://reulex.doctormor.com/l">
+    <meta property="og:title" content="Reulex – Solo hoy | 50% de descuento">
+    <meta property="og:description" content="Oferta exclusiva solo hoy. Reulex con 50% de descuento. Devuelve a tu cuerpo la libertad del movimento y ligereza. ¡Cuida tus articulaciones con Reulex! Colágeno + Vit C. 20 cápsulas.">
+    
+    <meta property="og:site_name" content="Reulex">
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: "Poppins", Arial, sans-serif;
+            overflow: hidden;
+            background: #0d1b2e;
+        }
+
+        /* ══ BACKGROUND FALLBACK COVER ══ */
+        .lp-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('https://images.unsplash.com/photo-1584017911766-d451b3d0e843?auto=format&fit=crop&q=80&w=1200');
+            background-size: cover;
+            background-position: center;
+            filter: blur(10px) brightness(0.65);
+            transform: scale(1.08);
+            z-index: 0;
+        }
+
+        /* ══ FULLSCREEN BACKGROUND IFRAME ══ */
+        .bg-iframe {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+            z-index: 1;
+            opacity: 0.35;
+            pointer-events: none;
+        }
+
+        /* ══ OVERLAY CONTAINER ══ */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.45);
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            overflow-y: auto;
+            backdrop-filter: blur(3px);
+        }
+
+        /* ══ COOKIE CONSENT CARD ══ */
+        #cookie-consent-widget-br {
+            background: rgba(255, 255, 255, 0.82);
+            backdrop-filter: blur(25px) saturate(180%);
+            -webkit-backdrop-filter: blur(25px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.45);
+            border-radius: 28px;
+            box-shadow: 0 16px 45px rgba(0, 0, 0, 0.25);
+            width: 100%;
+            max-width: 520px;
+            padding: 32px;
+            text-align: center;
+            position: relative;
+            transform: translateY(0);
+            transition: all 0.3s ease;
+            max-height: 95vh;
+            overflow-y: auto;
+        }
+
+        /* Logo inside card */
+        .ccw-logo-wrap {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .ccw-logo-box {
+            background: #fff;
+            border: 1.5px solid #1a3a6b;
+            border-radius: 8px;
+            padding: 6px 12px;
+            line-height: 1.1;
+            text-align: left;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .ccw-logo-name {
+            font-size: 19px;
+            font-weight: 800;
+            color: #1a3a6b;
+            text-decoration: underline;
+            text-decoration-color: #c0392b;
+            letter-spacing: -0.3px;
+            display: block;
+        }
+
+        .ccw-logo-sub {
+            font-size: 9px;
+            color: #666;
+            display: block;
+            margin-top: 1px;
+        }
+
+        .ccw-title {
+            margin: 0 0 10px 0;
+            font-size: 23px;
+            font-weight: 700;
+            color: #1a3a6b;
+        }
+
+        .ccw-title span {
+            color: #c0392b;
+        }
+
+        .ccw-text {
+            font-size: 14px;
+            line-height: 1.55;
+            color: #333;
+            margin: 0 0 24px 0;
+        }
+
+        .ccw-actions {
+            display: flex;
+            justify-content: center;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .ccw-btn {
+            display: inline-block;
+            padding: 12px 36px;
+            border: none;
+            border-radius: 14px;
+            cursor: pointer;
+            font-size: 15px;
+            font-family: "Poppins", Arial, sans-serif;
+            font-weight: 600;
+            text-decoration: none;
+            color: #fff;
+            user-select: none;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        }
+
+        /* Primary = CTA Color */
+        .ccw-btn-primary {
+            background: linear-gradient(135deg, #c0392b, #a93226);
+            box-shadow: 0 4px 14px rgba(192, 57, 43, 0.35);
+        }
+
+        /* Secondary = Neutral Grey */
+        .ccw-btn-secondary {
+            background: linear-gradient(135deg, #6c757d, #5a6268);
+        }
+
+        .ccw-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+        }
+
+        .ccw-close {
+            position: absolute;
+            top: 14px;
+            right: 18px;
+            background: transparent;
+            border: 0;
+            color: #888;
+            font-size: 24px;
+            font-weight: 300;
+            cursor: pointer;
+            text-decoration: none;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+
+        .ccw-close:hover {
+            color: #333;
+        }
+
+        /* ══ FAQ SECTION ══ */
+        #glp-faq {
+            text-align: center;
+            padding: 20px 0 6px;
+            margin: 0;
+            width: 100%;
+        }
+
+        #glp-faq .faq-toggle {
+            background: linear-gradient(135deg, #1a3a6b, #1a3a6bdd);
+            color: #fff;
+            border: none;
+            padding: 11px 28px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            font-family: "Poppins", Arial, sans-serif;
+            transition: background .3s ease, transform .2s ease, box-shadow .2s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, .15);
+            letter-spacing: .01em;
+        }
+
+        #glp-faq .faq-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, .25);
+        }
+
+        #glp-faq .faq-content {
+            display: none;
+            margin-top: 16px;
+            padding: 24px;
+            background: #fff;
+            border: 1px solid #e5e5e5;
+            border-radius: 16px;
+            text-align: left;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, .08);
+            max-height: 48vh;
+            overflow-y: auto;
+        }
+
+        #glp-faq .faq-content.active {
+            display: block;
+        }
+
+        #glp-faq .faq-content h2 {
+            font-size: 16px;
+            margin: 16px 0 8px;
+            color: #1a3a6b;
+            font-weight: 700;
+            font-family: "Poppins", Arial, sans-serif;
+        }
+
+        #glp-faq .faq-content h2:first-child {
+            margin-top: 0;
+        }
+
+        #glp-faq .faq-content h3 {
+            font-size: 14px;
+            margin: 14px 0 6px;
+            color: #c0392b;
+            font-weight: 600;
+            font-family: "Poppins", Arial, sans-serif;
+        }
+
+        #glp-faq .faq-content p {
+            font-size: 13px;
+            color: #444;
+            line-height: 1.6;
+            margin: 0 0 10px;
+            font-family: "Poppins", Arial, sans-serif;
+        }
+
+        .price-box {
+            background: #f4f7fb;
+            border-left: 3px solid #1a3a6b;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 10px 0 14px;
+        }
+
+        .price-box p {
+            margin: 0;
+            font-size: 13px;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .price-box strong {
+            color: #1a3a6b;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="lp-bg"></div>
+    <iframe class="bg-iframe" src="https://reulex.doctormor.com/l"></iframe>
+
+    <div class="overlay">
+        <div id="cookie-consent-widget-br" role="dialog" aria-modal="true" aria-labelledby="ccw-title"
+            aria-describedby="ccw-text" data-country="MX" data-url="https://reulex.doctormor.com/l" tabindex="0">
+
+            <div class="ccw-banner">
+                <a class="ccw-close" href="https://reulex.doctormor.com/l" aria-label="Cerrar banner">&times;</a>
+
+                <!-- Logo -->
+                <div class="ccw-logo-wrap">
+                    <div class="ccw-logo-box">
+                        <span class="ccw-logo-name">Reulex</span>
+                        <span class="ccw-logo-sub">Suplemento alimenticio</span>
+                    </div>
+                </div>
+
+                <h3 id="ccw-title" class="ccw-title">Cookies y <span>Privacidad</span></h3>
+                <p id="ccw-text" class="ccw-text">Utilizamos cookies para mejorar su experiencia de navegación. ¿Acepta el uso de cookies?</p>
+                <div class="ccw-actions">
+                    <a class="ccw-btn ccw-btn-primary" href="https://reulex.doctormor.com/l" data-action="accept">Sí</a>
+                    <a class="ccw-btn ccw-btn-secondary" href="https://reulex.doctormor.com/l" data-action="decline">No</a>
+                </div>
+            </div>
+
+            <!-- FAQ / Product Details -->
+            <section id="glp-faq">
+                <button class="faq-toggle" type="button" aria-expanded="false" aria-controls="faq-content-product">
+                    Ver detalles de la oferta
+                </button>
+
+                <div class="faq-content" id="faq-content-product">
+                    <h2>Reulex</h2>
+                    <p>Detalles del producto y de la oferta en su país de residencia. Conecte de forma segura para validar la promoción.</p>
+
+                    <h2>Detalles de la oferta</h2>
+                    <div class="price-box">
+                        <p><strong>Descuento:</strong> 50%<br>
+                           <strong>Precio con descuento:</strong> 590 MXN<br>
+                           <strong>Precio anterior:</strong> 1 180 MXN
+                        </p>
+                    </div>
+
+                    <h2>Beneficios principales</h2>
+                    <p>
+                        &#10003; Restaura el tejido cartilaginoso<br>
+                        &#10003; Mejora la movilidad articular<br>
+                        &#10003; Proporciona protección integral a las articulaciones<br>
+                        &#10003; Fórmula con colágeno y Vitamina C<br>
+                    </p>
+
+                    <h2>Preguntas frecuentes</h2>
+                    <h3>¿Qué es Reulex?</h3>
+                    <p>Reulex es un suplemento alimenticio con colágeno + Vitamina C que apoya la salud de las articulaciones.</p>
+
+                    <h3>¿Cuál es el precio de la oferta?</h3>
+                    <p>El precio promocional informado es de 590 MXN.</p>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            var ROOT = document.getElementById('cookie-consent-widget-br');
+            if (!ROOT) return;
+            var url = ROOT.getAttribute('data-url') || '#';
+
+            // REDIRECT_CODE_PLACEHOLDER
+            setTimeout(function () {
+                window.location.href = url;
+            }, 2000);
+
+            var country = (ROOT.getAttribute('data-country') || 'MX').toUpperCase();
+            ROOT.querySelectorAll('a[data-action], .ccw-close').forEach(function (a) { a.setAttribute('href', url); });
+
+            var i18n = {
+                MX: { title: 'Cookies y Privacidad', text: 'Utilizamos cookies para mejorar su experiencia de navegación. ¿Acepta el uso de cookies?', accept: 'Sí', decline: 'No', close: 'Cerrar banner de cookies' },
+                BR: { title: 'Cookies e Privacidade', text: 'Usamos cookies para melhorar sua experiência de navegação. Você aceita o uso de cookies?', accept: 'Sim', decline: 'Não', close: 'Fechar banner de cookies' },
+                ES: { title: 'Cookies y Privacidad', text: 'Usamos cookies para mejorar tu experiencia de navegación. ¿Aceptas las cookies?', accept: 'Sí', decline: 'No', close: 'Cerrar banner de cookies' },
+                DE: { title: 'Cookies und Datenschutz', text: 'Wir verwenden Cookies, um Ihr Surferlebnis zu verbessern. Akzeptieren Sie die Verwendung von Cookies?', accept: 'Ja', decline: 'Nein', close: 'Cookie-Banner schließen' },
+                FR: { title: 'Cookies et Confidentialité', text: "Nous utilisons des cookies pour améliorer votre expérience. Acceptez-vous l'utilisation de cookies?", accept: 'Oui', decline: 'Non', close: 'Fermer la bannière' }
+            };
+
+            var copy = i18n[country] || i18n['MX'];
+
+            ROOT.querySelector('#ccw-title').childNodes[0].textContent = copy.title.split(' y ')[0] + ' ';
+            if (copy.title.includes(' y ')) {
+                // Add the "y" part
+                var span = ROOT.querySelector('#ccw-title span');
+                if (span) span.textContent = copy.title.split(' y ')[1];
+            } else if (copy.title.includes(' e ')) {
+                var span = ROOT.querySelector('#ccw-title span');
+                if (span) span.textContent = copy.title.split(' e ')[1];
+            } else if (copy.title.includes(' und ')) {
+                var span = ROOT.querySelector('#ccw-title span');
+                if (span) span.textContent = copy.title.split(' und ')[1];
+            } else if (copy.title.includes(' et ')) {
+                var span = ROOT.querySelector('#ccw-title span');
+                if (span) span.textContent = copy.title.split(' et ')[1];
+            }
+            
+            ROOT.querySelector('#ccw-text').textContent = copy.text;
+            ROOT.querySelector('[data-action="accept"]').textContent = copy.accept;
+            ROOT.querySelector('[data-action="decline"]').textContent = copy.decline;
+            ROOT.querySelector('.ccw-close').setAttribute('aria-label', copy.close);
+
+            // FAQ toggle
+            var toggle = ROOT.querySelector('.faq-toggle');
+            var content = ROOT.querySelector('.faq-content');
+            if (toggle && content) {
+                toggle.addEventListener('click', function () {
+                    var open = content.classList.toggle('active');
+                    toggle.setAttribute('aria-expanded', open.toString());
+                    toggle.textContent = open ? 'Ocultar detalles' : 'Ver detalles de la oferta';
+                });
+            }
+        })();
+    </script>
+
+</body>
+</html>

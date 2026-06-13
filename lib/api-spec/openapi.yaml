@@ -422,6 +422,14 @@ components:
           type: integer
         createdAt:
           type: string
+        targetAges:
+          type: array
+          items:
+            type: string
+        targetGenders:
+          type: array
+          items:
+            type: string
 
     CampaignInput:
       type: object
@@ -433,6 +441,14 @@ components:
           type: number
         status:
           type: string
+        targetAges:
+          type: array
+          items:
+            type: string
+        targetGenders:
+          type: array
+          items:
+            type: string
 
     CampaignUpdate:
       type: object
@@ -443,6 +459,14 @@ components:
           type: number
         status:
           type: string
+        targetAges:
+          type: array
+          items:
+            type: string
+        targetGenders:
+          type: array
+          items:
+            type: string
 
     Keyword:
       type: object

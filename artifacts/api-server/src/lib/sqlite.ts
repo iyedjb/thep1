@@ -36,6 +36,9 @@ export function initDb(): DatabaseSync {
       ctr REAL NOT NULL DEFAULT 0,
       roas REAL NOT NULL DEFAULT 0,
       conversions INTEGER NOT NULL DEFAULT 0,
+      google_campaign_id TEXT,
+      target_ages TEXT,
+      target_genders TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -56,6 +59,7 @@ export function initDb(): DatabaseSync {
       location TEXT NOT NULL DEFAULT 'Brasil',
       period TEXT NOT NULL DEFAULT '12 meses',
       analysis TEXT,
+      intent TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -67,6 +71,37 @@ export function initDb(): DatabaseSync {
       FOREIGN KEY (keyword_id) REFERENCES keywords(id)
     );
   `);
+
+  // Run migrations for existing database files that might be missing new columns
+  try {
+    db.exec("ALTER TABLE campaigns ADD COLUMN google_campaign_id TEXT;");
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  try {
+    db.exec("ALTER TABLE campaigns ADD COLUMN target_ages TEXT;");
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  try {
+    db.exec("ALTER TABLE campaigns ADD COLUMN target_genders TEXT;");
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  try {
+    db.exec("ALTER TABLE keywords ADD COLUMN analysis TEXT;");
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
+  try {
+    db.exec("ALTER TABLE keywords ADD COLUMN intent TEXT;");
+  } catch (e) {
+    // Column already exists, ignore
+  }
 
   _db = db;
   return db;

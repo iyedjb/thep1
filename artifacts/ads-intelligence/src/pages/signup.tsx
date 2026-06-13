@@ -5,7 +5,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Activity, Sparkles, FileText, MessageSquare, Share2, Shield, TrendingUp, Cpu, Check, ArrowLeft } from "lucide-react";
+import { Activity, Sparkles, FileText, MessageSquare, Share2, Shield, TrendingUp, Cpu, Check, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { useState } from "react";
@@ -14,16 +14,13 @@ const signupSchema = z.object({
   name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
   email: z.string().email("E-mail inválido"),
   password: z.string(),
-  confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "As senhas não coincidem",
-  path: ["confirmPassword"],
 });
 
 export default function Signup() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [isPending, setIsPending] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
@@ -31,7 +28,6 @@ export default function Signup() {
       name: "",
       email: "",
       password: "",
-      confirmPassword: "",
     },
   });
 
@@ -114,7 +110,7 @@ export default function Signup() {
           </div>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3.5">
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
                 name="name"
@@ -122,7 +118,7 @@ export default function Signup() {
                   <FormItem>
                     <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nome Completo</FormLabel>
                     <FormControl>
-                      <Input placeholder="Seu nome" {...field} className="rounded-2xl bg-slate-50/50 py-5" />
+                      <Input placeholder="Seu nome" {...field} className="rounded-2xl bg-slate-50/50 border-slate-200/80 py-5 focus-visible:ring-sky-500/20 focus-visible:ring-4 focus-visible:border-sky-500 transition-all duration-200" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -136,7 +132,7 @@ export default function Signup() {
                   <FormItem>
                     <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">E-mail corporativo</FormLabel>
                     <FormControl>
-                      <Input placeholder="voce@empresa.com.br" {...field} className="rounded-2xl bg-slate-50/50 py-5" />
+                      <Input placeholder="voce@empresa.com.br" {...field} className="rounded-2xl bg-slate-50/50 border-slate-200/80 py-5 focus-visible:ring-sky-500/20 focus-visible:ring-4 focus-visible:border-sky-500 transition-all duration-200" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -150,43 +146,59 @@ export default function Signup() {
                   <FormItem>
                     <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Senha</FormLabel>
                     <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} className="rounded-2xl bg-slate-50/50 py-5" />
+                      <div className="relative">
+                        <Input 
+                          type={showPassword ? "text" : "password"} 
+                          placeholder="••••••••" 
+                          {...field} 
+                          className="rounded-2xl bg-slate-50/50 border-slate-200/80 py-5 pr-12 focus-visible:ring-sky-500/20 focus-visible:ring-4 focus-visible:border-sky-500 transition-all duration-200" 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                          {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
+                        </button>
+                      </div>
                     </FormControl>
                     
                     {/* Password Requirements Checklist */}
-                    <div className="mt-2 p-3 bg-slate-50 border border-border/50 rounded-2xl space-y-1 text-[11px] text-muted-foreground">
-                      <p className="font-semibold text-foreground mb-1">Requisitos de segurança:</p>
-                      <div className="flex items-center gap-1.5">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-3 px-1 text-[11px] text-muted-foreground transition-all duration-300">
+                      <div className="flex items-center gap-1.5 col-span-2 text-foreground font-semibold text-xs mb-0.5">
+                        Requisitos de segurança:
+                      </div>
+                      <div className={`flex items-center gap-1.5 transition-colors duration-250 ${hasMinLength ? "text-emerald-600" : "text-slate-400"}`}>
                         {hasMinLength ? (
-                          <Check className="w-3.5 h-3.5 text-green-600" />
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         ) : (
-                          <div className="w-1.5 h-1.5 rounded-full bg-slate-400 mx-1" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300 mx-1.5 shrink-0" />
                         )}
-                        <span className={hasMinLength ? "text-green-600 font-medium" : ""}>Mínimo de 8 caracteres</span>
+                        <span className={hasMinLength ? "font-medium text-emerald-600" : ""}>Mínimo de 8 caracteres</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
+                      <div className={`flex items-center gap-1.5 transition-colors duration-250 ${hasNumber ? "text-emerald-600" : "text-slate-400"}`}>
                         {hasNumber ? (
-                          <Check className="w-3.5 h-3.5 text-green-600" />
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         ) : (
-                          <div className="w-1.5 h-1.5 rounded-full bg-slate-400 mx-1" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300 mx-1.5 shrink-0" />
                         )}
-                        <span className={hasNumber ? "text-green-600 font-medium" : ""}>Pelo menos um número</span>
+                        <span className={hasNumber ? "font-medium text-emerald-600" : ""}>Pelo menos um número</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
+                      <div className={`flex items-center gap-1.5 transition-colors duration-250 ${hasUppercase ? "text-emerald-600" : "text-slate-400"}`}>
                         {hasUppercase ? (
-                          <Check className="w-3.5 h-3.5 text-green-600" />
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         ) : (
-                          <div className="w-1.5 h-1.5 rounded-full bg-slate-400 mx-1" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300 mx-1.5 shrink-0" />
                         )}
-                        <span className={hasUppercase ? "text-green-600 font-medium" : ""}>Pelo menos uma letra maiúscula</span>
+                        <span className={hasUppercase ? "font-medium text-emerald-600" : ""}>Letra maiúscula</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
+                      <div className={`flex items-center gap-1.5 transition-colors duration-250 ${hasSpecial ? "text-emerald-600" : "text-slate-400"}`}>
                         {hasSpecial ? (
-                          <Check className="w-3.5 h-3.5 text-green-600" />
+                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         ) : (
-                          <div className="w-1.5 h-1.5 rounded-full bg-slate-400 mx-1" />
+                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300 mx-1.5 shrink-0" />
                         )}
-                        <span className={hasSpecial ? "text-green-600 font-medium" : ""}>Pelo menos um caractere especial</span>
+                        <span className={hasSpecial ? "font-medium text-emerald-600" : ""}>Caractere especial</span>
                       </div>
                     </div>
 
@@ -195,23 +207,9 @@ export default function Signup() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="confirmPassword"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Confirmar Senha</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="••••••••" {...field} className="rounded-2xl bg-slate-50/50 py-5" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               <Button 
                 type="submit" 
-                className="w-full rounded-full py-5 font-semibold bg-[#0ea5e9] hover:bg-[#0ea5e9]/90 text-white mt-4 transition-colors" 
+                className="w-full rounded-full py-6 font-semibold bg-[#0ea5e9] hover:bg-[#0ea5e9]/90 text-white mt-5 transition-all shadow-md shadow-sky-500/10 hover:shadow-lg hover:shadow-sky-500/20 active:scale-[0.98] cursor-pointer" 
                 disabled={isPending || !allRulesMet}
               >
                 {isPending ? "Criando conta..." : "Criar minha conta"}
@@ -221,70 +219,23 @@ export default function Signup() {
         </div>
       </div>
 
-      {/* Right side - Presentation Info */}
-      <div className="hidden lg:flex w-[55%] bg-[#f4f9fd] bg-dots-grid items-center justify-center p-12 relative border-l border-border/40">
-        <div className="w-full max-w-xl p-10 bg-white border border-white/80 shadow-[0_15px_45px_rgba(30,100,250,0.05)] rounded-[2.5rem] flex flex-col">
-          {/* Header 4 Icons */}
-          <div className="grid grid-cols-4 gap-4 mb-8">
-            <div className="flex flex-col items-center text-center gap-1.5">
-              <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-semibold text-muted-foreground mt-1">IA 24/7</span>
-            </div>
-            <div className="flex flex-col items-center text-center gap-1.5">
-              <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
-                <FileText className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-semibold text-muted-foreground mt-1">Relatórios</span>
-            </div>
-            <div className="flex flex-col items-center text-center gap-1.5">
-              <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
-                <MessageSquare className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-semibold text-muted-foreground mt-1">Suporte</span>
-            </div>
-            <div className="flex flex-col items-center text-center gap-1.5">
-              <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
-                <Share2 className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-semibold text-muted-foreground mt-1">Integração</span>
-            </div>
-          </div>
+      {/* Right side - Presentation Info (Full Image with Text Overlay) */}
+      <div 
+        className="hidden lg:flex w-[55%] bg-cover bg-center items-center justify-center relative border-l border-border/40 overflow-hidden"
+        style={{ backgroundImage: `url('/images/auth_bg.png')` }}
+      >
+        {/* Subtle Dark Overlay to make the text pop */}
+        <div className="absolute inset-0 bg-black/15 mix-blend-multiply" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10" />
 
-          {/* Title and description */}
-          <div className="text-left mb-8">
-            <h1 className="text-3xl font-extrabold text-foreground tracking-tight mb-4">
-              Sua Jornada de Performance Começa Aqui!
-            </h1>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              Acesse ferramentas de inteligência, otimize campanhas de Google Ads em tempo real e acompanhe seu crescimento com relatórios intuitivos.
-            </p>
-          </div>
-
-          {/* Pill tags */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-[#f8fafc]/80 border border-slate-100/80 rounded-[22px] p-5 flex flex-col items-center text-center hover:scale-[1.02] transition-transform duration-200 shadow-2xs">
-              <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
-                <Cpu className="w-5 h-5" />
-              </div>
-              <span className="text-sm font-extrabold text-foreground">24/7</span>
-              <span className="text-[10px] font-semibold text-slate-400 mt-0.5">Suporte IA</span>
-            </div>
-            <div className="bg-[#f8fafc]/80 border border-slate-100/80 rounded-[22px] p-5 flex flex-col items-center text-center hover:scale-[1.02] transition-transform duration-200 shadow-2xs">
-              <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
-                <Shield className="w-5 h-5" />
-              </div>
-              <span className="text-sm font-extrabold text-slate-800">100%</span>
-              <span className="text-[10px] font-semibold text-slate-400 mt-0.5">Seguro</span>
-            </div>
-            <div className="bg-[#f8fafc]/80 border border-slate-100/80 rounded-[22px] p-5 flex flex-col items-center text-center hover:scale-[1.02] transition-transform duration-200 shadow-2xs">
-              <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-3">
-                <TrendingUp className="w-5 h-5" />
-              </div>
-              <span className="text-sm font-extrabold text-foreground">ROAS</span>
-              <span className="text-[10px] font-semibold text-slate-400 mt-0.5">Otimizado</span>
-            </div>
+        {/* Text Overlay */}
+        <div className="relative z-10 flex items-center gap-3 bg-white/10 backdrop-blur-md px-6 py-4 rounded-3xl border border-white/20 shadow-2xl select-none max-w-lg mx-6 animate-fade-in hover:bg-white/15 transition-all duration-300">
+          <span className="text-white text-base md:text-lg font-medium tracking-wide">
+            Success starts with
+          </span>
+          <div className="flex items-center gap-2 bg-[#0ea5e9] text-white px-4 py-1.5 rounded-2xl font-bold text-sm shadow-md hover:scale-[1.03] active:scale-[0.98] transition-all">
+            <Activity className="w-4 h-4" />
+            Ads Intelligence
           </div>
         </div>
       </div>

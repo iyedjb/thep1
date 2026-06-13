@@ -22,11 +22,14 @@ import { Plus, MoreHorizontal, Pencil, Trash, Play, Pause } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const campaignSchema = z.object({
   name: z.string().min(1, "O nome é obrigatório"),
   budget: z.coerce.number().min(1, "O orçamento deve ser maior que 0"),
   status: z.string().optional(),
+  targetAges: z.array(z.string()).default([]),
+  targetGenders: z.array(z.string()).default([]),
 });
 
 export default function Campaigns() {
@@ -45,11 +48,12 @@ export default function Campaigns() {
 
   const createForm = useForm<z.infer<typeof campaignSchema>>({
     resolver: zodResolver(campaignSchema),
-    defaultValues: { name: "", budget: 100, status: "ativo" },
+    defaultValues: { name: "", budget: 100, status: "ativo", targetAges: [], targetGenders: [] },
   });
 
   const editForm = useForm<z.infer<typeof campaignSchema>>({
     resolver: zodResolver(campaignSchema),
+    defaultValues: { name: "", budget: 100, status: "ativo", targetAges: [], targetGenders: [] },
   });
 
   const handleCreateSubmit = (data: z.infer<typeof campaignSchema>) => {
@@ -100,7 +104,13 @@ export default function Campaigns() {
 
   const openEditDialog = (campaign: any) => {
     setEditingCampaignId(campaign.id);
-    editForm.reset({ name: campaign.name, budget: campaign.budget, status: campaign.status });
+    editForm.reset({ 
+      name: campaign.name, 
+      budget: campaign.budget, 
+      status: campaign.status,
+      targetAges: campaign.targetAges ?? [],
+      targetGenders: campaign.targetGenders ?? [],
+    });
     setIsEditOpen(true);
   };
 
@@ -172,6 +182,85 @@ export default function Campaigns() {
                     <FormMessage />
                   </FormItem>
                 )} />
+                
+                <div className="space-y-4 border-t pt-4">
+                  <h4 className="text-sm font-semibold text-slate-700">Segmentação de Público</h4>
+                  
+                  <FormField
+                    control={createForm.control}
+                    name="targetAges"
+                    render={() => (
+                      <FormItem>
+                        <FormLabel>Faixas Etárias</FormLabel>
+                        <div className="grid grid-cols-3 gap-2">
+                          {["18-24", "25-34", "35-44", "45-54", "55-64", "65+"].map((age) => (
+                            <FormField
+                              key={age}
+                              control={createForm.control}
+                              name="targetAges"
+                              render={({ field }) => {
+                                return (
+                                  <FormItem key={age} className="flex flex-row items-center space-x-2 space-y-0 p-2 border rounded-md">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value?.includes(age)}
+                                        onCheckedChange={(checked) => {
+                                          return checked
+                                            ? field.onChange([...(field.value || []), age])
+                                            : field.onChange((field.value || []).filter((value) => value !== age))
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <FormLabel className="text-xs font-normal cursor-pointer">{age}</FormLabel>
+                                  </FormItem>
+                                )
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createForm.control}
+                    name="targetGenders"
+                    render={() => (
+                      <FormItem>
+                        <FormLabel>Gêneros</FormLabel>
+                        <div className="grid grid-cols-3 gap-2">
+                          {["Masculino", "Feminino", "Desconhecido"].map((gender) => (
+                            <FormField
+                              key={gender}
+                              control={createForm.control}
+                              name="targetGenders"
+                              render={({ field }) => {
+                                return (
+                                  <FormItem key={gender} className="flex flex-row items-center space-x-2 space-y-0 p-2 border rounded-md">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value?.includes(gender)}
+                                        onCheckedChange={(checked) => {
+                                          return checked
+                                            ? field.onChange([...(field.value || []), gender])
+                                            : field.onChange((field.value || []).filter((value) => value !== gender))
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <FormLabel className="text-xs font-normal cursor-pointer">{gender}</FormLabel>
+                                  </FormItem>
+                                )
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
                 <div className="flex justify-end pt-4">
                   <Button type="submit" disabled={createMutation.isPending}>
                     {createMutation.isPending ? "Criando..." : "Criar Campanha"}
@@ -205,6 +294,85 @@ export default function Campaigns() {
                   <FormMessage />
                 </FormItem>
               )} />
+              
+              <div className="space-y-4 border-t pt-4">
+                <h4 className="text-sm font-semibold text-slate-700">Segmentação de Público</h4>
+                
+                <FormField
+                  control={editForm.control}
+                  name="targetAges"
+                  render={() => (
+                    <FormItem>
+                      <FormLabel>Faixas Etárias</FormLabel>
+                      <div className="grid grid-cols-3 gap-2">
+                        {["18-24", "25-34", "35-44", "45-54", "55-64", "65+"].map((age) => (
+                          <FormField
+                            key={age}
+                            control={editForm.control}
+                            name="targetAges"
+                            render={({ field }) => {
+                              return (
+                                <FormItem key={age} className="flex flex-row items-center space-x-2 space-y-0 p-2 border rounded-md">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value?.includes(age)}
+                                      onCheckedChange={(checked) => {
+                                        return checked
+                                          ? field.onChange([...(field.value || []), age])
+                                          : field.onChange((field.value || []).filter((value) => value !== age))
+                                      }}
+                                    />
+                                  </FormControl>
+                                  <FormLabel className="text-xs font-normal cursor-pointer">{age}</FormLabel>
+                                </FormItem>
+                              )
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={editForm.control}
+                  name="targetGenders"
+                  render={() => (
+                    <FormItem>
+                      <FormLabel>Gêneros</FormLabel>
+                      <div className="grid grid-cols-3 gap-2">
+                        {["Masculino", "Feminino", "Desconhecido"].map((gender) => (
+                          <FormField
+                            key={gender}
+                            control={editForm.control}
+                            name="targetGenders"
+                            render={({ field }) => {
+                              return (
+                                <FormItem key={gender} className="flex flex-row items-center space-x-2 space-y-0 p-2 border rounded-md">
+                                  <FormControl>
+                                    <Checkbox
+                                      checked={field.value?.includes(gender)}
+                                      onCheckedChange={(checked) => {
+                                        return checked
+                                          ? field.onChange([...(field.value || []), gender])
+                                          : field.onChange((field.value || []).filter((value) => value !== gender))
+                                      }}
+                                    />
+                                  </FormControl>
+                                  <FormLabel className="text-xs font-normal cursor-pointer">{gender}</FormLabel>
+                                </FormItem>
+                              )
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
               <div className="flex justify-end pt-4">
                 <Button type="submit" disabled={updateMutation.isPending}>
                   {updateMutation.isPending ? "Salvando..." : "Salvar Alterações"}
@@ -241,7 +409,27 @@ export default function Campaigns() {
               <TableBody>
                 {campaigns?.map((campaign) => (
                   <TableRow key={campaign.id}>
-                    <TableCell className="font-medium">{campaign.name}</TableCell>
+                    <TableCell className="font-medium py-3">
+                      <div className="space-y-1">
+                        <div className="font-semibold text-foreground">{campaign.name}</div>
+                        <div className="flex flex-wrap gap-1">
+                          {campaign.targetAges && campaign.targetAges.length > 0 ? (
+                            campaign.targetAges.map((age: string) => (
+                              <Badge key={age} variant="secondary" className="text-[9px] font-medium py-0 px-1">{age}</Badge>
+                            ))
+                          ) : (
+                            <Badge variant="outline" className="text-[9px] py-0 px-1 text-muted-foreground border-dashed">Idades: Todas</Badge>
+                          )}
+                          {campaign.targetGenders && campaign.targetGenders.length > 0 ? (
+                            campaign.targetGenders.map((gender: string) => (
+                              <Badge key={gender} variant="outline" className="text-[9px] font-medium py-0 px-1 border-primary/20 text-primary">{gender}</Badge>
+                            ))
+                          ) : (
+                            <Badge variant="outline" className="text-[9px] py-0 px-1 text-muted-foreground border-dashed">Gêneros: Todos</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </TableCell>
                     <TableCell>{getStatusBadge(campaign.status)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(campaign.budget)}</TableCell>
                     <TableCell className="text-right">{formatCurrency(campaign.cpc)}</TableCell>

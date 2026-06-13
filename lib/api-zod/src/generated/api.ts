@@ -110,7 +110,9 @@ export const ListCampaignsResponseItem = zod.object({
   "ctr": zod.number(),
   "roas": zod.number(),
   "conversions": zod.number(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "targetAges": zod.array(zod.string()).optional(),
+  "targetGenders": zod.array(zod.string()).optional()
 })
 export const ListCampaignsResponse = zod.array(ListCampaignsResponseItem)
 
@@ -121,7 +123,9 @@ export const ListCampaignsResponse = zod.array(ListCampaignsResponseItem)
 export const CreateCampaignBody = zod.object({
   "name": zod.string(),
   "budget": zod.number(),
-  "status": zod.string().optional()
+  "status": zod.string().optional(),
+  "targetAges": zod.array(zod.string()).optional(),
+  "targetGenders": zod.array(zod.string()).optional()
 })
 
 
@@ -141,7 +145,9 @@ export const GetCampaignResponse = zod.object({
   "ctr": zod.number(),
   "roas": zod.number(),
   "conversions": zod.number(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "targetAges": zod.array(zod.string()).optional(),
+  "targetGenders": zod.array(zod.string()).optional()
 })
 
 
@@ -155,7 +161,9 @@ export const UpdateCampaignParams = zod.object({
 export const UpdateCampaignBody = zod.object({
   "name": zod.string().optional(),
   "budget": zod.number().optional(),
-  "status": zod.string().optional()
+  "status": zod.string().optional(),
+  "targetAges": zod.array(zod.string()).optional(),
+  "targetGenders": zod.array(zod.string()).optional()
 })
 
 export const UpdateCampaignResponse = zod.object({
@@ -167,7 +175,9 @@ export const UpdateCampaignResponse = zod.object({
   "ctr": zod.number(),
   "roas": zod.number(),
   "conversions": zod.number(),
-  "createdAt": zod.string()
+  "createdAt": zod.string(),
+  "targetAges": zod.array(zod.string()).optional(),
+  "targetGenders": zod.array(zod.string()).optional()
 })
 
 

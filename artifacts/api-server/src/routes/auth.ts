@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import { getDb } from "../lib/sqlite";
 import { LoginBody } from "@workspace/api-zod";
+import { logger } from "../lib/logger";
 
 const router = Router();
 const JWT_SECRET = process.env["SESSION_SECRET"] ?? "ads-intelligence-secret-2026";
@@ -79,6 +80,80 @@ router.post("/auth/login", (req, res) => {
     user: { id: user.id, email: user.email, name: user.name, createdAt: user.created_at },
     token,
   });
+});
+
+// Google OAuth Sign-In
+router.post("/auth/google", async (req, res) => {
+  const { credential } = req.body;
+  if (!credential) {
+    res.status(400).json({ error: "Google credential is required" });
+    return;
+  }
+
+  const googleClientId = process.env["GOOGLE_CLIENT_ID"];
+  if (!googleClientId) {
+    res.status(500).json({ error: "Google OAuth not configured on server" });
+    return;
+  }
+
+  try {
+    // Verify the Google ID token using Google's tokeninfo endpoint (no extra library needed)
+    const verifyResponse = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`
+    );
+    
+    if (!verifyResponse.ok) {
+      res.status(401).json({ error: "Invalid Google token" });
+      return;
+    }
+
+    const payload = await verifyResponse.json() as {
+      sub: string;
+      email: string;
+      name: string;
+      email_verified: string;
+      aud: string;
+    };
+
+    // Verify the token was issued for our app
+    if (payload.aud !== googleClientId) {
+      res.status(401).json({ error: "Token not issued for this application" });
+      return;
+    }
+
+    if (payload.email_verified !== "true") {
+      res.status(401).json({ error: "Google email not verified" });
+      return;
+    }
+
+    const db = getDb();
+    
+    // Find or create user
+    let user = db.prepare("SELECT * FROM users WHERE email = ?").get(payload.email) as any;
+    
+    if (!user) {
+      // Create new user with a random password hash (they'll use Google to login)
+      const randomHash = bcrypt.hashSync(crypto.randomUUID(), 10);
+      const result = db.prepare("INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)")
+        .run(payload.email, payload.name, randomHash);
+      user = {
+        id: Number(result.lastInsertRowid),
+        email: payload.email,
+        name: payload.name,
+        created_at: new Date().toISOString(),
+      };
+      logger.info({ email: payload.email }, "New user created via Google OAuth");
+    }
+
+    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
+    res.json({
+      user: { id: user.id, email: user.email, name: user.name, createdAt: user.created_at },
+      token,
+    });
+  } catch (error: any) {
+    logger.error({ error: error.message }, "Google OAuth verification failed");
+    res.status(500).json({ error: "Failed to verify Google token" });
+  }
 });
 
 router.post("/auth/logout", (_req, res) => {
