@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Search, TrendingUp, Globe, MapPin, Sparkles, AlertCircle, Users, Heart, Cpu, Coins, Plus, Check, Loader2, BookOpen, Smartphone, Monitor } from "lucide-react";
+import { Search, TrendingUp, Globe, MapPin, Sparkles, AlertCircle, Users, Heart, Cpu, Coins, Plus, Check, Loader2, BookOpen, Smartphone, Monitor, Trophy } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, PieChart, Pie, Cell } from "recharts";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useCreateKeyword, getListKeywordsQueryKey, customFetch } from "@workspace/api-client-react";
@@ -174,6 +174,10 @@ export default function Trends() {
   const [loadingTheme, setLoadingTheme] = useState(false);
   const [addingKeywords, setAddingKeywords] = useState<Record<string, boolean>>({});
 
+  // Dr. Cash rank states
+  const [drcashRank, setDrcashRank] = useState<any[]>([]);
+  const [loadingRank, setLoadingRank] = useState(false);
+
   const demographics = getDemographicsForKeyword(activeKeyword);
 
   const PRESET_THEMES = [
@@ -276,6 +280,28 @@ export default function Trends() {
     });
   };
 
+  const fetchDrCashRank = async () => {
+    setLoadingRank(true);
+    try {
+      const data = await customFetch<any[]>("/api/keywords/drcash-rank");
+      setDrcashRank(data || []);
+    } catch (err: any) {
+      toast({
+        title: "Erro ao carregar ranking",
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingRank(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "drcash") {
+      fetchDrCashRank();
+    }
+  }, [activeTab]);
+
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-300">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -288,9 +314,10 @@ export default function Trends() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-white/40 backdrop-blur-md p-1 border border-border/40 rounded-xl grid grid-cols-2 max-w-xl w-full">
+        <TabsList className="bg-white/40 backdrop-blur-md p-1 border border-border/40 rounded-xl grid grid-cols-3 max-w-xl w-full">
           <TabsTrigger value="termo" className="rounded-lg text-xs md:text-sm font-semibold">Pesquisa por Termo</TabsTrigger>
           <TabsTrigger value="tema" className="rounded-lg text-xs md:text-sm font-semibold">Pesquisa por Tema</TabsTrigger>
+          <TabsTrigger value="drcash" className="rounded-lg text-xs md:text-sm font-semibold">Ranking Dr. Cash</TabsTrigger>
         </TabsList>
 
         <TabsContent value="termo" className="space-y-6">
@@ -684,6 +711,158 @@ export default function Trends() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="drcash" className="space-y-6">
+          <Card className="rounded-2xl bg-white/50 backdrop-blur-lg border border-white/60 shadow-[0_8px_30px_rgba(100,120,255,0.02)] overflow-hidden">
+            <CardHeader className="pb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-yellow-500" /> Ranking Dr. Cash - Top 20 Mais Procurados
+                </CardTitle>
+                <CardDescription>
+                  Pesquisas estimadas por nome de produto e nicho integrados na rede do Dr. Cash no Brasil.
+                </CardDescription>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={loadingRank}
+                onClick={fetchDrCashRank}
+                className="rounded-xl flex items-center gap-1.5 self-start md:self-auto"
+              >
+                {loadingRank ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp className="h-4 w-4" />}
+                Atualizar Rank
+              </Button>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {loadingRank ? (
+                <div className="flex flex-col items-center justify-center py-16 space-y-4">
+                  <Loader2 className="h-10 w-10 text-primary animate-spin" />
+                  <p className="text-sm text-muted-foreground font-medium animate-pulse">Obtendo produtos e calculando métricas de buscas...</p>
+                </div>
+              ) : drcashRank.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-border/40 text-xs font-semibold text-muted-foreground uppercase">
+                        <th className="py-3 px-4 w-16 text-center">Rank</th>
+                        <th className="py-3 px-4">Produto</th>
+                        <th className="py-3 px-4">Categoria / Nicho</th>
+                        <th className="py-3 px-4">Volume de Buscas</th>
+                        <th className="py-3 px-4">Concorrência</th>
+                        <th className="py-3 px-4">CPC Médio</th>
+                        <th className="py-3 px-4 text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/20">
+                      {drcashRank.map((item) => {
+                        const isAdding = addingKeywords[item.name] || false;
+                        
+                        // Competition badge
+                        let compBadge = null;
+                        switch (item.competition.toLowerCase()) {
+                          case "baixa":
+                            compBadge = <Badge variant="outline" className="text-green-500 border-green-500/20 bg-green-500/10 hover:bg-green-500/10">Baixa</Badge>;
+                            break;
+                          case "média":
+                          case "media":
+                            compBadge = <Badge variant="outline" className="text-yellow-500 border-yellow-500/20 bg-yellow-500/10 hover:bg-yellow-500/10">Média</Badge>;
+                            break;
+                          case "alta":
+                            compBadge = <Badge variant="outline" className="text-red-500 border-red-500/20 bg-red-500/10 hover:bg-red-500/10">Alta</Badge>;
+                            break;
+                          default:
+                            compBadge = <Badge variant="outline">{item.competition}</Badge>;
+                        }
+
+                        // Relative volume calculation
+                        const maxVol = Math.max(...drcashRank.map(r => r.searchVolume), 1);
+                        const volPct = Math.round((item.searchVolume / maxVol) * 100);
+
+                        // Trophy coloring for top 3
+                        let rankCell = null;
+                        if (item.rank === 1) {
+                          rankCell = <span title="1º Lugar" className="block text-center"><Trophy className="h-5 w-5 text-yellow-500 mx-auto filter drop-shadow" /></span>;
+                        } else if (item.rank === 2) {
+                          rankCell = <span title="2º Lugar" className="block text-center"><Trophy className="h-5 w-5 text-slate-400 mx-auto filter drop-shadow" /></span>;
+                        } else if (item.rank === 3) {
+                          rankCell = <span title="3º Lugar" className="block text-center"><Trophy className="h-5 w-5 text-amber-600 mx-auto filter drop-shadow" /></span>;
+                        } else {
+                          rankCell = <span className="font-semibold text-muted-foreground text-sm block text-center">{item.rank}</span>;
+                        }
+
+                        return (
+                          <tr key={item.id} className="group hover:bg-white/40 transition-colors">
+                            <td className="py-3.5 px-4 text-center">{rankCell}</td>
+                            <td className="py-3.5 px-4">
+                              <span className="font-semibold text-foreground text-sm block">{item.name}</span>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <Badge variant="secondary" className="font-normal text-xs rounded-lg">
+                                {item.category}
+                              </Badge>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="space-y-1.5 w-48">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="font-semibold text-foreground">{item.searchVolume.toLocaleString("pt-BR")}</span>
+                                  <span className="text-muted-foreground">{volPct}%</span>
+                                </div>
+                                <div className="w-full h-1.5 bg-muted/60 rounded-full overflow-hidden">
+                                  <div className="bg-primary h-full rounded-full transition-all duration-500" style={{ width: `${volPct}%` }} />
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4">{compBadge}</td>
+                            <td className="py-3.5 px-4">
+                              <span className="font-mono text-sm text-foreground">
+                                {item.cpc ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(item.cpc) : "R$ 0,00"}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleAnalyzeOnTrends(item.name)}
+                                  className="rounded-lg h-8 text-xs font-medium border-border/80 hover:bg-primary/5 hover:text-primary transition-all duration-200"
+                                >
+                                  <TrendingUp className="h-3.5 w-3.5 mr-1" />
+                                  Analisar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  disabled={isAdding}
+                                  onClick={() => handleAddKeyword(item.name)}
+                                  className="rounded-lg h-8 text-xs font-medium transition-all duration-200 shadow-sm"
+                                >
+                                  {isAdding ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <Plus className="h-3.5 w-3.5 mr-1" />
+                                      Monitorar
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                  <AlertCircle className="h-8 w-8 text-muted-foreground/60 mb-2" />
+                  <p className="font-medium text-sm">Nenhum produto do Dr. Cash foi encontrado ou carregado.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

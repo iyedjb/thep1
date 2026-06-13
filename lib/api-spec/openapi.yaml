@@ -332,6 +332,21 @@ paths:
                 items:
                   $ref: "#/components/schemas/ThemeKeyword"
 
+  /keywords/drcash-rank:
+    get:
+      operationId: getDrCashSearchRank
+      tags: [keywords]
+      summary: Get top 20 most searched Dr. Cash products
+      responses:
+        "200":
+          description: List of top 20 most searched Dr. Cash products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DrCashRankItem"
+
 
 components:
   schemas:
@@ -554,6 +569,25 @@ components:
       required: [keyword, searchVolume, competition, cpc]
       properties:
         keyword:
+          type: string
+        searchVolume:
+          type: integer
+        competition:
+          type: string
+        cpc:
+          type: number
+
+    DrCashRankItem:
+      type: object
+      required: [rank, id, name, category, searchVolume, competition, cpc]
+      properties:
+        rank:
+          type: integer
+        id:
+          type: integer
+        name:
+          type: string
+        category:
           type: string
         searchVolume:
           type: integer

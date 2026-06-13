@@ -122,6 +122,16 @@ export interface ThemeKeyword {
   cpc: number;
 }
 
+export interface DrCashRankItem {
+  rank: number;
+  id: number;
+  name: string;
+  category: string;
+  searchVolume: number;
+  competition: string;
+  cpc: number;
+}
+
 export type GetDashboardSummaryParams = {
 days?: number;
 };
