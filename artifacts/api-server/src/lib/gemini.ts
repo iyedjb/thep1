@@ -172,3 +172,127 @@ function getFallbackSuggestions(seedKeyword: string): any[] {
     };
   });
 }
+
+/**
+ * Generate top searched keywords by theme using Gemini AI.
+ */
+export async function getTopKeywordsByTheme(theme: string): Promise<any[]> {
+  const genAI = getGenAI();
+  if (!genAI) {
+    return getFallbackThemeKeywords(theme);
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const prompt = `Você é um especialista em SEO e Google Ads.
+Gere uma lista das 8 palavras-chave ou títulos mais buscados e altamente relevantes relacionados ao tema ou nicho: "${theme}".
+Para cada palavra-chave/título sugerido, estime:
+1. keyword (a palavra-chave ou título de busca em português, ex: "exercícios de musculação para iniciantes")
+2. searchVolume (volume de busca mensal estimado, ex: 12000, 45000, 800)
+3. competition (concorrência, exatamente um de: "baixa", "média", "alta")
+4. cpc (custo por clique médio estimado em Reais R$, ex: 1.5, 3.25, etc.)
+
+Responda em formato JSON com exatamente esta estrutura:
+{
+  "keywords": [
+    {
+      "keyword": "título ou palavra-chave",
+      "searchVolume": 25000,
+      "competition": "média",
+      "cpc": 1.80
+    },
+    ...
+  ]
+}
+
+Responda APENAS o JSON válido, sem markdown, sem blocos de código (\`\`\`json), sem texto adicional.`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    // Strip markdown formatting if any exists
+    const cleanJson = text.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
+    const parsed = JSON.parse(cleanJson);
+    
+    if (Array.isArray(parsed.keywords)) {
+      return parsed.keywords.map((k: any) => ({
+        keyword: String(k.keyword || ""),
+        searchVolume: Number(k.searchVolume || 100),
+        competition: String(k.competition || "média"),
+        cpc: Number(k.cpc || 1.0)
+      }));
+    }
+    return getFallbackThemeKeywords(theme);
+  } catch (error: any) {
+    logger.error({ error: error.message }, `Failed to generate keywords for theme: ${theme}`);
+    return getFallbackThemeKeywords(theme);
+  }
+}
+
+function getFallbackThemeKeywords(theme: string): any[] {
+  const normalized = theme.toLowerCase().trim();
+  
+  if (normalized.includes("saude") || normalized.includes("saúde") || normalized.includes("health") || normalized.includes("vida saudável")) {
+    return [
+      { keyword: "como emagrecer com saude", searchVolume: 49500, competition: "alta", cpc: 1.20 },
+      { keyword: "exercicios para fazer em casa", searchVolume: 33100, competition: "média", cpc: 0.80 },
+      { keyword: "dieta low carb cardapio", searchVolume: 27100, competition: "alta", cpc: 1.50 },
+      { keyword: "sintomas de ansiedade", searchVolume: 22200, competition: "baixa", cpc: 0.50 },
+      { keyword: "alimentos ricos em proteina", searchVolume: 18100, competition: "média", cpc: 0.90 },
+      { keyword: "beneficios da caminhada rápida", searchVolume: 14800, competition: "baixa", cpc: 0.40 },
+      { keyword: "suplementos alimentares para treinar", searchVolume: 9900, competition: "alta", cpc: 2.10 },
+      { keyword: "como melhorar a qualidade do sono", searchVolume: 8100, competition: "baixa", cpc: 0.60 }
+    ];
+  }
+  
+  if (normalized.includes("tecnologia") || normalized.includes("tech") || normalized.includes("programacao") || normalized.includes("programação")) {
+    return [
+      { keyword: "inteligencia artificial ferramentas", searchVolume: 60500, competition: "alta", cpc: 3.50 },
+      { keyword: "melhores celulares 2026", searchVolume: 40500, competition: "alta", cpc: 2.20 },
+      { keyword: "como programar em python do zero", searchVolume: 27100, competition: "média", cpc: 1.80 },
+      { keyword: "vagas home office ti", searchVolume: 22200, competition: "alta", cpc: 2.90 },
+      { keyword: "o que é chatgpt e como usar", searchVolume: 18100, competition: "baixa", cpc: 0.70 },
+      { keyword: "tendencias de tecnologia para 2026", searchVolume: 14800, competition: "média", cpc: 2.00 },
+      { keyword: "melhores notebooks custo beneficio", searchVolume: 12100, competition: "alta", cpc: 1.90 },
+      { keyword: "segurança da informação cursos", searchVolume: 8100, competition: "alta", cpc: 4.20 }
+    ];
+  }
+
+  if (normalized.includes("financas") || normalized.includes("finanças") || normalized.includes("dinheiro") || normalized.includes("investir") || normalized.includes("investimento")) {
+    return [
+      { keyword: "como investir na bolsa de valores", searchVolume: 45000, competition: "alta", cpc: 4.50 },
+      { keyword: "melhores investimentos renda fixa 2026", searchVolume: 35000, competition: "alta", cpc: 3.80 },
+      { keyword: "planejamento financeiro pessoal planilha", searchVolume: 25000, competition: "média", cpc: 1.50 },
+      { keyword: "como guardar dinheiro ganhando pouco", searchVolume: 22000, competition: "baixa", cpc: 0.80 },
+      { keyword: "o que é taxa selic e rendimento", searchVolume: 18000, competition: "baixa", cpc: 1.20 },
+      { keyword: "melhores cartões de crédito sem anuidade", searchVolume: 15000, competition: "alta", cpc: 5.00 },
+      { keyword: "como declarar imposto de renda simples", searchVolume: 12000, competition: "média", cpc: 2.20 },
+      { keyword: "fundos imobiliarios recomendados para iniciantes", searchVolume: 10000, competition: "alta", cpc: 3.00 }
+    ];
+  }
+
+  if (normalized.includes("moda") || normalized.includes("beleza") || normalized.includes("skincare") || normalized.includes("estilo")) {
+    return [
+      { keyword: "passo a passo skincare simples", searchVolume: 25000, competition: "média", cpc: 1.10 },
+      { keyword: "tendencias de moda outono inverno", searchVolume: 18000, competition: "alta", cpc: 1.40 },
+      { keyword: "como combinar cores de roupas", searchVolume: 15000, competition: "baixa", cpc: 0.60 },
+      { keyword: "melhores maquiagens nacionais 2026", searchVolume: 12000, competition: "alta", cpc: 1.80 },
+      { keyword: "estilo casual masculino dicas", searchVolume: 9500, competition: "média", cpc: 0.85 },
+      { keyword: "produtos para crescer cabelo rapido", searchVolume: 8200, competition: "alta", cpc: 2.00 },
+      { keyword: "cortes de cabelo feminino moderno", searchVolume: 7400, competition: "baixa", cpc: 0.50 },
+      { keyword: "looks para trabalhar confortavel", searchVolume: 5100, competition: "média", cpc: 0.90 }
+    ];
+  }
+
+  // Generic generator for any other theme
+  return [
+    { keyword: `como iniciar em ${theme}`, searchVolume: 15000, competition: "média", cpc: 1.10 },
+    { keyword: `melhores dicas sobre ${theme}`, searchVolume: 12000, competition: "baixa", cpc: 0.90 },
+    { keyword: `tendencias de ${theme} 2026`, searchVolume: 8500, competition: "alta", cpc: 1.80 },
+    { keyword: `curso completo de ${theme}`, searchVolume: 6200, competition: "alta", cpc: 2.50 },
+    { keyword: `guia definitivo de ${theme}`, searchVolume: 4800, competition: "média", cpc: 1.30 },
+    { keyword: `ferramentas para ${theme}`, searchVolume: 3900, competition: "média", cpc: 1.60 },
+    { keyword: `como lucrar com ${theme}`, searchVolume: 3100, competition: "alta", cpc: 2.20 },
+    { keyword: `comunidade de ${theme} online`, searchVolume: 1800, competition: "baixa", cpc: 0.75 }
+  ];
+}
+

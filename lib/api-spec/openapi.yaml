@@ -311,6 +311,28 @@ paths:
                 items:
                   $ref: "#/components/schemas/IntentSlice"
 
+  /keywords/top-by-theme:
+    get:
+      operationId: getTopKeywordsByTheme
+      tags: [keywords]
+      summary: Get top searched keywords by theme
+      parameters:
+        - name: theme
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of top keywords
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ThemeKeyword"
+
+
 components:
   schemas:
     HealthStatus:
@@ -526,3 +548,17 @@ components:
           type: string
         percentage:
           type: number
+
+    ThemeKeyword:
+      type: object
+      required: [keyword, searchVolume, competition, cpc]
+      properties:
+        keyword:
+          type: string
+        searchVolume:
+          type: integer
+        competition:
+          type: string
+        cpc:
+          type: number
+
