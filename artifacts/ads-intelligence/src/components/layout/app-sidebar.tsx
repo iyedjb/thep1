@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Activity, LayoutDashboard, Target, Key, FileText, LogOut, TrendingUp, Sparkles } from "lucide-react";
+import { Activity, LayoutDashboard, Target, Key, FileText, LogOut, TrendingUp, Sparkles, Globe } from "lucide-react";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 
 export function AppSidebar() {
@@ -66,6 +66,14 @@ export function AppSidebar() {
                   <Link href="/creator" data-testid="link-creator">
                     <Sparkles />
                     <span>Criador de Pontes</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location === "/drcash"} size="lg" className="rounded-2xl h-12 px-4 [&>svg]:w-5 [&>svg]:h-5 [&>span]:text-base transition-all duration-200">
+                  <Link href="/drcash" data-testid="link-drcash">
+                    <Globe className="text-emerald-500" />
+                    <span>Dr. Cash</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

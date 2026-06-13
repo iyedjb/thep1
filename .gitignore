@@ -48,7 +48,4 @@ Thumbs.db
 .cache/
 .local/
 
-# Environment secrets
-.env
-.env.*
-!.env.example
+

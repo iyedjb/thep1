@@ -12,6 +12,7 @@ import Keywords from "@/pages/keywords";
 import Reports from "@/pages/reports";
 import Trends from "@/pages/trends";
 import Creator from "@/pages/creator";
+import DrCash from "@/pages/drcash";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +57,7 @@ function Router() {
       <ProtectedRoute path="/reports" component={Reports} />
       <ProtectedRoute path="/trends" component={Trends} />
       <ProtectedRoute path="/creator" component={Creator} />
+      <ProtectedRoute path="/drcash" component={DrCash} />
       <Route component={NotFound} />
     </Switch>
   );
