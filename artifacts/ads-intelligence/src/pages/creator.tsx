@@ -50,7 +50,38 @@ interface SavedWebsite {
   fileName: string;
   status: "active" | "paused" | "local";
   createdAt: string;
+  popupLanguage?: string;
 }
+
+const POPUP_LANGS: Record<string, { headline: string; sub: string; namePlaceholder: string; contactPlaceholder: string; btn: string; close: string; thanks: string; }> = {
+  "pt-BR": {
+    headline: "Gostou do nosso produto?",
+    sub: "Deixe seu contato e nossa equipe entrará em contato com você em breve.",
+    namePlaceholder: "Seu nome",
+    contactPlaceholder: "E-mail ou WhatsApp",
+    btn: "Quero ser contatado!",
+    close: "Não, obrigado",
+    thanks: "Obrigado! Entraremos em contato em breve."
+  },
+  "en": {
+    headline: "Did you like our product?",
+    sub: "Leave your contact and our team will reach out to you shortly.",
+    namePlaceholder: "Your name",
+    contactPlaceholder: "E-mail or Phone",
+    btn: "Contact me!",
+    close: "No, thanks",
+    thanks: "Thank you! We will contact you soon."
+  },
+  "es": {
+    headline: "¿Te gustó nuestro producto?",
+    sub: "Deja tu contacto y nuestro equipo se comunicará contigo pronto.",
+    namePlaceholder: "Tu nombre",
+    contactPlaceholder: "Correo o WhatsApp",
+    btn: "¡Contáctenme!",
+    close: "No, gracias",
+    thanks: "¡Gracias! Nos comunicaremos pronto."
+  }
+};
 
 export default function Creator() {
   const { toast } = useToast();
@@ -61,6 +92,7 @@ export default function Creator() {
   // Form states
   const [destinationUrl, setDestinationUrl] = useState("");
   const [scripts, setScripts] = useState<string[]>([""]);
+  const [popupLanguage, setPopupLanguage] = useState("pt-BR");
   
   // Step state for creation wizard
   const [step, setStep] = useState<Step>("form");
@@ -119,39 +151,132 @@ export default function Creator() {
     // Concatenate non-empty scripts
     const combinedTags = scripts.filter(s => s.trim() !== "").join("\n    ");
 
+    // Popup i18n
+    const lang = POPUP_LANGS[popupLanguage] || POPUP_LANGS["pt-BR"];
+
     const template = `<!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="${popupLanguage}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${domainName}</title>
     ${combinedTags}
     <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body, html {
-            margin: 0;
-            padding: 0;
             width: 100%;
             height: 100%;
             overflow: hidden;
             background-color: #0f172a;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
         iframe {
             width: 100%;
             height: 100%;
             border: none;
             position: absolute;
-            top: 0;
-            left: 0;
+            top: 0; left: 0;
             z-index: 1;
         }
+        #popup-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: rgba(0,0,0,0.55);
+            backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.35s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(28px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        #popup-card {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 36px 32px 28px;
+            width: 92%;
+            max-width: 420px;
+            box-shadow: 0 32px 80px rgba(0,0,0,0.38), 0 0 0 1px rgba(255,255,255,0.08);
+            animation: slideUp 0.4s cubic-bezier(0.22,1,0.36,1);
+            text-align: center;
+        }
+        #popup-card .emoji { font-size: 40px; margin-bottom: 14px; display: block; }
+        #popup-card h2 { font-size: 1.25rem; font-weight: 800; color: #0f172a; margin-bottom: 8px; line-height: 1.3; }
+        #popup-card p { font-size: 0.82rem; color: #64748b; margin-bottom: 22px; line-height: 1.55; }
+        #popup-card input {
+            width: 100%; padding: 11px 14px;
+            border: 1.5px solid #e2e8f0; border-radius: 10px;
+            font-size: 0.85rem; color: #0f172a; background: #f8fafc;
+            margin-bottom: 10px; outline: none; transition: border-color 0.2s;
+        }
+        #popup-card input:focus { border-color: #6366f1; background: #fff; }
+        #popup-card button.primary {
+            width: 100%; padding: 12px 16px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: #fff; border: none; border-radius: 10px;
+            font-size: 0.9rem; font-weight: 700; cursor: pointer;
+            margin-top: 4px; transition: opacity 0.2s, transform 0.15s;
+        }
+        #popup-card button.primary:hover { opacity: 0.92; transform: scale(1.01); }
+        #popup-card button.secondary {
+            margin-top: 12px; background: none; border: none;
+            font-size: 0.75rem; color: #94a3b8; cursor: pointer;
+            text-decoration: underline; text-underline-offset: 2px;
+        }
+        #popup-card button.secondary:hover { color: #64748b; }
+        #popup-card .thanks {
+            display: none; flex-direction: column;
+            align-items: center; gap: 10px; padding: 12px 0;
+        }
+        #popup-card .thanks .check {
+            width: 52px; height: 52px; border-radius: 50%;
+            background: #dcfce7; display: flex;
+            align-items: center; justify-content: center; font-size: 26px;
+        }
+        #popup-card .thanks p { margin: 0; font-size: 0.9rem; color: #166534; font-weight: 600; }
     </style>
 </head>
 <body>
     <iframe src="${targetUrl}"></iframe>
+
+    <div id="popup-overlay">
+      <div id="popup-card">
+        <div id="popup-form-content">
+          <span class="emoji">👋</span>
+          <h2>${lang.headline}</h2>
+          <p>${lang.sub}</p>
+          <input type="text" id="lead-name" placeholder="${lang.namePlaceholder}" autocomplete="name" />
+          <input type="text" id="lead-contact" placeholder="${lang.contactPlaceholder}" autocomplete="email" />
+          <button class="primary" onclick="submitLead()">${lang.btn}</button>
+          <br/>
+          <button class="secondary" onclick="closePopup()">${lang.close}</button>
+        </div>
+        <div class="thanks" id="popup-thanks">
+          <div class="check">✅</div>
+          <p>${lang.thanks}</p>
+        </div>
+      </div>
+    </div>
+
     <script>
-        setTimeout(function() {
-            window.location.href = "${targetUrl}";
-        }, 2000);
+      function closePopup() {
+        var el = document.getElementById('popup-overlay');
+        if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.2s'; setTimeout(function(){ el.style.display='none'; }, 200); }
+      }
+      function submitLead() {
+        var name = document.getElementById('lead-name').value.trim();
+        var contact = document.getElementById('lead-contact').value.trim();
+        document.getElementById('lead-name').style.borderColor = name ? '#e2e8f0' : '#ef4444';
+        document.getElementById('lead-contact').style.borderColor = contact ? '#e2e8f0' : '#ef4444';
+        if (!name || !contact) return;
+        document.getElementById('popup-form-content').style.display = 'none';
+        var t = document.getElementById('popup-thanks');
+        t.style.display = 'flex';
+        setTimeout(closePopup, 2800);
+        // fetch('/api/leads', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, contact}) });
+      }
     </script>
 </body>
 </html>`;
@@ -170,7 +295,8 @@ export default function Creator() {
       publishedUrl: "",
       fileName: "",
       status: "local",
-      createdAt: new Date().toLocaleDateString("pt-BR")
+      createdAt: new Date().toLocaleDateString("pt-BR"),
+      popupLanguage
     };
     saveWebsites([newSite, ...savedWebsites]);
 
@@ -507,6 +633,23 @@ export default function Creator() {
                           className="rounded-xl h-11 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 focus-visible:border-primary shadow-sm"
                           required
                         />
+                      </div>
+
+                      {/* Popup Language */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="popup-lang" className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                          <Globe className="h-3.5 w-3.5 text-primary" /> Idioma do Pop-up
+                        </Label>
+                        <select
+                          id="popup-lang"
+                          value={popupLanguage}
+                          onChange={(e) => setPopupLanguage(e.target.value)}
+                          className="w-full rounded-xl h-11 border border-slate-200 bg-white text-sm text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary shadow-sm appearance-none cursor-pointer"
+                        >
+                          <option value="pt-BR">🇧🇷 Português (Brasil)</option>
+                          <option value="en">🇺🇸 English</option>
+                          <option value="es">🇪🇸 Español</option>
+                        </select>
                       </div>
 
                       {/* Custom Head/Header Tags (Dynamic Numbered List 1, 2, 3...) */}

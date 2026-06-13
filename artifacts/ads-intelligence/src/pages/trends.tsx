@@ -6,6 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { Search, TrendingUp, Globe, MapPin, Sparkles, AlertCircle, Users } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, PieChart, Pie, Cell } from "recharts";
+import { customFetch } from "@workspace/api-client-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const GENDER_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))"];
 
@@ -149,7 +151,39 @@ export default function Trends() {
   const [searchInput, setSearchInput] = useState("marketing digital");
   const [activeKeyword, setActiveKeyword] = useState("marketing digital");
 
-  const demographics = getDemographicsForKeyword(activeKeyword);
+  const [demographics, setDemographics] = useState<{ genders: any[]; ages: any[] }>(() => getDemographicsForKeyword(activeKeyword));
+  const [isLoadingDemographics, setIsLoadingDemographics] = useState(false);
+
+  useEffect(() => {
+    if (!activeKeyword) return;
+
+    let isMounted = true;
+    const fetchDemographics = async () => {
+      setIsLoadingDemographics(true);
+      try {
+        const data = await customFetch<{ genders: any[]; ages: any[] }>(
+          `/api/trends/demographics?keyword=${encodeURIComponent(activeKeyword)}`
+        );
+        if (isMounted) {
+          setDemographics(data);
+        }
+      } catch (err: any) {
+        console.error("Failed to fetch demographics from API, using fallback:", err);
+        if (isMounted) {
+          setDemographics(getDemographicsForKeyword(activeKeyword));
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingDemographics(false);
+        }
+      }
+    };
+
+    fetchDemographics();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeKeyword]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -297,56 +331,87 @@ export default function Trends() {
               </CardTitle>
               <CardDescription>Perfil demográfico de interesse estimado por idade e gênero para o termo &quot;{activeKeyword}&quot;.</CardDescription>
             </CardHeader>
-            <CardContent className="pt-4">
-              <div className="grid gap-8 md:grid-cols-2">
-                {/* Age distribution */}
-                <div className="space-y-4">
-                  <h4 className="text-sm font-semibold text-muted-foreground text-center">Faixas Etárias</h4>
-                  <div className="h-[250px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={demographics.ages} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                        <XAxis dataKey="age" className="text-xs" tickLine={false} axisLine={false} />
-                        <YAxis className="text-xs" tickLine={false} axisLine={false} tickFormatter={(val: number) => `${val}%`} />
-                        <RechartsTooltip formatter={(val) => `${val}%`} contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }} />
-                        <Bar dataKey="percentage" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+            <CardContent className="pt-4 min-h-[300px]">
+              {isLoadingDemographics ? (
+                <div className="grid gap-8 md:grid-cols-2">
+                  {/* Skeleton for Age distribution */}
+                  <div className="space-y-4">
+                    <Skeleton className="h-4 w-32 mx-auto bg-muted/60" />
+                    <div className="h-[250px] w-full flex items-end gap-2 px-4">
+                      <Skeleton className="h-[20%] w-full bg-muted/50 rounded-t" />
+                      <Skeleton className="h-[40%] w-full bg-muted/50 rounded-t" />
+                      <Skeleton className="h-[60%] w-full bg-muted/50 rounded-t" />
+                      <Skeleton className="h-[30%] w-full bg-muted/50 rounded-t" />
+                      <Skeleton className="h-[15%] w-full bg-muted/50 rounded-t" />
+                      <Skeleton className="h-[80%] w-full bg-muted/50 rounded-t" />
+                    </div>
                   </div>
-                </div>
 
-                {/* Gender distribution */}
-                <div className="space-y-4 flex flex-col items-center justify-center">
-                  <h4 className="text-sm font-semibold text-muted-foreground text-center w-full">Distribuição por Gênero</h4>
-                  <div className="h-[200px] w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={demographics.genders}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={50}
-                          outerRadius={70}
-                          paddingAngle={5}
-                          dataKey="value"
-                        >
-                          {demographics.genders.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={GENDER_COLORS[index % GENDER_COLORS.length]} />
-                          ))}
-                        </Pie>
-                        <RechartsTooltip formatter={(val) => `${val}%`} contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="flex justify-center gap-4 text-xs mt-2 flex-wrap">
-                    {demographics.genders.map((entry, index) => (
-                      <div key={entry.name} className="flex items-center">
-                        <div className="w-3 h-3 rounded-full mr-1.5" style={{ backgroundColor: GENDER_COLORS[index % GENDER_COLORS.length] }} />
-                        <span className="text-muted-foreground">{entry.name} ({entry.value}%)</span>
-                      </div>
-                    ))}
+                  {/* Skeleton for Gender distribution */}
+                  <div className="space-y-4 flex flex-col items-center justify-center">
+                    <Skeleton className="h-4 w-32 bg-muted/60" />
+                    <div className="relative h-[200px] w-[200px] flex items-center justify-center">
+                      <Skeleton className="absolute h-[150px] w-[150px] rounded-full bg-muted/50" />
+                      <div className="absolute h-[110px] w-[110px] rounded-full bg-white" />
+                    </div>
+                    <div className="flex justify-center gap-4 mt-2">
+                      <Skeleton className="h-4 w-20 bg-muted/60" />
+                      <Skeleton className="h-4 w-20 bg-muted/60" />
+                      <Skeleton className="h-4 w-20 bg-muted/60" />
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="grid gap-8 md:grid-cols-2">
+                  {/* Age distribution */}
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-semibold text-muted-foreground text-center">Faixas Etárias</h4>
+                    <div className="h-[250px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={demographics.ages} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                          <XAxis dataKey="age" className="text-xs" tickLine={false} axisLine={false} />
+                          <YAxis className="text-xs" tickLine={false} axisLine={false} tickFormatter={(val: number) => `${val}%`} />
+                          <RechartsTooltip formatter={(val) => `${val}%`} contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }} />
+                          <Bar dataKey="percentage" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Gender distribution */}
+                  <div className="space-y-4 flex flex-col items-center justify-center">
+                    <h4 className="text-sm font-semibold text-muted-foreground text-center w-full">Distribuição por Gênero</h4>
+                    <div className="h-[200px] w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={demographics.genders}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={50}
+                            outerRadius={70}
+                            paddingAngle={5}
+                            dataKey="value"
+                          >
+                            {demographics.genders.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={GENDER_COLORS[index % GENDER_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip formatter={(val) => `${val}%`} contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex justify-center gap-4 text-xs mt-2 flex-wrap">
+                      {demographics.genders.map((entry, index) => (
+                        <div key={entry.name} className="flex items-center">
+                          <div className="w-3 h-3 rounded-full mr-1.5" style={{ backgroundColor: GENDER_COLORS[index % GENDER_COLORS.length] }} />
+                          <span className="text-muted-foreground">{entry.name} ({entry.value}%)</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
