@@ -2,7 +2,7 @@ import { Router } from "express";
 import { getDb } from "../lib/sqlite";
 import { requireAuth } from "./auth";
 import { CreateKeywordBody } from "@workspace/api-zod";
-import { analyzeKeywordWithAI, generateKeywordSuggestionsWithAI } from "../lib/gemini";
+import { analyzeKeywordWithAI, generateKeywordSuggestionsWithAI, getTopKeywordsByTheme } from "../lib/gemini";
 import { getKeywordMetrics, getKeywordIdeas, isGoogleAdsConfigured } from "../lib/google-ads";
 import { logger } from "../lib/logger";
 
@@ -68,6 +68,22 @@ router.get("/keywords/suggestions", requireAuth, async (req: any, res) => {
     } catch (aiErr: any) {
       res.status(500).json({ error: "Failed to fetch suggestions: " + error.message });
     }
+  }
+});
+
+// NEW: Get top searched keywords/titles by theme using Gemini AI
+router.get("/keywords/top-by-theme", requireAuth, async (req: any, res) => {
+  const theme = req.query.theme as string | undefined;
+  if (!theme) {
+    res.status(400).json({ error: "theme query param required" });
+    return;
+  }
+
+  try {
+    const keywords = await getTopKeywordsByTheme(theme);
+    res.json(keywords);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch top keywords by theme: " + error.message });
   }
 });
 

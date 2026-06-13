@@ -256,3 +256,19 @@ export const GetIntentBreakdownResponseItem = zod.object({
 export const GetIntentBreakdownResponse = zod.array(GetIntentBreakdownResponseItem)
 
 
+/**
+ * @summary Get top searched keywords by theme
+ */
+export const GetTopKeywordsByThemeQueryParams = zod.object({
+  "theme": zod.coerce.string()
+})
+
+export const GetTopKeywordsByThemeResponseItem = zod.object({
+  "keyword": zod.string(),
+  "searchVolume": zod.number(),
+  "competition": zod.string(),
+  "cpc": zod.number()
+})
+export const GetTopKeywordsByThemeResponse = zod.array(GetTopKeywordsByThemeResponseItem)
+
+

@@ -29,6 +29,7 @@ import type {
   GetDashboardSummaryParams,
   GetKeywordTrendsParams,
   GetPerformanceParams,
+  GetTopKeywordsByThemeParams,
   HealthStatus,
   IntentSlice,
   Keyword,
@@ -37,6 +38,7 @@ import type {
   ListKeywordsParams,
   LoginInput,
   PerformancePoint,
+  ThemeKeyword,
   TrendPoint,
   User
 } from './api.schemas';
@@ -1334,6 +1336,90 @@ export function useGetIntentBreakdown<TData = Awaited<ReturnType<typeof getInten
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetIntentBreakdownQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetTopKeywordsByThemeUrl = (params: GetTopKeywordsByThemeParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : value.toString())
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/keywords/top-by-theme?${stringifiedParams}` : `/api/keywords/top-by-theme`
+}
+
+/**
+ * @summary Get top searched keywords by theme
+ */
+export const getTopKeywordsByTheme = async (params: GetTopKeywordsByThemeParams, options?: RequestInit): Promise<ThemeKeyword[]> => {
+
+  return customFetch<ThemeKeyword[]>(getGetTopKeywordsByThemeUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetTopKeywordsByThemeQueryKey = (params?: GetTopKeywordsByThemeParams,) => {
+    return [
+    `/api/keywords/top-by-theme`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getGetTopKeywordsByThemeQueryOptions = <TData = Awaited<ReturnType<typeof getTopKeywordsByTheme>>, TError = ErrorType<unknown>>(params: GetTopKeywordsByThemeParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTopKeywordsByTheme>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetTopKeywordsByThemeQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getTopKeywordsByTheme>>> = ({ signal }) => getTopKeywordsByTheme(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getTopKeywordsByTheme>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetTopKeywordsByThemeQueryResult = NonNullable<Awaited<ReturnType<typeof getTopKeywordsByTheme>>>
+export type GetTopKeywordsByThemeQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get top searched keywords by theme
+ */
+
+export function useGetTopKeywordsByTheme<TData = Awaited<ReturnType<typeof getTopKeywordsByTheme>>, TError = ErrorType<unknown>>(
+ params: GetTopKeywordsByThemeParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getTopKeywordsByTheme>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetTopKeywordsByThemeQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

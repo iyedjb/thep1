@@ -115,6 +115,13 @@ export interface IntentSlice {
   percentage: number;
 }
 
+export interface ThemeKeyword {
+  keyword: string;
+  searchVolume: number;
+  competition: string;
+  cpc: number;
+}
+
 export type GetDashboardSummaryParams = {
 days?: number;
 };
@@ -129,5 +136,9 @@ search?: string;
 
 export type GetKeywordTrendsParams = {
 keyword?: string;
+};
+
+export type GetTopKeywordsByThemeParams = {
+theme: string;
 };
 
