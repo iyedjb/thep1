@@ -1,8 +1,24 @@
 import { Router } from "express";
 import { requireAuth } from "./auth";
-import { getGoogleTrendsData } from "../lib/trends-service";
+import { getGoogleTrendsData, getGoogleTrendsDemographics } from "../lib/trends-service";
 
 const router = Router();
+
+router.get("/trends/demographics", requireAuth, async (req: any, res): Promise<void> => {
+  const keyword = req.query.keyword as string | undefined;
+
+  if (!keyword) {
+    res.status(400).json({ error: "keyword query parameter is required" });
+    return;
+  }
+
+  try {
+    const data = await getGoogleTrendsDemographics(keyword);
+    res.json(data);
+  } catch (error: any) {
+    res.status(500).json({ error: "Failed to fetch demographic trends: " + error.message });
+  }
+});
 
 router.get("/trends", requireAuth, async (req: any, res): Promise<void> => {
   const keyword = req.query.keyword as string | undefined;

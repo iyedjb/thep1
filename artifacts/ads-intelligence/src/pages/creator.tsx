@@ -50,7 +50,38 @@ interface SavedWebsite {
   fileName: string;
   status: "active" | "paused" | "local";
   createdAt: string;
+  popupLanguage?: string;
 }
+
+const POPUP_LANGS: Record<string, { headline: string; sub: string; namePlaceholder: string; contactPlaceholder: string; btn: string; close: string; thanks: string; }> = {
+  "pt-BR": {
+    headline: "Gostou do nosso produto?",
+    sub: "Deixe seu contato e nossa equipe entrará em contato com você em breve.",
+    namePlaceholder: "Seu nome",
+    contactPlaceholder: "E-mail ou WhatsApp",
+    btn: "Quero ser contatado!",
+    close: "Não, obrigado",
+    thanks: "Obrigado! Entraremos em contato em breve."
+  },
+  "en": {
+    headline: "Did you like our product?",
+    sub: "Leave your contact and our team will reach out to you shortly.",
+    namePlaceholder: "Your name",
+    contactPlaceholder: "E-mail or Phone",
+    btn: "Contact me!",
+    close: "No, thanks",
+    thanks: "Thank you! We will contact you soon."
+  },
+  "es": {
+    headline: "¿Te gustó nuestro producto?",
+    sub: "Deja tu contacto y nuestro equipo se comunicará contigo pronto.",
+    namePlaceholder: "Tu nombre",
+    contactPlaceholder: "Correo o WhatsApp",
+    btn: "¡Contáctenme!",
+    close: "No, gracias",
+    thanks: "¡Gracias! Nos comunicaremos pronto."
+  }
+};
 
 export default function Creator() {
   const { toast } = useToast();
@@ -61,6 +92,7 @@ export default function Creator() {
   // Form states
   const [destinationUrl, setDestinationUrl] = useState("");
   const [scripts, setScripts] = useState<string[]>([""]);
+  const [popupLanguage, setPopupLanguage] = useState("pt-BR");
   
   // Step state for creation wizard
   const [step, setStep] = useState<Step>("form");
@@ -82,6 +114,17 @@ export default function Creator() {
       try {
         setSavedWebsites(JSON.parse(list));
       } catch (_) {}
+    }
+
+    const drcashLander = localStorage.getItem("drcash_selected_lander");
+    if (drcashLander) {
+      setDestinationUrl(drcashLander);
+      localStorage.removeItem("drcash_selected_lander");
+      toast({
+        title: "Oferta Carregada",
+        description: "A Landing Page do Dr. Cash foi inserida no link de destino.",
+        variant: "default"
+      });
     }
   }, []);
 
@@ -127,9 +170,8 @@ export default function Creator() {
     <title>${domainName}</title>
     ${combinedTags}
     <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
         body, html {
-            margin: 0;
-            padding: 0;
             width: 100%;
             height: 100%;
             overflow: hidden;
@@ -140,19 +182,13 @@ export default function Creator() {
             height: 100%;
             border: none;
             position: absolute;
-            top: 0;
-            left: 0;
+            top: 0; left: 0;
             z-index: 1;
         }
     </style>
 </head>
 <body>
     <iframe src="${targetUrl}"></iframe>
-    <script>
-        setTimeout(function() {
-            window.location.href = "${targetUrl}";
-        }, 2000);
-    </script>
 </body>
 </html>`;
 
@@ -170,7 +206,8 @@ export default function Creator() {
       publishedUrl: "",
       fileName: "",
       status: "local",
-      createdAt: new Date().toLocaleDateString("pt-BR")
+      createdAt: new Date().toLocaleDateString("pt-BR"),
+      popupLanguage
     };
     saveWebsites([newSite, ...savedWebsites]);
 

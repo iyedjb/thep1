@@ -288,9 +288,9 @@ export default function Trends() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-white/40 backdrop-blur-md p-1 border border-border/40 rounded-xl grid grid-cols-2 max-w-md">
-          <TabsTrigger value="termo" className="rounded-lg">Pesquisa por Termo (Google Trends)</TabsTrigger>
-          <TabsTrigger value="tema" className="rounded-lg">Pesquisa por Tema (Mais Buscados)</TabsTrigger>
+        <TabsList className="bg-white/40 backdrop-blur-md p-1 border border-border/40 rounded-xl grid grid-cols-2 max-w-xl w-full">
+          <TabsTrigger value="termo" className="rounded-lg text-xs md:text-sm font-semibold">Pesquisa por Termo</TabsTrigger>
+          <TabsTrigger value="tema" className="rounded-lg text-xs md:text-sm font-semibold">Pesquisa por Tema</TabsTrigger>
         </TabsList>
 
         <TabsContent value="termo" className="space-y-6">
