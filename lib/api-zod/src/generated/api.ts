@@ -282,7 +282,8 @@ export const GetDrCashSearchRankResponseItem = zod.object({
   "category": zod.string(),
   "searchVolume": zod.number(),
   "competition": zod.string(),
-  "cpc": zod.number()
+  "cpc": zod.number(),
+  "geo": zod.array(zod.string())
 })
 export const GetDrCashSearchRankResponse = zod.array(GetDrCashSearchRankResponseItem)
 

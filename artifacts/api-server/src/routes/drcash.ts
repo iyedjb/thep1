@@ -69,6 +69,11 @@ let drcashSettings = {
   },
 };
 
+// GET /drcash/token - get the default API token for prepopulation
+router.get("/drcash/token", requireAuth, (req, res) => {
+  res.json({ token: DR_CASH_TOKEN });
+});
+
 // ─── PROFILE & BALANCE ────────────────────────────────────────────────────────
 
 // GET /drcash/profile - real profile from Dr. Cash API

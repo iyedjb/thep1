@@ -51,6 +51,14 @@ interface SavedWebsite {
   status: "active" | "paused" | "local";
   createdAt: string;
   popupLanguage?: string;
+  productName?: string;
+  productHeadline?: string;
+  productDescription?: string;
+  productCategory?: string;
+  ctaText?: string;
+  supportEmail?: string;
+  apiToken?: string;
+  streamCode?: string;
 }
 
 const POPUP_LANGS: Record<string, { headline: string; sub: string; namePlaceholder: string; contactPlaceholder: string; btn: string; close: string; thanks: string; }> = {
@@ -83,6 +91,152 @@ const POPUP_LANGS: Record<string, { headline: string; sub: string; namePlacehold
   }
 };
 
+const LOCALIZED_TEXT: Record<string, {
+  partnerApproved: string;
+  privacy: string;
+  terms: string;
+  contact: string;
+  disclaimer: string;
+  copyright: string;
+  privacyTitle: string;
+  privacyP1: string;
+  privacyP2: string;
+  privacyP3: string;
+  privacyP4: string;
+  termsTitle: string;
+  termsP1: string;
+  termsP2: string;
+  termsP3: string;
+  termsP4: string;
+  contactTitle: string;
+  contactP1: string;
+  contactP2: string;
+  contactP3: string;
+  seoHeaderTitle: string;
+  seoHeaderCategory: string;
+  seoWelcome: string;
+  seoDescriptionDefault: string;
+  seoWhyTitle: string;
+  seoWhyDesc: string;
+  seoLi1Title: string;
+  seoLi1Desc: string;
+  seoLi2Title: string;
+  seoLi2Desc: string;
+  seoLi3Title: string;
+  seoLi3Desc: string;
+  seoDeliveryTitle: string;
+  seoDeliveryDesc: string;
+}> = {
+  "pt-BR": {
+    partnerApproved: "Parceiro Autorizado",
+    privacy: "Política de Privacidade",
+    terms: "Termos de Uso",
+    contact: "Contato",
+    disclaimer: "Aviso Legal: Este site é um canal de redirecionamento informativo e não possui vínculos diretos ou de afiliação de patrocínio com o Google LLC, Google Ads ou Facebook Ads.",
+    copyright: "Todos os direitos reservados.",
+    privacyTitle: "Política de Privacidade",
+    privacyP1: "Sua privacidade é muito importante para nós. Esta Política de Privacidade descreve como suas informações pessoais são tratadas ao usar este site de redirecionamento.",
+    privacyP2: "<strong>Coleta de Informações:</strong> Não coletamos informações de identificação pessoal neste site de redirecionamento, exceto eventuais dados anônimos de tráfego fornecidos por cookies de terceiros (como Google Analytics ou pixels de rastreamento) se ativados pelo proprietário.",
+    privacyP3: "<strong>Links para Terceiros:</strong> Este site contém links redirecionando para sites externos. Não temos controle sobre as políticas de privacidade desses sites de terceiros, por isso recomendamos a leitura das políticas deles ao acessá-los.",
+    privacyP4: "Ao utilizar nosso site de redirecionamento, você concorda com os termos aqui dispostos.",
+    termsTitle: "Termos de Uso",
+    termsP1: "Seja bem-vindo ao nosso site de redirecionamento.",
+    termsP2: "<strong>Aceitação dos Termos:</strong> Ao utilizar este site, você concorda em cumprir e estar vinculado a estes Termos de Uso. Se você não concordar com qualquer parte destes termos, não utilize o site.",
+    termsP3: "<strong>Uso do Site:</strong> Este site tem como objetivo fornecer um canal informativo seguro de redirecionamento para o site oficial do produto. Você concorda em não tentar violar a segurança do site, usar robôs de scraping ou praticar qualquer atividade ilícita aqui.",
+    termsP4: "<strong>Limitação de Responsabilidade:</strong> Não nos responsabilizamos por qualquer compra realizada no site de destino final. Toda a transação comercial é de responsabilidade exclusiva do fornecedor oficial do produto ou serviço acessado.",
+    contactTitle: "Contato",
+    contactP1: "Precisa de suporte ou tem alguma dúvida técnica em relação a este redirecionador?",
+    contactP2: "Entre em contato conosco pelo e-mail oficial abaixo:",
+    contactP3: "Responderemos o mais breve possível.",
+    seoHeaderTitle: "Site Oficial do Distribuidor Autorizado",
+    seoHeaderCategory: "Categoria:",
+    seoWelcome: "Seja bem-vindo à página de distribuição oficial.",
+    seoDescriptionDefault: "Oferecemos produtos de alta qualidade, fabricados sob os mais rigorosos padrões de segurança e controle. Compre com total segurança e garantia de satisfação direta do fabricante.",
+    seoWhyTitle: "Por que Adquirir o",
+    seoWhyDesc: "Ao comprar através do canal oficial, você garante acesso às promoções exclusivas, suporte ao cliente dedicado e produtos com certificações originais de laboratório.",
+    seoLi1Title: "Garantia de Satisfação:",
+    seoLi1Desc: "Proteção total para sua compra direta.",
+    seoLi2Title: "Frete Seguro:",
+    seoLi2Desc: "Entrega rápida acompanhada de código de rastreamento.",
+    seoLi3Title: "Compra Protegida:",
+    seoLi3Desc: "Seus dados financeiros totalmente seguros.",
+    seoDeliveryTitle: "Como Funciona a Entrega?",
+    seoDeliveryDesc: "Nossa logística é otimizada para despachar os pedidos em tempo recorde. Você receberá atualizações constantes sobre o status de envio diretamente no seu e-mail cadastrado ou WhatsApp no momento da compra no site oficial."
+  },
+  "en": {
+    partnerApproved: "Authorized Partner",
+    privacy: "Privacy Policy",
+    terms: "Terms of Use",
+    contact: "Contact Us",
+    disclaimer: "Disclaimer: This website is an informative redirect channel and has no direct links or sponsorship affiliation with Google LLC, Google Ads, or Facebook Ads.",
+    copyright: "All rights reserved.",
+    privacyTitle: "Privacy Policy",
+    privacyP1: "Your privacy is very important to us. This Privacy Policy describes how your personal information is handled when using this redirect site.",
+    privacyP2: "<strong>Information Collection:</strong> We do not collect personally identifiable information on this redirect site, except for any anonymous traffic data provided by third-party cookies (such as Google Analytics or tracking pixels) if enabled by the owner.",
+    privacyP3: "<strong>Links to Third Parties:</strong> This site contains links redirecting to external sites. We have no control over the privacy policies of these third-party sites, so we recommend reading their policies when accessing them.",
+    privacyP4: "By using our redirect site, you agree to the terms set forth herein.",
+    termsTitle: "Terms of Use",
+    termsP1: "Welcome to our redirect site.",
+    termsP2: "<strong>Acceptance of Terms:</strong> By using this site, you agree to comply with and be bound by these Terms of Use. If you do not agree with any part of these terms, do not use the site.",
+    termsP3: "<strong>Use of the Site:</strong> This site aims to provide a secure informative redirect channel to the official product page. You agree not to attempt to violate the security of the site, use scraping robots, or practice any illegal activity here.",
+    termsP4: "<strong>Limitation of Liability:</strong> We are not responsible for any purchases made on the final destination site. All commercial transactions are the sole responsibility of the official supplier of the product or service accessed.",
+    contactTitle: "Contact Us",
+    contactP1: "Need support or have any technical questions regarding this redirector?",
+    contactP2: "Please contact us via the official email address below:",
+    contactP3: "We will reply as soon as possible.",
+    seoHeaderTitle: "Official Authorized Distributor Site",
+    seoHeaderCategory: "Category:",
+    seoWelcome: "Welcome to the official distribution page.",
+    seoDescriptionDefault: "We offer high-quality products, manufactured under the strictest safety and quality standards. Buy with complete safety and direct satisfaction guarantee from the manufacturer.",
+    seoWhyTitle: "Why Buy",
+    seoWhyDesc: "When buying through the official channel, you guarantee access to exclusive promotions, dedicated customer support, and products with original laboratory certifications.",
+    seoLi1Title: "Satisfaction Guarantee:",
+    seoLi1Desc: "Total protection for your direct purchase.",
+    seoLi2Title: "Secure Shipping:",
+    seoLi2Desc: "Fast delivery accompanied by a tracking code.",
+    seoLi3Title: "Protected Purchase:",
+    seoLi3Desc: "Your financial data is completely secure.",
+    seoDeliveryTitle: "How Does Delivery Work?",
+    seoDeliveryDesc: "Our logistics are optimized to dispatch orders in record time. You will receive constant updates on shipping status directly to your registered email or WhatsApp at the time of purchase on the official website."
+  },
+  "es": {
+    partnerApproved: "Socio Autorizado",
+    privacy: "Política de Privacidad",
+    terms: "Términos de Uso",
+    contact: "Contacto",
+    disclaimer: "Aviso Legal: Este sitio es un canal de redirección informativo y no tiene vínculos directos ni de afiliación de patrocinio con Google LLC, Google Ads o Facebook Ads.",
+    copyright: "Todos los derechos reservados.",
+    privacyTitle: "Política de Privacidad",
+    privacyP1: "Su privacidad es muy importante para nosotros. Esta Política de Privacidad de describe cómo se maneja su información personal al utilizar este sitio de redirección.",
+    privacyP2: "<strong>Recopilación de Información:</strong> No recopilamos información de identificación personal en este sitio de redirección, excepto eventuales datos de tráfico anónimos proporcionados por cookies de terceros (como Google Analytics o píxeles de seguimiento) si el propietario los habilita.",
+    privacyP3: "<strong>Enlaces a Terceros:</strong> Este sitio contiene enlaces que redireccionan a sitios externos. No tenemos control sobre las políticas de privacidad de estos sitios de terceros, por lo que recomendamos leer sus políticas al acceder a ellos.",
+    privacyP4: "Al utilizar nuestro sitio de redirección, acepta los términos aquí establecidos.",
+    termsTitle: "Términos de Uso",
+    termsP1: "Bienvenido a nuestro sitio de redirección.",
+    termsP2: "<strong>Aceptación de los Términos:</strong> Al utilizar este sitio, acepta cumplir y estar sujeto a estos Términos de Uso. Si no está de acuerdo con alguna parte de estos términos, no utilice el sitio.",
+    termsP3: "<strong>Uso del Sitio:</strong> Este sitio tiene como objetivo proporcionar un canal de redirección informativo seguro a la página oficial del producto. Acepta no intentar violar la seguridad del sitio, utilizar robots de scraping ni realizar ninguna actividad ilegal aquí.",
+    termsP4: "<strong>Limitación de Responsabilidad:</strong> No nos hacemos responsables de las compras realizadas en el sitio de destino final. Toda transacción comercial es responsabilidad exclusiva del proveedor oficial del producto o servicio accedido.",
+    contactTitle: "Contacto",
+    contactP1: "¿Necesita soporte o tiene alguna duda técnica sobre este redireccionador?",
+    contactP2: "Póngase en contacto con nosotros a través del correo electrónico oficial a continuación:",
+    contactP3: "Responderemos lo antes posible.",
+    seoHeaderTitle: "Sitio Oficial del Distribuidor Autorizado",
+    seoHeaderCategory: "Categoría:",
+    seoWelcome: "Bienvenido a la página oficial de distribución.",
+    seoDescriptionDefault: "Ofrecemos productos de alta calidad, fabricados bajo las más estrictas normas de seguridad y control. Compre con total seguridad y garantía de satisfacción directa del fabricante.",
+    seoWhyTitle: "Por qué comprar",
+    seoWhyDesc: "Al comprar a través del canal oficial, se garantiza el acceso a promociones exclusivas, soporte al cliente dedicado y productos con certificaciones originales de laboratorio.",
+    seoLi1Title: "Garantía de Satisfacción:",
+    seoLi1Desc: "Protección total para su compra directa.",
+    seoLi2Title: "Envío Seguro:",
+    seoLi2Desc: "Entrega rápida acompañada de un código de seguimiento.",
+    seoLi3Title: "Compra Protegida:",
+    seoLi3Desc: "Sus datos financieros están completamente seguros.",
+    seoDeliveryTitle: "¿Cómo funciona la entrega?",
+    seoDeliveryDesc: "Nuestra logística está optimizada para despachar los pedidos en tiempo récord. Recibirá actualizaciones constantes sobre el estado del envío directamente en su correo electrónico registrado o WhatsApp al momento de la compra en el sitio web oficial."
+  }
+};
+
 export default function Creator() {
   const { toast } = useToast();
 
@@ -93,6 +247,14 @@ export default function Creator() {
   const [destinationUrl, setDestinationUrl] = useState("");
   const [scripts, setScripts] = useState<string[]>([""]);
   const [popupLanguage, setPopupLanguage] = useState("pt-BR");
+  const [productName, setProductName] = useState("");
+  const [productHeadline, setProductHeadline] = useState("");
+  const [productDescription, setProductDescription] = useState("");
+  const [productCategory, setProductCategory] = useState("Saúde & Bem-estar");
+  const [ctaText, setCtaText] = useState("Ir para o Site Oficial");
+  const [supportEmail, setSupportEmail] = useState("");
+  const [apiToken, setApiToken] = useState("");
+  const [streamCode, setStreamCode] = useState("");
   
   // Step state for creation wizard
   const [step, setStep] = useState<Step>("form");
@@ -126,6 +288,27 @@ export default function Creator() {
         variant: "default"
       });
     }
+
+    // Fetch default API token
+    const fetchDefaultToken = async () => {
+      try {
+        const token = localStorage.getItem("ads_token");
+        const res = await fetch("/api/drcash/token", {
+          headers: {
+            "Authorization": token ? `Bearer ${token}` : ""
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.token) {
+            setApiToken(data.token);
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao buscar token Dr. Cash", err);
+      }
+    };
+    fetchDefaultToken();
   }, []);
 
   // Save websites helper
@@ -159,37 +342,528 @@ export default function Creator() {
       domainName = new URL(targetUrl).hostname.replace("www.", "");
     } catch (_) {}
 
+    // Extract dynamic clean product name from target URL if product name is empty
+    let cleanProductName = productName.trim();
+    if (!cleanProductName) {
+      try {
+        const parts = domainName.split(".");
+        if (parts.length > 0) {
+          cleanProductName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+        }
+      } catch (_) {
+        cleanProductName = "Produto Oficial";
+      }
+    }
+
     // Concatenate non-empty scripts
     const combinedTags = scripts.filter(s => s.trim() !== "").join("\n    ");
+
+    const t = LOCALIZED_TEXT[popupLanguage] || LOCALIZED_TEXT["pt-BR"];
 
     const template = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${domainName}</title>
+    <title>${cleanProductName} - ${t.partnerApproved}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     ${combinedTags}
     <style>
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --primary: #5850ec;
+            --primary-hover: #453ec9;
+            --primary-light: rgba(88, 80, 236, 0.1);
+            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+            --text-dark: #1f2937;
+            --text-muted: #4b5563;
+            --card-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08), 0 15px 25px -10px rgba(0, 0, 0, 0.04);
+            --border-glass: rgba(255, 255, 255, 0.6);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         body, html {
             width: 100%;
-            height: 100%;
-            overflow: hidden;
-            background-color: #0f172a;
+            min-height: 100vh;
+            background: var(--bg-gradient);
+            font-family: 'Outfit', -apple-system, sans-serif;
+            color: var(--text-dark);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
         }
-        iframe {
+        
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px 100px;
+        }
+
+        .landing-container {
+            display: grid;
+            grid-template-columns: 1.1fr 1fr;
+            gap: 40px;
+            max-width: 1000px;
             width: 100%;
-            height: 100%;
-            border: none;
-            position: absolute;
-            top: 0; left: 0;
-            z-index: 1;
+            align-items: center;
         }
+        
+        @media (max-width: 868px) {
+            .landing-container {
+                grid-template-columns: 1fr;
+                gap: 32px;
+                padding-bottom: 40px;
+            }
+        }
+        
+        /* Product Hero */
+        .product-hero {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            text-align: left;
+        }
+        .category-badge {
+            background-color: var(--primary-light);
+            color: var(--primary);
+            padding: 6px 14px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 16px;
+        }
+        .product-hero h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1.25;
+            color: var(--text-dark);
+            margin-bottom: 16px;
+            letter-spacing: -0.02em;
+        }
+        @media (max-width: 600px) {
+            .product-hero h1 {
+                font-size: 1.95rem;
+            }
+        }
+        .product-desc {
+            font-size: 1.05rem;
+            line-height: 1.6;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+        
+        /* Benefits List */
+        .benefits-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            width: 100%;
+        }
+        .benefit-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: var(--text-muted);
+        }
+        .check-icon {
+            width: 20px;
+            height: 20px;
+            fill: #10b981;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+        
+        /* Form Card */
+        .form-card {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid var(--border-glass);
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+        @media (max-width: 600px) {
+            .form-card {
+                padding: 24px;
+            }
+        }
+        .form-header {
+            margin-bottom: 24px;
+            text-align: left;
+        }
+        .form-header h3 {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 6px;
+        }
+        .form-header p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+        
+        /* Form Elements */
+        .input-group {
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            text-align: left;
+        }
+        .input-group label {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+        .input-group input {
+            width: 100%;
+            padding: 11px 14px;
+            border-radius: 10px;
+            border: 1px solid #d1d5db;
+            font-family: inherit;
+            font-size: 0.92rem;
+            color: var(--text-dark);
+            transition: all 0.2s;
+            background-color: #f9fafb;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(88, 80, 236, 0.15);
+            background-color: #ffffff;
+        }
+        
+        /* Submit Button */
+        .submit-btn {
+            width: 100%;
+            background-color: var(--primary);
+            color: #ffffff;
+            border: none;
+            padding: 13px 20px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s;
+            margin-top: 20px;
+            box-shadow: 0 4px 6px -1px rgba(88, 80, 236, 0.15);
+        }
+        .submit-btn:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 12px -2px rgba(88, 80, 236, 0.25);
+        }
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+        .arrow-icon {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+            transition: transform 0.2s;
+        }
+        .submit-btn:hover .arrow-icon {
+            transform: translateX(2px);
+        }
+        
+        /* Alerts & Success State */
+        .alert-box {
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            margin-top: 14px;
+            text-align: left;
+        }
+        .error-alert {
+            background-color: #fef2f2;
+            color: #b91c1c;
+            border: 1px solid #fca5a5;
+        }
+        
+        .success-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 16px 8px;
+            animation: scaleIn 0.3s ease-out forwards;
+        }
+        .success-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 9999px;
+            background-color: #ecfdf5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #10b981;
+            margin-bottom: 14px;
+            border: 1px solid #a7f3d0;
+        }
+        .success-icon svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+        .success-box h4 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #065f46;
+            margin-bottom: 10px;
+        }
+        .success-box p {
+            font-size: 0.88rem;
+            line-height: 1.45;
+            color: var(--text-muted);
+            margin-bottom: 14px;
+        }
+        .success-note {
+            font-size: 0.78rem !important;
+            font-weight: 600;
+            color: var(--primary) !important;
+        }
+        
+        /* Animations */
+        @keyframes scaleIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        
+        /* Footer/Legal overlay elements */
+        .legal-bar {
+            background-color: rgba(17, 24, 39, 0.95);
+            backdrop-filter: blur(8px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: #f3f4f6;
+            font-size: 0.72rem;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            flex-wrap: wrap;
+            gap: 12px;
+            width: 100%;
+        }
+        .legal-bar .disclaimer-text {
+            color: #9ca3af;
+            font-size: 0.65rem;
+            max-width: 50%;
+            text-align: left;
+        }
+        .legal-bar .links {
+            display: flex;
+            gap: 16px;
+        }
+        .legal-bar .links a {
+            color: #818cf8;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .legal-bar .links a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 768px) {
+            .legal-bar {
+                flex-direction: column;
+                text-align: center;
+                padding: 16px;
+            }
+            .legal-bar .disclaimer-text {
+                max-width: 100%;
+                text-align: center;
+            }
+        }
+        
+        /* Modals style */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(17, 24, 39, 0.7);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal:target {
+            display: flex;
+        }
+        .modal-content {
+            background-color: #ffffff;
+            border-radius: 16px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 28px;
+            position: relative;
+            text-align: left;
+            box-shadow: var(--card-shadow);
+            color: #1f2937;
+        }
+        .modal-close {
+            position: absolute;
+            top: 12px; right: 16px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #9ca3af;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .modal-close:hover { color: #111827; }
+        .modal h2 { margin-bottom: 12px; font-size: 1.25rem; font-weight: 700; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
+        .modal p { margin-bottom: 12px; font-size: 0.85rem; color: #4b5563; line-height: 1.6; }
     </style>
 </head>
 <body>
-    <iframe src="${targetUrl}"></iframe>
-</body>
+    
+    <div class="main-content">
+        <div class="landing-container">
+            <div class="product-hero animate-fade-in">
+                <span class="category-badge">${productCategory}</span>
+                <h1>${productHeadline || t.seoWelcome}</h1>
+                <p class="product-desc">${productDescription || t.seoDescriptionDefault}</p>
+                
+                <div class="benefits-list">
+                    <div class="benefit-item">
+                        <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        <span><strong>${t.seoLi1Title}</strong> ${t.seoLi1Desc}</span>
+                    </div>
+                    <div class="benefit-item">
+                        <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        <span><strong>Garantia de Satisfação:</strong> Receba com total segurança e garantia direta de laboratório.</span>
+                    </div>
+                    <div class="benefit-item">
+                        <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        <span><strong>${t.seoLi3Title}</strong> ${t.seoLi3Desc}</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-card animate-fade-in" style="animation-delay: 0.1s;">
+                <div class="form-header">
+                    <h3>Solicitar ${cleanProductName}</h3>
+                    <p>Preencha os dados abaixo para receber o contato do suporte oficial e efetivar seu pedido.</p>
+                </div>
+                
+                <form class="orderForm">
+                    <div class="input-group">
+                        <label for="lead-name">Nome Completo</label>
+                        <input type="text" id="lead-name" name="name" placeholder="Ex: João Silva" required />
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="lead-phone">Telefone / WhatsApp</label>
+                        <input type="tel" id="lead-phone" name="phone" placeholder="Ex: (11) 99999-9999" required />
+                    </div>
+                    
+                    <button type="submit" class="submit-btn">
+                        <span>${ctaText}</span>
+                        <svg class="arrow-icon" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                    </button>
+                </form>
+                
+                <div id="error-container" class="alert-box error-alert" style="display: none;"></div>
+                
+                <div id="success-container" class="success-box" style="display: none;">
+                    <div class="success-icon">
+                        <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                    </div>
+                    <h4>Pedido Registrado com Sucesso!</h4>
+                    <p>Seus dados foram enviados. Um consultor oficial de vendas entrará em contato em breve para confirmar seu endereço de entrega e opções de frete.</p>
+                    <p class="success-note">Por favor, mantenha sua linha telefônica ativa.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlay legal bar that floats on top -->
+    <div class="legal-bar">
+        <span>&copy; 2026 ${cleanProductName}. ${t.copyright}</span>
+        <span class="disclaimer-text">${t.disclaimer}</span>
+        <div class="links">
+            <a href="#privacy">${t.privacy}</a>
+            <a href="#terms">${t.terms}</a>
+            <a href="#contact">${t.contact}</a>
+        </div>
+    </div>
+
+    <!-- Privacy Policy Modal -->
+    <div id="privacy" class="modal">
+        <div class="modal-content">
+            <a href="#" class="modal-close">&times;</a>
+            <h2>${t.privacyTitle}</h2>
+            <p>${t.privacyP1}</p>
+            <p>${t.privacyP2}</p>
+            <p>${t.privacyP3}</p>
+            <p>${t.privacyP4}</p>
+        </div>
+    </div>
+
+    <!-- Terms of Use Modal -->
+    <div id="terms" class="modal">
+        <div class="modal-content">
+            <a href="#" class="modal-close">&times;</a>
+            <h2>${t.termsTitle}</h2>
+            <p>${t.termsP1}</p>
+            <p>${t.termsP2}</p>
+            <p>${t.termsP3}</p>
+            <p>${t.termsP4}</p>
+        </div>
+    </div>
+
+    <!-- Contact Modal -->
+    <div id="contact" class="modal">
+        <div class="modal-content">
+            <a href="#" class="modal-close">&times;</a>
+            <h2>${t.contactTitle}</h2>
+            <p>${t.contactP1}</p>
+            <p>${t.contactP2}</p>
+            <p style="font-weight: 600; color: var(--primary); margin-top: 16px;">
+                ${supportEmail || 'suporte@' + domainName}
+            </p>
+            <p style="font-size: 0.75rem; color: #9ca3af; margin-top: 24px;">${t.contactP3}</p>
+        </div>
+    </div>
+
+    <script src="https://snippet.infothroat.com/dist/api/lead-1.1.0.min.js"></script>
+    <script>
+        drlead.init({
+            params: {
+                token: "${apiToken}",
+                stream_code: "${streamCode}",
+                thanks_page: "#"
+            },
+            callback: function(error, response) {
+                var form = document.querySelector('.orderForm');
+                var successDiv = document.getElementById('success-container');
+                var errorDiv = document.getElementById('error-container');
+                if (error) {
+                    errorDiv.style.display = 'block';
+                    errorDiv.innerText = error.message || 'Ocorreu um erro ao registrar seu pedido. Por favor, tente novamente.';
+                } else {
+                    form.style.display = 'none';
+                    successDiv.style.display = 'block';
+                    if (errorDiv) errorDiv.style.display = 'none';
+                }
+            }
+        });
+    </script>
 </html>`;
 
     setGeneratedHtml(template);
@@ -207,7 +881,15 @@ export default function Creator() {
       fileName: "",
       status: "local",
       createdAt: new Date().toLocaleDateString("pt-BR"),
-      popupLanguage
+      popupLanguage,
+      productName,
+      productHeadline,
+      productDescription,
+      productCategory,
+      ctaText,
+      supportEmail,
+      apiToken,
+      streamCode
     };
     saveWebsites([newSite, ...savedWebsites]);
 
@@ -531,19 +1213,173 @@ export default function Creator() {
                       {/* Destination Link */}
                       <div className="space-y-1.5">
                         <Label htmlFor="dest-url" className="text-xs font-semibold text-slate-700">
-                          Link de Destino Final (URL)
+                          Link da Campanha Dr.Cash / Destino
                         </Label>
                         <Input 
                           id="dest-url" 
                           type="text"
                           name="random_url_field"
                           autoComplete="new-password"
-                          placeholder="https://pagina-de-destino.com/oferta"
+                          placeholder="https://drcash.link/xxxxx ou URL da campanha"
                           value={destinationUrl} 
-                          onChange={(e) => setDestinationUrl(e.target.value)}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setDestinationUrl(val);
+                            // Auto-extract stream code if detected (e.g. numeric segment)
+                            try {
+                              const match = val.match(/[\/|=]([0-9]+)(?:\?|$|\/|&)/) || val.match(/^([0-9]+)$/);
+                              if (match && match[1]) {
+                                setStreamCode(match[1]);
+                              }
+                            } catch (_) {}
+                          }}
                           className="rounded-xl h-11 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 focus-visible:border-primary shadow-sm"
                           required
                         />
+                      </div>
+
+                      {/* Dr.Cash API Credentials Section */}
+                      <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                        <div className="space-y-1.5 col-span-2 md:col-span-1">
+                          <Label htmlFor="api-token" className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                            <ShieldCheck className="h-3.5 w-3.5 text-primary" /> API Token Dr.Cash
+                          </Label>
+                          <Input 
+                            id="api-token" 
+                            type="text"
+                            placeholder="Seu API Token"
+                            value={apiToken} 
+                            onChange={(e) => setApiToken(e.target.value)}
+                            className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm text-xs font-mono"
+                            required
+                          />
+                        </div>
+
+                        <div className="space-y-1.5 col-span-2 md:col-span-1">
+                          <Label htmlFor="stream-code" className="text-xs font-semibold text-slate-700 flex items-center gap-1">
+                            <Link className="h-3.5 w-3.5 text-primary" /> Código da Campanha (stream_code)
+                          </Label>
+                          <Input 
+                            id="stream-code" 
+                            type="text"
+                            placeholder="Confirmar stream_code (ex: 12345)"
+                            value={streamCode} 
+                            onChange={(e) => setStreamCode(e.target.value)}
+                            className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm text-xs font-mono"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      {/* Product Name & Product Category */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="product-name" className="text-xs font-semibold text-slate-700">
+                            Nome do Produto
+                          </Label>
+                          <Input 
+                            id="product-name" 
+                            type="text"
+                            placeholder="Ex: Cardiol"
+                            value={productName} 
+                            onChange={(e) => setProductName(e.target.value)}
+                            className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label htmlFor="product-category" className="text-xs font-semibold text-slate-700">
+                            Categoria do Produto
+                          </Label>
+                          <select
+                            id="product-category"
+                            value={productCategory}
+                            onChange={(e) => setProductCategory(e.target.value)}
+                            className="w-full rounded-xl h-10 border border-slate-200 bg-white text-sm text-slate-600 px-3 focus:outline-none focus:ring-2 focus:ring-primary shadow-sm cursor-pointer"
+                          >
+                            <option value="Saúde & Bem-estar">Saúde & Bem-estar</option>
+                            <option value="Beleza & Cuidados">Beleza & Cuidados</option>
+                            <option value="Finanças & Investimentos">Finanças & Investimentos</option>
+                            <option value="Cursos & Educação">Cursos & Educação</option>
+                            <option value="E-commerce & Geral">E-commerce & Geral</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Product Headline */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="product-headline" className="text-xs font-semibold text-slate-700">
+                          Título Principal (Headline)
+                        </Label>
+                        <Input 
+                          id="product-headline" 
+                          type="text"
+                          placeholder="Ex: Você está convidado a conhecer a página oficial"
+                          value={productHeadline} 
+                          onChange={(e) => setProductHeadline(e.target.value)}
+                          className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm"
+                        />
+                      </div>
+
+                      {/* Product Description */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="product-description" className="text-xs font-semibold text-slate-700">
+                          Descrição Curta da Oferta
+                        </Label>
+                        <Textarea 
+                          id="product-description"
+                          placeholder="Ex: Clique abaixo para ser redirecionado com segurança para o site oficial do distribuidor autorizado e garantir sua oferta exclusiva..."
+                          value={productDescription} 
+                          onChange={(e) => setProductDescription(e.target.value)}
+                          className="rounded-xl border-slate-200 min-h-[60px] resize-y bg-white text-xs focus-visible:ring-primary focus-visible:ring-2"
+                        />
+                      </div>
+
+                      {/* CTA Button Text, Support Email & Language */}
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-1.5">
+                          <Label htmlFor="cta-text" className="text-xs font-semibold text-slate-700">
+                            Texto do Botão (CTA)
+                          </Label>
+                          <Input 
+                            id="cta-text" 
+                            type="text"
+                            placeholder="Ex: Ir para o Site Oficial"
+                            value={ctaText} 
+                            onChange={(e) => setCtaText(e.target.value)}
+                            className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label htmlFor="support-email" className="text-xs font-semibold text-slate-700">
+                            E-mail de Suporte
+                          </Label>
+                          <Input 
+                            id="support-email" 
+                            type="email"
+                            placeholder="suporte@seudominio.com"
+                            value={supportEmail} 
+                            onChange={(e) => setSupportEmail(e.target.value)}
+                            className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label htmlFor="page-lang" className="text-xs font-semibold text-slate-700">
+                            Idioma do Rodapé
+                          </Label>
+                          <select
+                            id="page-lang"
+                            value={popupLanguage}
+                            onChange={(e) => setPopupLanguage(e.target.value)}
+                            className="w-full rounded-xl h-10 border border-slate-200 bg-white text-sm text-slate-600 px-3 focus:outline-none focus:ring-2 focus:ring-primary shadow-sm cursor-pointer"
+                          >
+                            <option value="pt-BR">Português (pt-BR)</option>
+                            <option value="en">English (en)</option>
+                            <option value="es">Español (es)</option>
+                          </select>
+                        </div>
                       </div>
 
                       {/* Custom Head/Header Tags (Dynamic Numbered List 1, 2, 3...) */}
@@ -899,6 +1735,14 @@ export default function Creator() {
                                 onClick={() => {
                                   setDestinationUrl(site.destinationUrl);
                                   setScripts(site.scripts.length > 0 ? site.scripts : [""]);
+                                  setProductName(site.productName || "");
+                                  setProductHeadline(site.productHeadline || "");
+                                  setProductDescription(site.productDescription || "");
+                                  setProductCategory(site.productCategory || "Saúde & Bem-estar");
+                                  setCtaText(site.ctaText || "Ir para o Site Oficial");
+                                  setSupportEmail(site.supportEmail || "");
+                                  setApiToken(site.apiToken || "");
+                                  setStreamCode(site.streamCode || "");
                                   setActiveView("create");
                                   setStep("form");
                                   toast({ title: "Dados carregados!", description: "Dados da ponte carregados no formulário de criação." });

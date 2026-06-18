@@ -14,4 +14,5 @@ export interface DrCashRankItem {
   searchVolume: number;
   competition: string;
   cpc: number;
+  geo: string[];
 }

@@ -748,8 +748,10 @@ export default function Trends() {
                       <tr className="border-b border-border/40 text-xs font-semibold text-muted-foreground uppercase">
                         <th className="py-3 px-4 w-16 text-center">Rank</th>
                         <th className="py-3 px-4">Produto</th>
+                        <th className="py-3 px-4 text-center">País</th>
                         <th className="py-3 px-4">Categoria / Nicho</th>
-                        <th className="py-3 px-4">Volume de Buscas</th>
+                        <th className="py-3 px-4">Volume (Últimos 30 dias)</th>
+                        <th className="py-3 px-4 text-center">Tendência</th>
                         <th className="py-3 px-4">Concorrência</th>
                         <th className="py-3 px-4">CPC Médio</th>
                         <th className="py-3 px-4 text-right">Ações</th>
@@ -776,6 +778,28 @@ export default function Trends() {
                             compBadge = <Badge variant="outline">{item.competition}</Badge>;
                         }
 
+                        // Country details helper
+                        const getGeoDetails = (code: string) => {
+                          const geoMap: Record<string, { name: string; flag: string }> = {
+                            BR: { name: "Brasil", flag: "🇧🇷" },
+                            ES: { name: "Espanha", flag: "🇪🇸" },
+                            IT: { name: "Itália", flag: "🇮🇹" },
+                            PT: { name: "Portugal", flag: "🇵🇹" },
+                            DE: { name: "Alemanha", flag: "🇩🇪" },
+                            MX: { name: "México", flag: "🇲🇽" },
+                            BG: { name: "Bulgária", flag: "🇧🇬" },
+                            CO: { name: "Colômbia", flag: "🇨🇴" },
+                            RO: { name: "Romênia", flag: "🇷🇴" },
+                            RU: { name: "Rússia", flag: "🇷🇺" },
+                            PL: { name: "Polônia", flag: "🇵🇱" },
+                            CZ: { name: "Chéquia", flag: "🇨🇿" },
+                            HU: { name: "Hungria", flag: "🇭🇺" },
+                            SK: { name: "Eslováquia", flag: "🇸🇰" },
+                            US: { name: "EUA", flag: "🇺🇸" }
+                          };
+                          return geoMap[code.toUpperCase()] || { name: code, flag: "🌐" };
+                        };
+
                         // Relative volume calculation
                         const maxVol = Math.max(...drcashRank.map(r => r.searchVolume), 1);
                         const volPct = Math.round((item.searchVolume / maxVol) * 100);
@@ -792,11 +816,32 @@ export default function Trends() {
                           rankCell = <span className="font-semibold text-muted-foreground text-sm block text-center">{item.rank}</span>;
                         }
 
+                        // Trend display
+                        const isPositiveTrend = item.trend >= 0;
+                        const trendColor = isPositiveTrend ? "text-green-600 bg-green-500/10 border-green-500/20" : "text-red-600 bg-red-500/10 border-red-500/20";
+
                         return (
                           <tr key={item.id} className="group hover:bg-white/40 transition-colors">
                             <td className="py-3.5 px-4 text-center">{rankCell}</td>
                             <td className="py-3.5 px-4">
                               <span className="font-semibold text-foreground text-sm block">{item.name}</span>
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <div className="flex gap-1.5 justify-center flex-wrap">
+                                {item.geo && Array.isArray(item.geo) ? (
+                                  item.geo.map((g: string) => {
+                                    const details = getGeoDetails(g);
+                                    return (
+                                      <Badge key={g} variant="outline" className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase border-primary/20 text-primary bg-primary/5 hover:bg-primary/10 flex items-center gap-1" title={details.name}>
+                                        <span>{details.flag}</span>
+                                        <span>{details.name}</span>
+                                      </Badge>
+                                    );
+                                  })
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">-</span>
+                                )}
+                              </div>
                             </td>
                             <td className="py-3.5 px-4">
                               <Badge variant="secondary" className="font-normal text-xs rounded-lg">
@@ -813,6 +858,15 @@ export default function Trends() {
                                   <div className="bg-primary h-full rounded-full transition-all duration-500" style={{ width: `${volPct}%` }} />
                                 </div>
                               </div>
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              {item.trend !== undefined && item.trend !== null ? (
+                                <Badge variant="outline" className={`text-xs font-semibold px-2 py-0.5 rounded ${trendColor}`}>
+                                  {isPositiveTrend ? "↑" : "↓"} {Math.abs(item.trend)}%
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">-</span>
+                              )}
                             </td>
                             <td className="py-3.5 px-4">{compBadge}</td>
                             <td className="py-3.5 px-4">

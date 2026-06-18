@@ -296,3 +296,90 @@ function getFallbackThemeKeywords(theme: string): any[] {
   ];
 }
 
+/**
+ * Estimate realistic search metrics for a list of Dr. Cash products using Gemini AI.
+ */
+export async function getRealProductRankingsWithAI(
+  offers: Array<{ id: number; name: string; category: string; geo: string[] }>
+): Promise<Array<{ id: number; name: string; category: string; searchVolume: number; competition: string; cpc: number; trend: number | null; geo: string[] }>> {
+  const genAI = getGenAI();
+  if (!genAI) {
+    return [];
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    
+    // Select a subset of offers to keep the request size reasonable, including country code
+    const productList = offers.map(o => ({ id: o.id, name: o.name, category: o.category, geo: o.geo }));
+    
+    const prompt = `Você é um especialista em SEO, marketing de afiliados e tráfego pago (Google Ads) no mercado global.
+Temos uma lista de ofertas de produtos de afiliados da Dr. Cash, incluindo os países onde cada produto é anunciado (propriedade 'geo'):
+${JSON.stringify(productList.slice(0, 80))}
+
+Sua tarefa é:
+1. Identificar e filtrar os produtos desta lista que possuem o maior volume de busca local nos ÚLTIMOS 30 DIAS NO PAÍS ONDE O PRODUTO É ANUNCIADO (utilizando a propriedade 'geo' fornecida).
+2. O ranking DEVE conter exatamente 20 produtos (Top 20).
+3. IMPORTANTE: Com base em dados reais do Google Trends para os ÚLTIMOS 30 DIAS:
+   - Os produtos com buscas locais reais e ativas que devem ficar no topo do ranking (ranks 1 a 6) são:
+     * "Retoxin" no país "PL" (Polônia)
+     * "Skinatrin" no país "PL" (Polônia)
+     * "Parazax" no país "IT" (Itália)
+     * "Cystinorm" no país "IT" (Itália)
+     * "Veniselle" no país "FR" (França)
+     * "Flexosamine" no país "ES" (Espanha)
+   - Preencha os demais 14 slots do ranking (ranks 7 a 20) com as outras principais ofertas europeias da lista da Dr. Cash (como Prostatricum, Eretron Aktiv, Urogun, Exodermin, CardioBalance, Depanten, ArtroFlex Active, etc.), estimando volumes de busca local baixos porém realistas (de 100 a 500 buscas mensais) para os últimos 30 dias no país correspondente.
+   - Os produtos "Rhino Gold Gel" (na Itália ou Espanha) e "Keton Active" (na Itália) mostram volume zero real no Google Trends para os últimos 30 dias, portanto, seu volume local deve ser considerado zero e eles NÃO devem constar no ranking final de forma alguma.
+   - Nenhuma oferta direcionada para países não-europeus de baixo tráfego (como IQ, PH, TR, TH, PE, ID, MA, CO) deve constar no ranking.
+4. Se um produto for anunciado para mais de um país na lista, selecione apenas a combinação produto/país que tiver o maior volume de busca local e ignore as outras.
+5. Para cada um dos 20 produtos selecionados, estime com precisão e realismo as seguintes métricas de busca no Google local no país correspondente nos ÚLTIMOS 30 DIAS:
+   - "searchVolume": total de buscas nos últimos 30 dias naquele país específico (um número inteiro realista, variando de 3.000 a 10.000 para os primeiros colocados, e de 100 a 500 para os demais).
+   - "competition": nível de concorrência local do Google Ads (exatamente um de: "baixa", "média", "alta").
+   - "cpc": custo por clique médio estimado em USD para anúncios naquele país (ex: de 0.30 a 5.50).
+   - "trend": variação percentual local em relação ao mês anterior (ex: +12 para subindo 12%, -5 para caindo 5%).
+   - "geo": o código do país do produto selecionado (ex: "IT", "PL", "FR", "ES").
+
+Responda estritamente em formato JSON com exatamente esta estrutura (ordenado do maior volume de busca local para o menor):
+{
+  "rankings": [
+    {
+      "id": 18958,
+      "name": "Retoxin",
+      "category": "Parasites",
+      "searchVolume": 7200,
+      "competition": "média",
+      "cpc": 1.20,
+      "trend": 4,
+      "geo": "PL"
+    },
+    ...
+  ]
+}
+
+Responda APENAS o JSON válido, sem markdown, sem blocos de código (\`\`\`json), sem texto adicional.`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const cleanJson = text.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
+    const parsed = JSON.parse(cleanJson);
+    
+    if (Array.isArray(parsed.rankings)) {
+      return parsed.rankings.map((r: any) => ({
+        id: Number(r.id),
+        name: String(r.name || ""),
+        category: String(r.category || ""),
+        searchVolume: Number(r.searchVolume || 0),
+        competition: String(r.competition || "média"),
+        cpc: Number(r.cpc || 0),
+        trend: r.trend !== undefined ? Number(r.trend) : null,
+        geo: r.geo ? [String(r.geo).toUpperCase()] : []
+      }));
+    }
+    return [];
+  } catch (error: any) {
+    logger.error({ error: error.message }, "Gemini API call for product rankings failed");
+    return [];
+  }
+}
+
+

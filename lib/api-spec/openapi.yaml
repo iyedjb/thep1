@@ -579,7 +579,7 @@ components:
 
     DrCashRankItem:
       type: object
-      required: [rank, id, name, category, searchVolume, competition, cpc]
+      required: [rank, id, name, category, searchVolume, competition, cpc, geo]
       properties:
         rank:
           type: integer
@@ -595,4 +595,8 @@ components:
           type: string
         cpc:
           type: number
+        geo:
+          type: array
+          items:
+            type: string
 
