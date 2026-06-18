@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Ads Intelligence Platform"
+version = "1.0.0"
+id = "artifacts/ads-intelligence"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 5174
+
+[services.development]
+run = "pnpm --filter @workspace/ads-intelligence run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/ads-intelligence", "run", "build" ]
+publicDir = "artifacts/ads-intelligence/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "5174"
+BASE_PATH = "/"
