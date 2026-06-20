@@ -1223,7 +1223,12 @@ function generateScreenshotBridgeHtml(input: {
   />
 
   <div class="cookie-bar" id="cookieBar">
-    <span class="cb-icon" aria-hidden="true">🍪</span>
+    <span class="cb-icon" aria-hidden="true" style="display: inline-flex; align-items: center;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <path d="m9 12 2 2 4-4"/>
+      </svg>
+    </span>
     <div class="cb-text">
       <div class="cb-title">${titleClean}</div>
       <div class="cb-desc">${localization.desc}</div>
@@ -1799,7 +1804,21 @@ function injectCookieConsentOverlay(
   affiliateUrl: string,
   lang: string = "pt-BR"
 ): string {
-  const localization = COOKIE_LOCALIZATION[lang] || COOKIE_LOCALIZATION["pt-BR"];
+  // Auto-detect language from html tag if available
+  let detectedLang = lang;
+  const htmlLangMatch = html.match(/<html\s+[^>]*lang=['"]([a-zA-Z-]{2,5})['"]/i);
+  if (htmlLangMatch) {
+    const rawLang = htmlLangMatch[1].toLowerCase();
+    if (rawLang.startsWith("es")) {
+      detectedLang = "es";
+    } else if (rawLang.startsWith("pt")) {
+      detectedLang = "pt-BR";
+    } else if (rawLang.startsWith("en")) {
+      detectedLang = "en";
+    }
+  }
+
+  const localization = COOKIE_LOCALIZATION[detectedLang] || COOKIE_LOCALIZATION["pt-BR"];
   const titleClean = localization.title.replace(/^\u{1F36A}\s?/u, "");
 
   const overlay = `
@@ -1842,7 +1861,7 @@ function injectCookieConsentOverlay(
     from { transform: scale(0.8) translateY(30px); opacity: 0; }
     to   { transform: scale(1)   translateY(0);    opacity: 1; }
   }
-  #ads-emoji  { font-size: 44px; display: block; margin-bottom: 14px; line-height: 1; }
+  #ads-icon-container { display: flex; justify-content: center; margin-bottom: 18px; }
   #ads-title  { font-size: 18px; font-weight: 700; color: #0f172a; margin: 0 0 10px; font-family: inherit; }
   #ads-desc   { font-size: 13px; color: #64748b; line-height: 1.65; margin: 0 0 24px; font-family: inherit; }
   #ads-btns   { display: flex; gap: 10px; }
@@ -1864,15 +1883,19 @@ function injectCookieConsentOverlay(
   #ads-decline:hover { background: #e2e8f0; }
   @media (max-width: 480px) {
     #ads-card  { padding: 28px 18px 22px; border-radius: 16px; }
-    #ads-emoji { font-size: 36px; }
     #ads-title { font-size: 16px; }
     #ads-btns  { flex-direction: column; }
   }
 </style>
-
+ 
 <div id="ads-overlay">
   <div id="ads-card" onclick="event.stopPropagation()">
-    <span id="ads-emoji">&#x1F36A;</span>
+    <div id="ads-icon-container">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <path d="m9 12 2 2 4-4"/>
+      </svg>
+    </div>
     <h3 id="ads-title">${titleClean}</h3>
     <p id="ads-desc">${localization.desc}</p>
     <div id="ads-btns">
