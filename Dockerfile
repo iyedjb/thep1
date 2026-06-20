@@ -1,6 +1,8 @@
 # ---- Base ----
 FROM node:22-slim AS base
 
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+
 RUN npm install -g pnpm@11
 
 WORKDIR /app
