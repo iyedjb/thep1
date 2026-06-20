@@ -1,7 +1,7 @@
 # ---- Base ----
 FROM node:22-slim AS base
 
-RUN npm install -g pnpm@9
+RUN npm install -g pnpm@11
 
 WORKDIR /app
 
@@ -36,7 +36,7 @@ RUN pnpm run build
 # ---- Runner ----
 FROM node:22-slim AS runner
 
-RUN npm install -g pnpm@9
+RUN npm install -g pnpm@11
 
 WORKDIR /app
 
