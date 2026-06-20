@@ -126,9 +126,8 @@ const PRESET_DR_CASH_OFFERS = [
   { id: 19756, name: "NikoHate", category: "Addiction", geo: ["TR"] }
 ];
 
-async function fetchDrCashOffersBatch(offset: number): Promise<any[]> {
+async function fetchDrCashOffersBatch(token: string, offset: number): Promise<any[]> {
   const DR_CASH_API = "drcash.io";
-  const DR_CASH_TOKEN = process.env.DR_CASH_API_TOKEN || "NGNLMDJMOGETMDQ2NI00OTY3LWIWZJATMDYYNDC5YTBHMDEW";
 
   return new Promise((resolve) => {
     const options: https.RequestOptions = {
@@ -136,7 +135,7 @@ async function fetchDrCashOffersBatch(offset: number): Promise<any[]> {
       path: `/v1/offer?limit=50&offset=${offset}`,
       method: "GET",
       headers: {
-        Authorization: `Bearer ${DR_CASH_TOKEN}`,
+        Authorization: `Bearer ${token}`,
         Accept: "application/json",
         Origin: "https://affiliate.dr.cash",
         Referer: "https://affiliate.dr.cash/",
@@ -166,10 +165,10 @@ async function fetchDrCashOffersBatch(offset: number): Promise<any[]> {
   });
 }
 
-async function fetchDrCashOffers(): Promise<Array<{ id: number; name: string; category: string; geo: string[] }>> {
+async function fetchDrCashOffers(token: string): Promise<Array<{ id: number; name: string; category: string; geo: string[] }>> {
   try {
-    const batch1 = await fetchDrCashOffersBatch(0);
-    const batch2 = await fetchDrCashOffersBatch(50);
+    const batch1 = await fetchDrCashOffersBatch(token, 0);
+    const batch2 = await fetchDrCashOffersBatch(token, 50);
     const items = [...batch1, ...batch2];
     if (items.length > 0) {
       return items.map((o: any) => ({
@@ -188,7 +187,16 @@ async function fetchDrCashOffers(): Promise<Array<{ id: number; name: string; ca
 // NEW: Get top 20 most searched Dr. Cash products by name
 router.get("/keywords/drcash-rank", requireAuth, async (req: any, res) => {
   try {
-    const offers = await fetchDrCashOffers();
+    const db = getDb();
+    const user = db.prepare("SELECT drcash_token FROM users WHERE id = ?").get(req.userId) as any;
+    const token = user?.drcash_token;
+
+    let offers;
+    if (token) {
+      offers = await fetchDrCashOffers(token);
+    } else {
+      offers = PRESET_DR_CASH_OFFERS;
+    }
     
     // Try to get rankings using Gemini AI first
     let rankings = await getRealProductRankingsWithAI(offers);

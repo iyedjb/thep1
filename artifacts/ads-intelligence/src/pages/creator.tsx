@@ -43,6 +43,7 @@ type View = "create" | "websites";
 
 interface SavedWebsite {
   id: string;
+  referenceUrl?: string;
   destinationUrl: string;
   scripts: string[];
   generatedHtml: string;
@@ -59,6 +60,9 @@ interface SavedWebsite {
   supportEmail?: string;
   apiToken?: string;
   streamCode?: string;
+  selectedOption?: "a" | "b";
+  thankYouHtml?: string;
+  thankYouFileName?: string;
 }
 
 const POPUP_LANGS: Record<string, { headline: string; sub: string; namePlaceholder: string; contactPlaceholder: string; btn: string; close: string; thanks: string; }> = {
@@ -81,7 +85,7 @@ const POPUP_LANGS: Record<string, { headline: string; sub: string; namePlacehold
     thanks: "Thank you! We will contact you soon."
   },
   "es": {
-    headline: "¿Te gustó nuestro producto?",
+    headline: "¿Te gustó nuestro produto?",
     sub: "Deja tu contacto y nuestro equipo se comunicará contigo pronto.",
     namePlaceholder: "Tu nombre",
     contactPlaceholder: "Correo o WhatsApp",
@@ -201,21 +205,21 @@ const LOCALIZED_TEXT: Record<string, {
   },
   "es": {
     partnerApproved: "Socio Autorizado",
-    privacy: "Política de Privacidad",
+    privacy: "Política de Privacidade",
     terms: "Términos de Uso",
     contact: "Contacto",
     disclaimer: "Aviso Legal: Este sitio es un canal de redirección informativo y no tiene vínculos directos ni de afiliación de patrocinio con Google LLC, Google Ads o Facebook Ads.",
-    copyright: "Todos los derechos reservados.",
-    privacyTitle: "Política de Privacidad",
-    privacyP1: "Su privacidad es muy importante para nosotros. Esta Política de Privacidad de describe cómo se maneja su información personal al utilizar este sitio de redirección.",
-    privacyP2: "<strong>Recopilación de Información:</strong> No recopilamos información de identificación personal en este sitio de redirección, excepto eventuales datos de tráfico anónimos proporcionados por cookies de terceros (como Google Analytics o píxeles de seguimiento) si el propietario los habilita.",
+    copyright: "Todos os direitos reservados.",
+    privacyTitle: "Política de Privacidade",
+    privacyP1: "Su privacidade es muito importante para nosotros. Esta Política de Privacidade de describe cómo se maneja su información personal al utilizar este sitio de redirección.",
+    privacyP2: "<strong>Recopilación de Información:</strong> No recopilamos información de identificación pessoal en este sitio de redirección, excepto eventuales datos de tráfico anónimos proporcionados por cookies de terceros (como Google Analytics o píxeles de seguimiento) si el propietario los habilita.",
     privacyP3: "<strong>Enlaces a Terceros:</strong> Este sitio contiene enlaces que redireccionan a sitios externos. No tenemos control sobre las políticas de privacidad de estos sitios de terceros, por lo que recomendamos leer sus políticas al acceder a ellos.",
-    privacyP4: "Al utilizar nuestro sitio de redirección, acepta los términos aquí establecidos.",
+    privacyP4: "Al utilizar nosso site de redirección, acepta los términos aquí establecidos.",
     termsTitle: "Términos de Uso",
     termsP1: "Bienvenido a nuestro sitio de redirección.",
-    termsP2: "<strong>Aceptación de los Términos:</strong> Al utilizar este sitio, acepta cumplir y estar sujeto a estos Términos de Uso. Si no está de acuerdo con alguna parte de estos términos, no utilice el sitio.",
-    termsP3: "<strong>Uso del Sitio:</strong> Este sitio tiene como objetivo proporcionar un canal de redirección informativo seguro a la página oficial del producto. Acepta no intentar violar la seguridad del sitio, utilizar robots de scraping ni realizar ninguna actividad ilegal aquí.",
-    termsP4: "<strong>Limitación de Responsabilidad:</strong> No nos hacemos responsables de las compras realizadas en el sitio de destino final. Toda transacción comercial es responsabilidad exclusiva del proveedor oficial del producto o servicio accedido.",
+    termsP2: "<strong>Aceptación de los Términos:</strong> Al utilizar este site, acepta cumplir y estar sujeto a estos Términos de Uso. Si no está de acordo con alguna parte de estos términos, no utilice el sitio.",
+    termsP3: "<strong>Uso del Sitio:</strong> Este site tiene como objetivo proporcionar un canal de redirección informativo seguro a la página oficial del producto. Acepta no intentar violar la seguridad del site, utilizar robots de scraping ni realizar ninguna actividad ilegal aquí.",
+    termsP4: "<strong>Limitation de Responsabilidad:</strong> No nos hacemos responsables de las compras realizadas en el sitio de destino final. Toda transacción comercial es responsabilidad exclusiva del proveedor oficial del producto o servicio accedido.",
     contactTitle: "Contacto",
     contactP1: "¿Necesita soporte o tiene alguna duda técnica sobre este redireccionador?",
     contactP2: "Póngase en contacto con nosotros a través del correo electrónico oficial a continuación:",
@@ -244,6 +248,7 @@ export default function Creator() {
   const [activeView, setActiveView] = useState<View>("create");
 
   // Form states
+  const [referenceUrl, setReferenceUrl] = useState("");
   const [destinationUrl, setDestinationUrl] = useState("");
   const [scripts, setScripts] = useState<string[]>([""]);
   const [popupLanguage, setPopupLanguage] = useState("pt-BR");
@@ -255,6 +260,13 @@ export default function Creator() {
   const [supportEmail, setSupportEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
   const [streamCode, setStreamCode] = useState("");
+  const [thankYouUrl, setThankYouUrl] = useState("./Obrigado.html");
+  const [generatedMode, setGeneratedMode] = useState<"presell" | "upsell" | "">("");
+  const [designSummary, setDesignSummary] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [selectedOption, setSelectedOption] = useState<"a" | "b">("a");
+  const [screenshotUrl, setScreenshotUrl] = useState<string>("");
+  const [isScreenshotLoading, setIsScreenshotLoading] = useState(false);
   
   // Step state for creation wizard
   const [step, setStep] = useState<Step>("form");
@@ -262,6 +274,8 @@ export default function Creator() {
 
   // Generated code & publishing states for current wizard run
   const [generatedHtml, setGeneratedHtml] = useState("");
+  const [thankYouHtml, setThankYouHtml] = useState("");
+  const [thankYouFileName, setThankYouFileName] = useState("");
   const [currentWebsiteId, setCurrentWebsiteId] = useState("");
   const [publishedUrl, setPublishedUrl] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
@@ -280,7 +294,7 @@ export default function Creator() {
 
     const drcashLander = localStorage.getItem("drcash_selected_lander");
     if (drcashLander) {
-      setDestinationUrl(drcashLander);
+      setReferenceUrl(drcashLander);
       localStorage.removeItem("drcash_selected_lander");
       toast({
         title: "Oferta Carregada",
@@ -311,6 +325,57 @@ export default function Creator() {
     fetchDefaultToken();
   }, []);
 
+  // Debounced effect to fetch screenshot of referenceUrl
+  useEffect(() => {
+    if (!referenceUrl) {
+      setScreenshotUrl("");
+      return;
+    }
+
+    let target = referenceUrl.trim();
+    if (!/^https?:\/\//i.test(target)) {
+      target = "https://" + target;
+    }
+    try {
+      new URL(target);
+    } catch (_) {
+      setScreenshotUrl("");
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setIsScreenshotLoading(true);
+      const encodedUrl = encodeURIComponent(target);
+      const url = `https://api.microlink.io/?url=${encodedUrl}&screenshot=true&embed=screenshot.url`;
+
+      const img = new Image();
+      img.onload = () => {
+        setScreenshotUrl(url);
+        setIsScreenshotLoading(false);
+      };
+      img.onerror = () => {
+        const thumIoKeyId = import.meta.env.VITE_THUM_IO_KEY_ID || "";
+        const thumIoUrlKey = import.meta.env.VITE_THUM_IO_URL_KEY || "";
+        const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
+        const fallbackUrl = `https://image.thum.io/get/${authPrefix}width/1280/crop/800/${target}`;
+        
+        const fallbackImg = new Image();
+        fallbackImg.onload = () => {
+          setScreenshotUrl(fallbackUrl);
+          setIsScreenshotLoading(false);
+        };
+        fallbackImg.onerror = () => {
+          setScreenshotUrl("");
+          setIsScreenshotLoading(false);
+        };
+        fallbackImg.src = fallbackUrl;
+      };
+      img.src = url;
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [referenceUrl]);
+
   // Save websites helper
   const saveWebsites = (newList: SavedWebsite[]) => {
     setSavedWebsites(newList);
@@ -318,8 +383,17 @@ export default function Creator() {
   };
 
   // Compile the clean HTML redirector page
-  const handleGenerate = (e: React.FormEvent) => {
+  const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!referenceUrl.trim()) {
+      toast({
+        title: "Pagina de referencia obrigatoria",
+        description: "Informe a landing page que a IA deve pesquisar para copiar design, idioma e oferta.",
+        variant: "destructive"
+      });
+      return;
+    }
     
     if (!destinationUrl.trim()) {
       toast({
@@ -336,6 +410,115 @@ export default function Creator() {
       targetUrl = "https://" + targetUrl;
       setDestinationUrl(targetUrl);
     }
+
+    let sourceUrl = referenceUrl.trim();
+    if (!/^https?:\/\//i.test(sourceUrl)) {
+      sourceUrl = "https://" + sourceUrl;
+      setReferenceUrl(sourceUrl);
+    }
+
+    const token = localStorage.getItem("ads_token");
+    const combinedAiTags = scripts.filter(s => s.trim() !== "").join("\n    ");
+
+    setStep("generating");
+    setGeneratingMessage("Pesquisando design, imagens e idioma com Exa...");
+    setGeneratedHtml("");
+    setPublishedUrl("");
+    setDesignSummary("");
+    setGeneratedMode("");
+
+    setTimeout(() => {
+      setGeneratingMessage("Treinando o contexto com as skills de presell e upsell...");
+    }, 900);
+    setTimeout(() => {
+      setGeneratingMessage("Gerando HTML world-class com Groq GPT-OSS 120B...");
+    }, 1800);
+
+    try {
+      const response = await fetch("/api/generate-bridge-ai", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : ""
+        },
+        body: JSON.stringify({
+          referenceUrl: sourceUrl,
+          affiliateUrl: targetUrl,
+          trackingTags: combinedAiTags,
+          productHint: productName,
+          apiToken,
+          streamCode,
+          thankYouUrl,
+          network: "Dr.Cash",
+          selectedOption,
+          popupLanguage
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao gerar pagina com IA.");
+      }
+
+      const html = data.html || "";
+      setGeneratedHtml(html);
+      setGeneratedMode(data.mode || "presell");
+      setDesignSummary(data.designSummary || "");
+
+      const tyHtml = data.thankYouHtml || "";
+      const tyFileName = data.thankYouFileName || "";
+      setThankYouHtml(tyHtml);
+      setThankYouFileName(tyFileName);
+
+      const newId = Date.now().toString();
+      setCurrentWebsiteId(newId);
+
+      const newSite: SavedWebsite = {
+        id: newId,
+        referenceUrl: sourceUrl,
+        destinationUrl: targetUrl,
+        scripts: scripts.filter(s => s.trim() !== ""),
+        generatedHtml: html,
+        publishedUrl: "",
+        fileName: "",
+        status: "local",
+        createdAt: new Date().toLocaleDateString("pt-BR"),
+        popupLanguage: data.language || popupLanguage,
+        productName: data.productName || productName,
+        productHeadline,
+        productDescription: data.designSummary || productDescription,
+        productCategory,
+        ctaText,
+        supportEmail,
+        apiToken,
+        streamCode,
+        selectedOption,
+        thankYouHtml: tyHtml,
+        thankYouFileName: tyFileName
+      };
+      saveWebsites([newSite, ...savedWebsites]);
+
+      setGeneratingMessage("Finalizando pagina e salvando no historico...");
+      setStep("done");
+
+      setTimeout(() => {
+        setStep("actions");
+        toast({
+          title: "Pagina Gerada com IA!",
+          description: "A IA escolheu o melhor modelo e criou o HTML com base na pagina pesquisada.",
+          variant: "default"
+        });
+      }, 900);
+    } catch (err: any) {
+      setStep("form");
+      toast({
+        title: "Erro ao gerar com IA",
+        description: err.message,
+        variant: "destructive"
+      });
+    }
+
+    return;
 
     let domainName = "Carregando...";
     try {
@@ -889,7 +1072,8 @@ export default function Creator() {
       ctaText,
       supportEmail,
       apiToken,
-      streamCode
+      streamCode,
+      selectedOption
     };
     saveWebsites([newSite, ...savedWebsites]);
 
@@ -973,7 +1157,9 @@ export default function Creator() {
         },
         body: JSON.stringify({
           htmlContent: generatedHtml,
-          fileName: fileName
+          fileName: fileName,
+          thankYouHtml: thankYouHtml,
+          thankYouFileName: thankYouFileName
         })
       });
 
@@ -990,6 +1176,7 @@ export default function Creator() {
             ...site,
             publishedUrl: data.url,
             fileName: fileName,
+            thankYouFileName: thankYouFileName,
             status: "active" as const
           };
         }
@@ -1125,7 +1312,10 @@ export default function Creator() {
             "Content-Type": "application/json",
             "Authorization": token ? `Bearer ${token}` : ""
           },
-          body: JSON.stringify({ fileName: site.fileName })
+          body: JSON.stringify({ 
+            fileName: site.fileName,
+            thankYouFileName: site.thankYouFileName
+          })
         });
       } catch (_) {}
     }
@@ -1146,11 +1336,11 @@ export default function Creator() {
   };
 
   return (
-    <div className="relative min-h-[calc(100vh-80px)] p-4 md:p-8 flex flex-col items-stretch justify-start bg-slate-50/50 pt-10">
+    <div className="relative min-h-[calc(100vh-80px)] p-4 md:p-8 flex flex-col items-stretch justify-start bg-slate-50 pt-10">
       
       {/* Decorative clean background mesh */}
-      <div className="absolute top-0 left-0 w-full h-full bg-dots-grid pointer-events-none -z-10 opacity-70" />
-      <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full bg-primary/5 blur-[120px] pointer-events-none -z-10" />
+      <div className="hidden absolute top-0 left-0 w-full h-full bg-dots-grid pointer-events-none -z-10 opacity-70" />
+      <div className="hidden absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full bg-primary/5 blur-[120px] pointer-events-none -z-10" />
       
       <div className={`w-full ${activeView === "create" ? "max-w-xl mx-auto" : "max-w-full"} space-y-6 z-10`}>
         
@@ -1158,17 +1348,17 @@ export default function Creator() {
         {step !== "generating" && step !== "done" && (
           <div className="text-center space-y-2 animate-in fade-in duration-300">
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 flex items-center justify-center gap-2">
-              <Sparkles className="h-6 w-6 text-primary" /> Criador de Pontes IA
+              <Sparkles className="h-5 w-5 text-primary" /> Criador de Pontes IA
             </h1>
-            <p className="text-slate-500 text-xs md:text-sm max-w-lg mx-auto">
-              Gere um redirecionador instantâneo com iframe em tela cheia e códigos de rastreamento personalizados.
+            <p className="text-slate-500 text-xs md:text-sm max-w-md mx-auto leading-relaxed">
+              Gere uma ponte com pesquisa visual, idioma automatico e HTML final criado por IA.
             </p>
           </div>
         )}
 
         {/* VIEW SELECTOR SWITCHER (Only shown when not loading/done) */}
         {step !== "generating" && step !== "done" && (
-          <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200/50 max-w-[240px] mx-auto animate-in fade-in duration-300">
+          <div className="flex bg-white p-0.5 rounded-lg border border-slate-200 max-w-[240px] mx-auto animate-in fade-in duration-300 shadow-xs">
             <button
               onClick={() => {
                 setActiveView("create");
@@ -1201,26 +1391,208 @@ export default function Creator() {
             {/* STEP 1: Input Form */}
             {step === "form" && (
               <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-300">
-                <Card className="border border-slate-200 bg-white shadow-md rounded-2xl">
-                  <CardContent className="p-6 md:p-8 space-y-6">
-                    <div className="text-center space-y-1 pb-2 border-b border-slate-100">
-                      <h2 className="text-lg font-bold text-slate-800">Nova Ponte</h2>
-                      <p className="text-xs text-slate-400">Insira o link final e insira as tags de verificação ou pixel</p>
+                <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
+                  <CardContent className="p-5 md:p-7 space-y-5">
+                    <div className="space-y-1 pb-1">
+                      <h2 className="text-base font-bold text-slate-900">Nova Ponte</h2>
+                      <p className="text-xs text-slate-500">A IA pesquisa a pagina original e gera o HTML final.</p>
                     </div>
 
                     <form onSubmit={handleGenerate} className="space-y-5" autoComplete="off">
-                      
+                      <div className="hidden rounded-xl border border-primary/15 bg-primary/5 p-4">
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 rounded-lg bg-white p-2 text-primary shadow-sm">
+                            <Sparkles className="h-4 w-4" />
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm font-bold text-slate-800">Geracao treinada com as 2 skills</p>
+                            <p className="text-xs text-slate-500 leading-relaxed">
+                              Exa pesquisa design, imagens, idioma e oferta. Groq GPT-OSS 120B monta a pagina final sem perguntar o modelo.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label htmlFor="reference-url" className="text-xs font-semibold text-slate-700">
+                          Pagina original
+                        </Label>
+                        <Input
+                          id="reference-url"
+                          type="text"
+                          name="reference_url_field"
+                          autoComplete="new-password"
+                          placeholder="https://produto-original.com/landing-page"
+                          value={referenceUrl}
+                          onChange={(e) => setReferenceUrl(e.target.value)}
+                          className="rounded-lg h-11 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 focus-visible:border-primary shadow-xs"
+                          required
+                        />
+                      </div>
+
+                      {/* Interactive Option Cards */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-slate-700 block">
+                          Modelo da Página de Destino
+                        </Label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          
+                          {/* Option A Card */}
+                          <div
+                            onClick={() => setSelectedOption("a")}
+                            className={`relative overflow-hidden rounded-xl border-2 p-4 cursor-pointer transition-all duration-300 bg-white hover:shadow-md ${
+                              selectedOption === "a"
+                                ? "border-primary ring-2 ring-primary/10 shadow-sm"
+                                : "border-slate-200 hover:border-slate-300"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-[11px] font-bold text-slate-900">Opção A: Página de Cookies</span>
+                              <span className={`h-4 w-4 rounded-full border flex items-center justify-center ${
+                                selectedOption === "a"
+                                  ? "bg-primary border-primary text-white"
+                                  : "border-slate-300"
+                              }`}>
+                                {selectedOption === "a" && <Check className="h-2.5 w-2.5 stroke-[3]" />}
+                              </span>
+                            </div>
+                            
+                            {/* Browser Mockup A */}
+                            <div className="relative aspect-video w-full rounded-lg border border-slate-200 bg-slate-50 overflow-hidden shadow-xs mb-3">
+                              {/* Browser Header */}
+                              <div className="bg-slate-100 border-b border-slate-200 px-2 py-1.5 flex items-center gap-1">
+                                <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+                                <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+                                <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+                                <div className="bg-white rounded-md text-[7px] text-slate-400 px-2 py-0.5 w-24 truncate font-mono ml-2">
+                                  {referenceUrl ? (() => { try { return new URL(referenceUrl.startsWith("http") ? referenceUrl : `https://${referenceUrl}`).hostname; } catch { return referenceUrl; } })() : "ponte.html"}
+                                </div>
+                              </div>
+                              
+                              {/* Browser Body / Screenshot or Fallback */}
+                              <div className="relative w-full h-[calc(100%-25px)] bg-white flex flex-col items-center justify-center">
+                                {isScreenshotLoading ? (
+                                  <div className="absolute inset-0 flex items-center justify-center bg-slate-50">
+                                    <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                                  </div>
+                                ) : screenshotUrl ? (
+                                  <img
+                                    src={screenshotUrl}
+                                    alt="Screenshot of original"
+                                    className="w-full h-full object-cover object-top opacity-60 filter blur-[0.5px]"
+                                  />
+                                ) : (
+                                  <div className="absolute inset-0 bg-slate-50/50 flex flex-col items-center justify-center gap-1">
+                                    <Globe className="h-5 w-5 text-slate-300" />
+                                    <span className="text-[9px] text-slate-400 font-medium">Original Page Mockup</span>
+                                  </div>
+                                )}
+                                
+                                {/* Simulated Cookie Consent Overlay */}
+                                <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px] flex items-center justify-center p-2 animate-in fade-in duration-300">
+                                  <div className="bg-white rounded-md shadow-lg border border-slate-100 p-2.5 w-[85%] text-left space-y-1 scale-[0.85] transform origin-center">
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-[8px] font-bold text-slate-800">🍪 Política de Cookies</span>
+                                    </div>
+                                    <p className="text-[6px] text-slate-500 leading-tight">
+                                      Utilizamos cookies para personalizar sua experiência. Ao continuar, você concorda com nossos termos.
+                                    </p>
+                                    <div className="flex justify-end gap-1 pt-1">
+                                      <div className="bg-slate-100 text-slate-600 text-[5px] font-bold px-1.5 py-0.5 rounded cursor-default">Recusar</div>
+                                      <div className="bg-primary text-white text-[5px] font-bold px-1.5 py-0.5 rounded cursor-default shadow-xs flex items-center gap-0.5">
+                                        Aceitar <ArrowRight className="h-1 w-1" />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <p className="text-[10px] text-slate-500 leading-normal">
+                              Gera uma página de cookies intermediária com aviso de consentimento. Excelente para evitar bloqueios no Google Ads.
+                            </p>
+                          </div>
+                          
+                          {/* Option B Card */}
+                          <div
+                            onClick={() => setSelectedOption("b")}
+                            className={`relative overflow-hidden rounded-xl border-2 p-4 cursor-pointer transition-all duration-300 bg-white hover:shadow-md ${
+                              selectedOption === "b"
+                                ? "border-primary ring-2 ring-primary/10 shadow-sm"
+                                : "border-slate-200 hover:border-slate-300"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-[11px] font-bold text-slate-900">Opção B: Clone Limpo</span>
+                              <span className={`h-4 w-4 rounded-full border flex items-center justify-center ${
+                                selectedOption === "b"
+                                  ? "bg-primary border-primary text-white"
+                                  : "border-slate-300"
+                              }`}>
+                                {selectedOption === "b" && <Check className="h-2.5 w-2.5 stroke-[3]" />}
+                              </span>
+                            </div>
+                            
+                            {/* Browser Mockup B */}
+                            <div className="relative aspect-video w-full rounded-lg border border-slate-200 bg-slate-50 overflow-hidden shadow-xs mb-3">
+                              {/* Browser Header */}
+                              <div className="bg-slate-100 border-b border-slate-200 px-2 py-1.5 flex items-center gap-1">
+                                <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+                                <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+                                <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+                                <div className="bg-white rounded-md text-[7px] text-slate-400 px-2 py-0.5 w-24 truncate font-mono ml-2">
+                                  {referenceUrl ? (() => { try { return new URL(referenceUrl.startsWith("http") ? referenceUrl : `https://${referenceUrl}`).hostname; } catch { return referenceUrl; } })() : "ponte.html"}
+                                </div>
+                              </div>
+                              
+                              {/* Browser Body / Screenshot or Fallback */}
+                              <div className="relative w-full h-[calc(100%-25px)] bg-white flex items-center justify-center">
+                                {isScreenshotLoading ? (
+                                  <div className="absolute inset-0 flex items-center justify-center bg-slate-50">
+                                    <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                                  </div>
+                                ) : screenshotUrl ? (
+                                  <img
+                                    src={screenshotUrl}
+                                    alt="Screenshot of original"
+                                    className="w-full h-full object-cover object-top"
+                                    onError={() => {
+                                      setScreenshotUrl("");
+                                    }}
+                                  />
+                                ) : (
+                                  <div className="absolute inset-0 bg-slate-50/50 flex flex-col items-center justify-center gap-1">
+                                    <Globe className="h-5 w-5 text-slate-300" />
+                                    <span className="text-[9px] text-slate-400 font-medium">Original Page Mockup</span>
+                                  </div>
+                                )}
+                                
+                                {/* Clean Badge */}
+                                <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[6px] font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5">
+                                  <ShieldCheck className="h-1.5 w-1.5" /> Clone Limpo
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <p className="text-[10px] text-slate-500 leading-normal">
+                              Cria uma cópia idêntica da página de referência sem nenhum banner ou popup de cookies, com links de compra direcionando ao afiliado.
+                            </p>
+                          </div>
+
+                        </div>
+                      </div>
+
                       {/* Destination Link */}
                       <div className="space-y-1.5">
                         <Label htmlFor="dest-url" className="text-xs font-semibold text-slate-700">
-                          Link da Campanha Dr.Cash / Destino
+                          Link final / afiliado
                         </Label>
                         <Input 
                           id="dest-url" 
                           type="text"
                           name="random_url_field"
                           autoComplete="new-password"
-                          placeholder="https://drcash.link/xxxxx ou URL da campanha"
+                          placeholder="https://drcash.link/xxxxx ou link de afiliado"
                           value={destinationUrl} 
                           onChange={(e) => {
                             const val = e.target.value;
@@ -1233,13 +1605,27 @@ export default function Creator() {
                               }
                             } catch (_) {}
                           }}
-                          className="rounded-xl h-11 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 focus-visible:border-primary shadow-sm"
+                          className="rounded-lg h-11 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 focus-visible:border-primary shadow-xs"
                           required
                         />
                       </div>
 
+                      <button
+                        type="button"
+                        onClick={() => setShowAdvanced(!showAdvanced)}
+                        className="flex w-full items-center justify-between border-y border-slate-100 py-3 text-left text-xs font-semibold text-slate-600 transition-colors hover:text-slate-900"
+                      >
+                        <span>Opcoes avancadas</span>
+                        <span className="text-[10px] font-medium text-slate-400">
+                          {showAdvanced ? "Ocultar" : "Dr.Cash, tags e pixels"}
+                        </span>
+                      </button>
+
                       {/* Dr.Cash API Credentials Section */}
-                      <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                      <div className={`${showAdvanced ? "grid" : "hidden"} grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100`}>
+                        <div className="col-span-2 -mb-1">
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Opcional para upsell / order form</p>
+                        </div>
                         <div className="space-y-1.5 col-span-2 md:col-span-1">
                           <Label htmlFor="api-token" className="text-xs font-semibold text-slate-700 flex items-center gap-1">
                             <ShieldCheck className="h-3.5 w-3.5 text-primary" /> API Token Dr.Cash
@@ -1251,7 +1637,6 @@ export default function Creator() {
                             value={apiToken} 
                             onChange={(e) => setApiToken(e.target.value)}
                             className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm text-xs font-mono"
-                            required
                           />
                         </div>
 
@@ -1266,13 +1651,25 @@ export default function Creator() {
                             value={streamCode} 
                             onChange={(e) => setStreamCode(e.target.value)}
                             className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm text-xs font-mono"
-                            required
+                          />
+                        </div>
+                        <div className="space-y-1.5 col-span-2">
+                          <Label htmlFor="thank-you-url" className="text-xs font-semibold text-slate-700">
+                            Pagina de obrigado
+                          </Label>
+                          <Input
+                            id="thank-you-url"
+                            type="text"
+                            placeholder="./Obrigado.html"
+                            value={thankYouUrl}
+                            onChange={(e) => setThankYouUrl(e.target.value)}
+                            className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm text-xs font-mono"
                           />
                         </div>
                       </div>
 
                       {/* Product Name & Product Category */}
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="hidden grid-cols-2 gap-4">
                         <div className="space-y-1.5">
                           <Label htmlFor="product-name" className="text-xs font-semibold text-slate-700">
                             Nome do Produto
@@ -1307,7 +1704,7 @@ export default function Creator() {
                       </div>
 
                       {/* Product Headline */}
-                      <div className="space-y-1.5">
+                      <div className="hidden space-y-1.5">
                         <Label htmlFor="product-headline" className="text-xs font-semibold text-slate-700">
                           Título Principal (Headline)
                         </Label>
@@ -1322,7 +1719,7 @@ export default function Creator() {
                       </div>
 
                       {/* Product Description */}
-                      <div className="space-y-1.5">
+                      <div className="hidden space-y-1.5">
                         <Label htmlFor="product-description" className="text-xs font-semibold text-slate-700">
                           Descrição Curta da Oferta
                         </Label>
@@ -1336,7 +1733,7 @@ export default function Creator() {
                       </div>
 
                       {/* CTA Button Text, Support Email & Language */}
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="hidden grid-cols-3 gap-4">
                         <div className="space-y-1.5">
                           <Label htmlFor="cta-text" className="text-xs font-semibold text-slate-700">
                             Texto do Botão (CTA)
@@ -1441,7 +1838,7 @@ export default function Creator() {
                         size="lg" 
                         className="w-full rounded-xl h-11 text-xs font-bold bg-primary hover:bg-primary/90 text-white shadow-sm transition-all duration-200"
                       >
-                        Gerar Página de Redirecionamento
+                        Gerar Ponte com IA
                       </Button>
 
                     </form>
@@ -1459,7 +1856,7 @@ export default function Creator() {
                 </div>
                 <div className="space-y-2">
                   <h3 className="text-base font-bold text-slate-800 animate-pulse">{generatingMessage}</h3>
-                  <p className="text-xs text-slate-400">Criando ponte limpa sem cookie banners...</p>
+                  <p className="text-xs text-slate-400">Pesquisando referencia e aplicando o melhor skill automaticamente...</p>
                 </div>
               </div>
             )}
@@ -1489,16 +1886,30 @@ export default function Creator() {
                       </div>
                       <h3 className="font-bold text-lg text-slate-800">Página Criada com Sucesso</h3>
                       <p className="text-xs text-slate-500 leading-relaxed">
-                        Sua página de redirecionamento está pronta e livre de pop-ups.
+                        Sua ponte foi criada com pesquisa de referencia, skill automatico e HTML pronto para publicar.
                       </p>
                     </div>
 
                     {/* Settings Details Display */}
                     <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-2 text-xs">
                       <div className="flex justify-between py-1 border-b border-slate-200/50">
+                        <span className="font-semibold text-slate-400">Modelo:</span>
+                        <span className="font-mono text-slate-700 uppercase">{generatedMode || "auto"}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-200/50">
+                        <span className="font-semibold text-slate-400">Referencia:</span>
+                        <span className="truncate max-w-[200px] font-mono text-slate-700 font-medium" title={referenceUrl}>{referenceUrl}</span>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-200/50">
                         <span className="font-semibold text-slate-400">Destino:</span>
                         <span className="truncate max-w-[200px] font-mono text-primary font-medium" title={destinationUrl}>{destinationUrl}</span>
                       </div>
+                      {designSummary && (
+                        <div className="py-1 border-b border-slate-200/50">
+                          <span className="font-semibold text-slate-400 block mb-1">Leitura da IA:</span>
+                          <p className="text-slate-600 leading-relaxed">{designSummary}</p>
+                        </div>
+                      )}
                       <div className="flex justify-between py-1">
                         <span className="font-semibold text-slate-400">Scripts:</span>
                         <span className="font-mono text-slate-700">
@@ -1660,21 +2071,30 @@ export default function Creator() {
                             </div>
                           </TableCell>
                           <TableCell className="align-middle py-3">
-                            {site.status === "active" && (
-                              <Badge className="bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-700 border-emerald-500/20 py-0.5 px-2 rounded font-bold text-[9px] uppercase tracking-wider">
-                                Ativo
+                            <div className="flex flex-col gap-1">
+                              {site.status === "active" && (
+                                <Badge className="bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-700 border-emerald-500/20 py-0.5 px-2 rounded font-bold text-[9px] uppercase tracking-wider w-fit">
+                                  Ativo
+                                </Badge>
+                              )}
+                              {site.status === "paused" && (
+                                <Badge className="bg-amber-500/10 hover:bg-amber-500/15 text-amber-700 border-amber-500/20 py-0.5 px-2 rounded font-bold text-[9px] uppercase tracking-wider w-fit">
+                                  Pausado
+                                </Badge>
+                              )}
+                              {site.status === "local" && (
+                                <Badge className="bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 py-0.5 px-2 rounded font-bold text-[9px] uppercase tracking-wider w-fit">
+                                  Local
+                                </Badge>
+                              )}
+                              <Badge variant="outline" className={`py-0.5 px-2 rounded font-semibold text-[9px] uppercase tracking-wider w-fit hover:bg-transparent ${
+                                site.selectedOption === "b"
+                                  ? "bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-50"
+                                  : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+                              }`}>
+                                {site.selectedOption === "b" ? "Clone Limpo" : "Cookies"}
                               </Badge>
-                            )}
-                            {site.status === "paused" && (
-                              <Badge className="bg-amber-500/10 hover:bg-amber-500/15 text-amber-700 border-amber-500/20 py-0.5 px-2 rounded font-bold text-[9px] uppercase tracking-wider">
-                                Pausado
-                              </Badge>
-                            )}
-                            {site.status === "local" && (
-                              <Badge className="bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 py-0.5 px-2 rounded font-bold text-[9px] uppercase tracking-wider">
-                                Local
-                              </Badge>
-                            )}
+                            </div>
                           </TableCell>
                           <TableCell className="align-middle py-3">
                             <span className="text-xs text-slate-600 font-medium">
@@ -1734,6 +2154,7 @@ export default function Creator() {
                                 className="h-8 w-8 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50"
                                 onClick={() => {
                                   setDestinationUrl(site.destinationUrl);
+                                  setReferenceUrl(site.referenceUrl || "");
                                   setScripts(site.scripts.length > 0 ? site.scripts : [""]);
                                   setProductName(site.productName || "");
                                   setProductHeadline(site.productHeadline || "");
@@ -1743,6 +2164,7 @@ export default function Creator() {
                                   setSupportEmail(site.supportEmail || "");
                                   setApiToken(site.apiToken || "");
                                   setStreamCode(site.streamCode || "");
+                                  setSelectedOption(site.selectedOption || "a");
                                   setActiveView("create");
                                   setStep("form");
                                   toast({ title: "Dados carregados!", description: "Dados da ponte carregados no formulário de criação." });

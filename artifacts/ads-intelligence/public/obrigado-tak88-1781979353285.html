@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pedido Recebido</title>
+  <link rel="icon" href="https://www.google.com/s2/favicons?domain=tak88.doctorzakaria.com&sz=32">
+  
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(circle, rgb(18, 5, 5) 0%, rgb(10, 1, 1) 100%);
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      color: #1e293b;
+    }
+    
+    .container {
+      max-width: 600px;
+      width: 100%;
+      background: #ffffff;
+      border-radius: 24px;
+      padding: 32px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      position: relative;
+      overflow: hidden;
+      animation: cardIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+    
+    @keyframes cardIn {
+      from { opacity: 0; transform: scale(0.92) translateY(20px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    
+    .success-badge {
+      width: 52px;
+      height: 52px;
+      background: #10b981;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+    .success-badge svg {
+      width: 28px;
+      height: 28px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 3;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    
+    .product-tag {
+      font-size: 14px;
+      font-weight: 700;
+      color: #222;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    
+    .headline {
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1.25;
+      color: #0f172a;
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+    }
+    .headline span {
+      color: #222;
+    }
+    
+    .subheadline {
+      font-size: 14px;
+      color: #475569;
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+    
+    .product-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .product-details {
+      flex: 1;
+    }
+    .product-name {
+      font-size: 15px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+    .product-desc {
+      font-size: 11px;
+      color: #64748b;
+      line-height: 1.5;
+    }
+    .product-img-wrapper {
+      position: relative;
+      width: 76px;
+      height: 76px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #ffffff;
+      border-radius: 12px;
+      border: 1px solid #f1f5f9;
+      padding: 6px;
+    }
+    .product-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    .discount-badge {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      background: #f97316;
+      color: #ffffff;
+      font-size: 8px;
+      font-weight: 800;
+      padding: 3px 6px;
+      border-radius: 99px;
+      box-shadow: 0 2px 4px rgba(249, 115, 22, 0.3);
+    }
+    
+    .adviser-box {
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      border-radius: 16px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .adviser-icon {
+      width: 32px;
+      height: 32px;
+      background: #dcfce7;
+      color: #16a34a;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+    .adviser-icon svg {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+    }
+    .adviser-text {
+      flex: 1;
+    }
+    .adviser-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #14532d;
+      margin-bottom: 3px;
+    }
+    .adviser-desc {
+      font-size: 11px;
+      color: #166534;
+      line-height: 1.5;
+    }
+    
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      border-top: 1px solid #f1f5f9;
+      padding-top: 28px;
+      margin-bottom: 28px;
+    }
+    .step-item {
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .step-num {
+      width: 24px;
+      height: 24px;
+      background: #222;
+      color: #ffffff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 2px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    }
+    .step-content {
+      flex: 1;
+    }
+    .step-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 4px;
+    }
+    .step-desc {
+      font-size: 11px;
+      color: #64748b;
+      line-height: 1.55;
+    }
+    
+    .badges-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      border-top: 1px solid #f1f5f9;
+      padding-top: 20px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .badge-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: #f8fafc;
+      border: 1px solid #f1f5f9;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 600;
+      color: #475569;
+    }
+    .badge-item svg {
+      width: 12px;
+      height: 12px;
+      color: #10b981;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.5;
+    }
+    
+    .footer-support {
+      font-size: 10px;
+      color: #94a3b8;
+      text-align: center;
+      line-height: 1.5;
+    }
+    .footer-support a {
+      color: #222;
+      font-weight: 600;
+      text-decoration: none;
+    }
+    .footer-support a:hover {
+      text-decoration: underline;
+    }
+    
+    @media (max-width: 480px) {
+      .container {
+        padding: 24px 20px;
+        border-radius: 20px;
+      }
+      .headline {
+        font-size: 24px;
+      }
+      .product-box {
+        flex-direction: column-reverse;
+        align-items: stretch;
+        text-align: center;
+      }
+      .product-img-wrapper {
+        margin: 0 auto;
+      }
+      .badges-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .badge-item {
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="success-badge">
+      <svg viewBox="0 0 24 24">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+    </div>
+    
+    <div class="product-tag">
+      <span>✨ Tak88</span>
+    </div>
+    
+    <h1 class="headline">Obrigado, seu pedido<br>foi <span>recebido</span>!</h1>
+    
+    <p class="subheadline">Registramos sua solicitação corretamente. Um consultor entrará em contato em breve para confirmar os detalhes e o endereço de entrega.</p>
+    
+    <div class="product-box">
+      <div class="product-details">
+        <h3 class="product-name">Tak88 - Suporte Oficial</h3>
+        <p class="product-desc">Preço de promoção - 50% de desconto<br>Garantia de satisfação - Frete seguro</p>
+      </div>
+      <div class="product-img-wrapper">
+        <img class="product-img" src="https://static.statthroat.tech/pages/a1682c2f-0a36-47b0-b459-a454af1743a8/img/product.png" alt="Tak88" />
+        <span class="discount-badge">-50% OFF</span>
+      </div>
+    </div>
+    
+    <div class="adviser-box">
+      <div class="adviser-icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M6.62 10.79a15.15 15.15 0 0 0 6.59 6.59l2.2-2.2a1 1 0 0 1 1.02-.27 11.9 11.9 0 0 0 3.74.6 1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1A16 16 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1 11.9 11.9 0 0 0 .6 3.74 1 1 0 0 1-.27 1.02z" />
+        </svg>
+      </div>
+      <div class="adviser-text">
+        <h4 class="adviser-title">Nosso consultor vai te ligar!</h4>
+        <p class="adviser-desc">Prepare-se para receber uma ligação de nossa equipe de vendas. Confirmaremos os detalhes do pedido e o endereço de entrega.</p>
+      </div>
+    </div>
+    
+    <div class="steps">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h4 class="step-title">Atenda a chamada do nosso consultor</h4>
+          <p class="step-desc">Nosso especialista entrará em contato em breve para confirmar o pedido e o endereço de entrega.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h4 class="step-title">Envio em 24 horas</h4>
+          <p class="step-desc">Após a confirmação, seu pedido será enviado imediatamente. Você receberá o código de rastreamento.</p>
+        </div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h4 class="step-title">Recebimento e pagamento na entrega</h4>
+          <p class="step-desc">Pague apenas quando o pacote chegar na sua porta. Entrega segura em sua residência.</p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="badges-row">
+      <div class="badge-item">
+        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+        <span>Entrega segura</span>
+      </div>
+      <div class="badge-item">
+        <svg viewBox="0 0 24 24"><polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2" /><polyline points="2 8.5 12 15 22 8.5" /><polyline points="12 22 12 15" /></svg>
+        <span>Produto certificado</span>
+      </div>
+      <div class="badge-item">
+        <svg viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></svg>
+        <span>+2.500 avaliações</span>
+      </div>
+      <div class="badge-item">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
+        <span>100% natural</span>
+      </div>
+    </div>
+    
+    <p class="footer-support">Se você não puder atender a ligação, tentaremos de novo. Dúvidas? Escreva para: suporte@tak88.doctorzakaria.com</p>
+  </div>
+
+</body>
+</html>

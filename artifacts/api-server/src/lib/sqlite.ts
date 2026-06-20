@@ -24,6 +24,7 @@ export function initDb(): DatabaseSync {
       email TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
       password_hash TEXT NOT NULL,
+      drcash_token TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
 
@@ -73,6 +74,12 @@ export function initDb(): DatabaseSync {
   `);
 
   // Run migrations for existing database files that might be missing new columns
+  try {
+    db.exec("ALTER TABLE users ADD COLUMN drcash_token TEXT;");
+  } catch (e) {
+    // Column already exists, ignore
+  }
+
   try {
     db.exec("ALTER TABLE campaigns ADD COLUMN google_campaign_id TEXT;");
   } catch (e) {

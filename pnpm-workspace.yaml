@@ -75,6 +75,7 @@ allowBuilds:
   msw: true
   unrs-resolver: true
   protobufjs: true
+  puppeteer: true
 
 overrides:
   # replit uses linux-x64 only, we can exclude all other platforms
