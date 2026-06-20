@@ -1814,9 +1814,7 @@ function injectCookieConsentOverlay(
     position: fixed;
     inset: 0;
     z-index: 2147483647;
-    background: rgba(15, 23, 42, 0.55);
-    backdrop-filter: blur(5px);
-    -webkit-backdrop-filter: blur(5px);
+    background: transparent;
     align-items: center;
     justify-content: center;
     padding: 20px;
