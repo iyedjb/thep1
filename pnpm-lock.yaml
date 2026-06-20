@@ -387,9 +387,6 @@ importers:
       google-ads-api:
         specifier: ^23.0.1
         version: 23.0.1
-      groq-sdk:
-        specifier: ^1.2.1
-        version: 1.2.1
       jsonwebtoken:
         specifier: ^9.0.3
         version: 9.0.3
@@ -2636,10 +2633,6 @@ packages:
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
-
-  groq-sdk@1.2.1:
-    resolution: {integrity: sha512-dsDSWJRJf+n2dPiCv7zU3IsJbrh7jfSPqi6vc1q0TTK1oUF6bn+wv4P2VFdynkHpuJ0TTJ57vlpT87judPgVPA==}
-    hasBin: true
 
   gtoken@7.1.0:
     resolution: {integrity: sha512-pCcEwRi+TKpMlxAQObHDQ56KawURgyAf6jtIY046fJ5tIv3zDe/LEIubckAO8fj6JnAxLdmWkUfNyulQ2iKdEw==}
@@ -5895,8 +5888,6 @@ snapshots:
   gopd@1.2.0: {}
 
   graceful-fs@4.2.11: {}
-
-  groq-sdk@1.2.1: {}
 
   gtoken@7.1.0:
     dependencies:
