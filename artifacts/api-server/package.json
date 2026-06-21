@@ -23,6 +23,7 @@
     "drizzle-orm": "catalog:",
     "express": "^5.2.1",
     "google-ads-api": "^23.0.1",
+    "groq-sdk": "^1.2.1",
     "jsonwebtoken": "^9.0.3",
     "pg": "^8.20.0",
     "pino": "^9.14.0",
