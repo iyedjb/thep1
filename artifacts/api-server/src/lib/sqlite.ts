@@ -1,122 +1,189 @@
-import { DatabaseSync } from "node:sqlite";
-import path from "path";
-import { fileURLToPath } from "url";
-import { mkdirSync, existsSync } from "fs";
+import pg from "pg";
 import { logger } from "./logger";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.resolve(__dirname, "../../data/database.db");
+const { Pool } = pg;
 
-let _db: DatabaseSync | null = null;
+let _pool: pg.Pool | null = null;
 
-export function initDb(): DatabaseSync {
-  const dataDir = path.resolve(__dirname, "../../data");
-  if (!existsSync(dataDir)) {
-    mkdirSync(dataDir, { recursive: true });
+export async function initDb() {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is not set.");
   }
 
-  const db = new DatabaseSync(DB_PATH);
-  logger.info({ path: DB_PATH }, "SQLite database opened");
+  _pool = new Pool({ connectionString });
+  logger.info("PostgreSQL database pool initialized");
 
-  db.exec(`
+  const db = getDb();
+  
+  // Initialize tables in PostgreSQL
+  await db.exec(`
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      email TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
-      password_hash TEXT NOT NULL,
-      drcash_token TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      drcash_token VARCHAR(255),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS campaigns (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'ativo',
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      status VARCHAR(50) NOT NULL DEFAULT 'ativo',
       budget REAL NOT NULL DEFAULT 0,
       cpc REAL NOT NULL DEFAULT 0,
       ctr REAL NOT NULL DEFAULT 0,
       roas REAL NOT NULL DEFAULT 0,
       conversions INTEGER NOT NULL DEFAULT 0,
-      google_campaign_id TEXT,
+      google_campaign_id VARCHAR(255),
       target_ages TEXT,
       target_genders TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS performance_data (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT NOT NULL,
+      id SERIAL PRIMARY KEY,
+      date VARCHAR(50) NOT NULL,
       clicks INTEGER NOT NULL DEFAULT 0,
       conversions INTEGER NOT NULL DEFAULT 0,
       cost REAL NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS keywords (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      keyword TEXT NOT NULL,
+      id SERIAL PRIMARY KEY,
+      keyword VARCHAR(255) NOT NULL,
       search_volume INTEGER NOT NULL DEFAULT 0,
-      competition TEXT NOT NULL DEFAULT 'média',
+      competition VARCHAR(50) NOT NULL DEFAULT 'média',
       cpc REAL NOT NULL DEFAULT 0,
-      location TEXT NOT NULL DEFAULT 'Brasil',
-      period TEXT NOT NULL DEFAULT '12 meses',
+      location VARCHAR(100) NOT NULL DEFAULT 'Brasil',
+      period VARCHAR(50) NOT NULL DEFAULT '12 meses',
       analysis TEXT,
-      intent TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      intent VARCHAR(100),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS keyword_trends (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      keyword_id INTEGER NOT NULL,
-      month TEXT NOT NULL,
-      volume INTEGER NOT NULL DEFAULT 0,
-      FOREIGN KEY (keyword_id) REFERENCES keywords(id)
+      id SERIAL PRIMARY KEY,
+      keyword_id INTEGER NOT NULL REFERENCES keywords(id) ON DELETE CASCADE,
+      month VARCHAR(50) NOT NULL,
+      volume INTEGER NOT NULL DEFAULT 0
     );
   `);
 
-  // Run migrations for existing database files that might be missing new columns
+  // Run migrations asynchronously
   try {
-    db.exec("ALTER TABLE users ADD COLUMN drcash_token TEXT;");
-  } catch (e) {
-    // Column already exists, ignore
-  }
-
+    await db.exec("ALTER TABLE users ADD COLUMN drcash_token VARCHAR(255);");
+  } catch (e) {}
   try {
-    db.exec("ALTER TABLE campaigns ADD COLUMN google_campaign_id TEXT;");
-  } catch (e) {
-    // Column already exists, ignore
-  }
-
+    await db.exec("ALTER TABLE campaigns ADD COLUMN google_campaign_id VARCHAR(255);");
+  } catch (e) {}
   try {
-    db.exec("ALTER TABLE campaigns ADD COLUMN target_ages TEXT;");
-  } catch (e) {
-    // Column already exists, ignore
-  }
-
+    await db.exec("ALTER TABLE campaigns ADD COLUMN target_ages TEXT;");
+  } catch (e) {}
   try {
-    db.exec("ALTER TABLE campaigns ADD COLUMN target_genders TEXT;");
-  } catch (e) {
-    // Column already exists, ignore
-  }
-
+    await db.exec("ALTER TABLE campaigns ADD COLUMN target_genders TEXT;");
+  } catch (e) {}
   try {
-    db.exec("ALTER TABLE keywords ADD COLUMN analysis TEXT;");
-  } catch (e) {
-    // Column already exists, ignore
-  }
-
+    await db.exec("ALTER TABLE keywords ADD COLUMN analysis TEXT;");
+  } catch (e) {}
   try {
-    db.exec("ALTER TABLE keywords ADD COLUMN intent TEXT;");
-  } catch (e) {
-    // Column already exists, ignore
-  }
+    await db.exec("ALTER TABLE keywords ADD COLUMN intent VARCHAR(100);");
+  } catch (e) {}
 
-  _db = db;
   return db;
 }
 
-export function getDb(): DatabaseSync {
-  if (!_db) {
+class PostgresStatement {
+  private sql: string;
+
+  constructor(sql: string) {
+    this.sql = sql;
+  }
+
+  private convertQuery(args: any[]): { sql: string; values: any[] } {
+    let querySql = this.sql;
+
+    // Convert SQL functions and keywords
+    querySql = querySql.replace(/datetime\('now'\)/gi, "CURRENT_TIMESTAMP");
+    querySql = querySql.replace(/\blike\b/gi, "ILIKE");
+
+    // Convert ? placeholders to $1, $2, ...
+    let count = 1;
+    querySql = querySql.replace(/\?/g, () => `$${count++}`);
+
+    // If query starts with INSERT, append RETURNING * if not present
+    const isInsert = /^\s*insert\s+into/i.test(querySql);
+    if (isInsert && !/returning/i.test(querySql)) {
+      querySql += " RETURNING *";
+    }
+
+    return { sql: querySql, values: args };
+  }
+
+  async get(...args: any[]): Promise<any> {
+    if (!_pool) throw new Error("Database not initialized");
+    const { sql, values } = this.convertQuery(args);
+    try {
+      const res = await _pool.query(sql, values);
+      return res.rows[0] || undefined;
+    } catch (err: any) {
+      logger.error({ sql, values, err: err.message }, "Error executing get query");
+      throw err;
+    }
+  }
+
+  async all(...args: any[]): Promise<any[]> {
+    if (!_pool) throw new Error("Database not initialized");
+    const { sql, values } = this.convertQuery(args);
+    try {
+      const res = await _pool.query(sql, values);
+      return res.rows;
+    } catch (err: any) {
+      logger.error({ sql, values, err: err.message }, "Error executing all query");
+      throw err;
+    }
+  }
+
+  async run(...args: any[]): Promise<{ changes: number; lastInsertRowid: number | bigint }> {
+    if (!_pool) throw new Error("Database not initialized");
+    const { sql, values } = this.convertQuery(args);
+    try {
+      const res = await _pool.query(sql, values);
+      const changes = res.rowCount || 0;
+      let lastInsertRowid = 0;
+      if (res.rows && res.rows[0] && res.rows[0].id !== undefined) {
+        lastInsertRowid = res.rows[0].id;
+      }
+      return { changes, lastInsertRowid };
+    } catch (err: any) {
+      logger.error({ sql, values, err: err.message }, "Error executing run query");
+      throw err;
+    }
+  }
+}
+
+class PostgresDbBridge {
+  async exec(sql: string): Promise<void> {
+    if (!_pool) throw new Error("Database not initialized");
+    try {
+      await _pool.query(sql);
+    } catch (err: any) {
+      logger.error({ sql, err: err.message }, "Error executing exec script");
+      throw err;
+    }
+  }
+
+  prepare(sql: string): PostgresStatement {
+    return new PostgresStatement(sql);
+  }
+}
+
+const _dbInstance = new PostgresDbBridge();
+
+export function getDb() {
+  if (!_pool) {
     throw new Error("Database not initialized. Call initDb() first.");
   }
-  return _db;
+  return _dbInstance;
 }

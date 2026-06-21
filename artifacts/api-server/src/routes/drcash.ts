@@ -8,15 +8,19 @@ const router = Router();
 const DR_CASH_API = "drcash.io";
 
 // Middleware to retrieve user's Dr. Cash token and attach it to req
-function attachDrCashToken(req: any, res: any, next: any) {
+async function attachDrCashToken(req: any, res: any, next: any) {
   const db = getDb();
-  const user = db.prepare("SELECT drcash_token FROM users WHERE id = ?").get(req.userId) as any;
-  if (!user || !user.drcash_token) {
-    res.status(400).json({ error: "token_missing", message: "API Token do Dr. Cash não configurado." });
-    return;
+  try {
+    const user = await db.prepare("SELECT drcash_token FROM users WHERE id = ?").get(req.userId) as any;
+    if (!user || !user.drcash_token) {
+      res.status(400).json({ error: "token_missing", message: "API Token do Dr. Cash não configurado." });
+      return;
+    }
+    req.drcashToken = user.drcash_token;
+    next();
+  } catch (err: any) {
+    res.status(500).json({ error: "Erro ao obter token do Dr. Cash: " + err.message });
   }
-  req.drcashToken = user.drcash_token;
-  next();
 }
 
 // Helper to call the real Dr. Cash API
@@ -84,10 +88,14 @@ let drcashSettings = {
 // ─── USER TOKEN ENDPOINTS ───────────────────────────────────────────────────
 
 // GET /drcash/token - get the logged in user's API token (or null if not configured)
-router.get("/drcash/token", requireAuth, (req: any, res) => {
+router.get("/drcash/token", requireAuth, async (req: any, res) => {
   const db = getDb();
-  const user = db.prepare("SELECT drcash_token FROM users WHERE id = ?").get(req.userId) as any;
-  res.json({ token: user?.drcash_token || null });
+  try {
+    const user = await db.prepare("SELECT drcash_token FROM users WHERE id = ?").get(req.userId) as any;
+    res.json({ token: user?.drcash_token || null });
+  } catch (err: any) {
+    res.status(500).json({ error: "Erro ao carregar token do Dr. Cash: " + err.message });
+  }
 });
 
 // POST /drcash/token - validate and save user's API token
@@ -108,7 +116,7 @@ router.post("/drcash/token", requireAuth, async (req: any, res) => {
 
     // Save token to database
     const db = getDb();
-    db.prepare("UPDATE users SET drcash_token = ? WHERE id = ?").run(token, req.userId);
+    await db.prepare("UPDATE users SET drcash_token = ? WHERE id = ?").run(token, req.userId);
     res.json({ success: true, token });
   } catch (err: any) {
     res.status(400).json({ error: "Falha ao validar o token com o Dr. Cash: " + err.message });
@@ -116,10 +124,14 @@ router.post("/drcash/token", requireAuth, async (req: any, res) => {
 });
 
 // DELETE /drcash/token - disconnect/delete user's API token
-router.delete("/drcash/token", requireAuth, (req: any, res) => {
+router.delete("/drcash/token", requireAuth, async (req: any, res) => {
   const db = getDb();
-  db.prepare("UPDATE users SET drcash_token = NULL WHERE id = ?").run(req.userId);
-  res.json({ success: true });
+  try {
+    await db.prepare("UPDATE users SET drcash_token = NULL WHERE id = ?").run(req.userId);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: "Erro ao remover token do Dr. Cash: " + err.message });
+  }
 });
 
 // ─── PROFILE & BALANCE ────────────────────────────────────────────────────────

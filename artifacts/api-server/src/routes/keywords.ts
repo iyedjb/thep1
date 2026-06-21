@@ -24,16 +24,20 @@ function mapKeyword(k: any) {
   };
 }
 
-router.get("/keywords", requireAuth, (req: any, res) => {
+router.get("/keywords", requireAuth, async (req: any, res) => {
   const db = getDb();
   const search = req.query.search as string | undefined;
-  const rows = search
-    ? db.prepare("SELECT * FROM keywords WHERE keyword LIKE ? ORDER BY search_volume DESC").all(`%${search}%`)
-    : db.prepare("SELECT * FROM keywords ORDER BY search_volume DESC").all();
-  res.json((rows as any[]).map(mapKeyword));
+  try {
+    const rows = search
+      ? await db.prepare("SELECT * FROM keywords WHERE keyword LIKE ? ORDER BY search_volume DESC").all(`%${search}%`)
+      : await db.prepare("SELECT * FROM keywords ORDER BY search_volume DESC").all();
+    res.json((rows as any[]).map(mapKeyword));
+  } catch (err: any) {
+    res.status(500).json({ error: "Erro ao buscar palavras-chave: " + err.message });
+  }
 });
 
-// NEW: Get keyword suggestions from Google Keyword Planner (or fallback to Gemini AI)
+// GET /keywords/suggestions - Get keyword suggestions from Google Keyword Planner (or fallback to Gemini AI)
 router.get("/keywords/suggestions", requireAuth, async (req: any, res) => {
   const seed = req.query.seed as string | undefined;
   const location = (req.query.location as string) || "Brasil";
@@ -72,7 +76,7 @@ router.get("/keywords/suggestions", requireAuth, async (req: any, res) => {
   }
 });
 
-// NEW: Get top searched keywords/titles by theme using Gemini AI
+// GET /keywords/top-by-theme - Get top searched keywords/titles by theme using Gemini AI
 router.get("/keywords/top-by-theme", requireAuth, async (req: any, res) => {
   const theme = req.query.theme as string | undefined;
   if (!theme) {
@@ -184,11 +188,11 @@ async function fetchDrCashOffers(token: string): Promise<Array<{ id: number; nam
   return PRESET_DR_CASH_OFFERS;
 }
 
-// NEW: Get top 20 most searched Dr. Cash products by name
+// GET /keywords/drcash-rank - Get top 20 most searched Dr. Cash products by name
 router.get("/keywords/drcash-rank", requireAuth, async (req: any, res) => {
   try {
     const db = getDb();
-    const user = db.prepare("SELECT drcash_token FROM users WHERE id = ?").get(req.userId) as any;
+    const user = await db.prepare("SELECT drcash_token FROM users WHERE id = ?").get(req.userId) as any;
     const token = user?.drcash_token;
 
     let offers;
@@ -455,38 +459,42 @@ router.post("/keywords", requireAuth, async (req: any, res) => {
     cpc = Math.round((0.5 + Math.random() * 3) * 100) / 100;
   }
 
-  const result = db.prepare(
-    "INSERT INTO keywords (keyword, search_volume, competition, cpc, location, period) VALUES (?, ?, ?, ?, ?, ?)"
-  ).run(keyword, searchVolume, competition, cpc, locationStr, "12 meses");
-  const kwId = Number(result.lastInsertRowid);
+  try {
+    const result = await db.prepare(
+      "INSERT INTO keywords (keyword, search_volume, competition, cpc, location, period) VALUES (?, ?, ?, ?, ?, ?)"
+    ).run(keyword, searchVolume, competition, cpc, locationStr, "12 meses");
+    const kwId = Number(result.lastInsertRowid);
 
-  if (realTrends && realTrends.length > 0) {
-    // Insert real monthly trends from Google Ads
-    for (const t of realTrends) {
-      db.prepare("INSERT INTO keyword_trends (keyword_id, month, volume) VALUES (?, ?, ?)").run(kwId, t.month, t.volume);
+    if (realTrends && realTrends.length > 0) {
+      // Insert real monthly trends from Google Ads
+      for (const t of realTrends) {
+        await db.prepare("INSERT INTO keyword_trends (keyword_id, month, volume) VALUES (?, ?, ?)").run(kwId, t.month, t.volume);
+      }
+    } else {
+      // Generate trends
+      const months = ["Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez", "Jan", "Fev", "Mar", "Abr", "Mai"];
+      for (const month of months) {
+        const vol = Math.round(searchVolume * (0.7 + Math.random() * 0.6));
+        await db.prepare("INSERT INTO keyword_trends (keyword_id, month, volume) VALUES (?, ?, ?)").run(kwId, month, vol);
+      }
     }
-  } else {
-    // Generate trends
-    const months = ["Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez", "Jan", "Fev", "Mar", "Abr", "Mai"];
-    for (const month of months) {
-      const vol = Math.round(searchVolume * (0.7 + Math.random() * 0.6));
-      db.prepare("INSERT INTO keyword_trends (keyword_id, month, volume) VALUES (?, ?, ?)").run(kwId, month, vol);
-    }
+
+    const row = await db.prepare("SELECT * FROM keywords WHERE id = ?").get(kwId) as any;
+    res.status(201).json({ ...mapKeyword(row), dataSource });
+  } catch (err: any) {
+    res.status(500).json({ error: "Erro ao criar palavra-chave localmente: " + err.message });
   }
-
-  const row = db.prepare("SELECT * FROM keywords WHERE id = ?").get(kwId) as any;
-  res.status(201).json({ ...mapKeyword(row), dataSource });
 });
 
 router.post("/keywords/:id/analyze", requireAuth, async (req: any, res) => {
   const db = getDb();
-  const kw = db.prepare("SELECT * FROM keywords WHERE id = ?").get(Number(req.params.id)) as any;
-  if (!kw) {
-    res.status(404).json({ error: "Keyword not found" });
-    return;
-  }
-
   try {
+    const kw = await db.prepare("SELECT * FROM keywords WHERE id = ?").get(Number(req.params.id)) as any;
+    if (!kw) {
+      res.status(404).json({ error: "Keyword not found" });
+      return;
+    }
+
     const { analysis, intent } = await analyzeKeywordWithAI(
       kw.keyword,
       kw.search_volume,
@@ -495,66 +503,74 @@ router.post("/keywords/:id/analyze", requireAuth, async (req: any, res) => {
       kw.location
     );
 
-    db.prepare("UPDATE keywords SET analysis = ?, intent = ? WHERE id = ?").run(analysis, intent, kw.id);
+    await db.prepare("UPDATE keywords SET analysis = ?, intent = ? WHERE id = ?").run(analysis, intent, kw.id);
     res.json({ id: kw.id, analysis, intent });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to analyze keyword: " + error.message });
   }
 });
 
-router.get("/keywords/trends", requireAuth, (req: any, res) => {
+router.get("/keywords/trends", requireAuth, async (req: any, res) => {
   const db = getDb();
   const keyword = req.query.keyword as string | undefined;
-  if (keyword) {
-    const kw = db.prepare("SELECT id FROM keywords WHERE keyword = ?").get(keyword) as any;
-    if (kw) {
-      const trends = db.prepare(
-        "SELECT month, volume FROM keyword_trends WHERE keyword_id = ? ORDER BY rowid ASC"
-      ).all(kw.id) as Array<{ month: string; volume: number }>;
-      res.json(trends);
+  try {
+    if (keyword) {
+      const kw = await db.prepare("SELECT id FROM keywords WHERE keyword = ?").get(keyword) as any;
+      if (kw) {
+        const trends = await db.prepare(
+          "SELECT month, volume FROM keyword_trends WHERE keyword_id = ? ORDER BY id ASC"
+        ).all(kw.id) as Array<{ month: string; volume: number }>;
+        res.json(trends);
+        return;
+      }
+    }
+    const firstKw = await db.prepare("SELECT id FROM keywords LIMIT 1").get() as any;
+    if (!firstKw) {
+      res.json([]);
       return;
     }
+    const trends = await db.prepare(
+      "SELECT month, volume FROM keyword_trends WHERE keyword_id = ? ORDER BY id ASC"
+    ).all(firstKw.id) as Array<{ month: string; volume: number }>;
+    res.json(trends);
+  } catch (err: any) {
+    res.status(500).json({ error: "Erro ao carregar tendências: " + err.message });
   }
-  const firstKw = db.prepare("SELECT id FROM keywords LIMIT 1").get() as any;
-  if (!firstKw) {
-    res.json([]);
-    return;
-  }
-  const trends = db.prepare(
-    "SELECT month, volume FROM keyword_trends WHERE keyword_id = ? ORDER BY rowid ASC"
-  ).all(firstKw.id) as Array<{ month: string; volume: number }>;
-  res.json(trends);
 });
 
 // Real intent breakdown computed from actual keyword data in the database
-router.get("/keywords/intent-breakdown", requireAuth, (_req, res) => {
+router.get("/keywords/intent-breakdown", requireAuth, async (_req, res) => {
   const db = getDb();
-  const rows = db.prepare(
-    "SELECT intent, COUNT(*) as count FROM keywords WHERE intent IS NOT NULL GROUP BY intent"
-  ).all() as Array<{ intent: string; count: number }>;
+  try {
+    const rows = await db.prepare(
+      "SELECT intent, COUNT(*) as count FROM keywords WHERE intent IS NOT NULL GROUP BY intent"
+    ).all() as Array<{ intent: string; count: number }>;
 
-  const total = rows.reduce((sum, r) => sum + r.count, 0);
+    const total = rows.reduce((sum, r) => sum + r.count, 0);
 
-  if (total === 0) {
-    res.json([
-      { intent: "Transacional", percentage: 0 },
-      { intent: "Comercial", percentage: 0 },
-      { intent: "Informacional", percentage: 0 },
-      { intent: "Navegacional", percentage: 0 },
-    ]);
-    return;
+    if (total === 0) {
+      res.json([
+        { intent: "Transacional", percentage: 0 },
+        { intent: "Comercial", percentage: 0 },
+        { intent: "Informacional", percentage: 0 },
+        { intent: "Navegacional", percentage: 0 },
+      ]);
+      return;
+    }
+
+    const validIntents = ["Transacional", "Comercial", "Informacional", "Navegacional"];
+    const breakdown = validIntents.map(intent => {
+      const found = rows.find(r => r.intent === intent);
+      return {
+        intent,
+        percentage: found ? Math.round((found.count / total) * 100) : 0,
+      };
+    });
+
+    res.json(breakdown);
+  } catch (err: any) {
+    res.status(500).json({ error: "Erro ao obter breakdown de intenção: " + err.message });
   }
-
-  const validIntents = ["Transacional", "Comercial", "Informacional", "Navegacional"];
-  const breakdown = validIntents.map(intent => {
-    const found = rows.find(r => r.intent === intent);
-    return {
-      intent,
-      percentage: found ? Math.round((found.count / total) * 100) : 0,
-    };
-  });
-
-  res.json(breakdown);
 });
 
 export default router;
