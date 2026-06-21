@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Esbelita – Cápsulas para perder peso</title>
+<link href="https://fonts.googleapis.com/css?family=Roboto+Condensed:700|Roboto:400,700,900" rel="stylesheet">
+<style>
+body{margin:0;font-family:'Roboto',sans-serif;background:#fff;color:#333;line-height:1.5}
+.container{max-width:960px;margin:auto;padding:15px}
+.header{text-align:center;padding:20px 0}
+.logo{font-size:2rem;font-weight:700;color:#a12000}
+.logo .gold{color:#d4af37}
+.prod-img{max-width:100%;height:auto}
+.price{font-size:1.5rem;margin:15px 0}
+.price .old{text-decoration:line-through;color:#777}
+.price .new{color:#a12000;font-weight:700}
+.btn{display:inline-block;background:#a12000;color:#fff;padding:12px 25px;border:none;border-radius:4px;font-size:1rem;cursor:pointer}
+.btn:hover{background:#8b1800}
+.benefits, .terms{margin:20px 0}
+.benefits li{margin-bottom:8px}
+.form-group{margin-bottom:12px}
+input[type=text]{width:100%;padding:10px;border:1px solid #ccc;border-radius:4px}
+.checkbox{display:flex;align-items:center}
+.checkbox input{margin-right:8px}
+#cookieBanner{position:fixed;bottom:0;left:0;width:100%;background:rgba(0,0,0,0.85);color:#fff;padding:15px;display:flex;justify-content:space-between;align-items:center;z-index:1000}
+#cookieBanner button{background:#a12000;color:#fff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer}
+.modal{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:none;justify-content:center;align-items:center;z-index:1001}
+.modal-content{background:#fff;padding:20px;max-width:500px;width:90%;border-radius:4px;position:relative}
+.modal-close{position:absolute;top:10px;right:10px;background:none;border:none;font-size:1.2rem;cursor:pointer}
+#countdown{font-weight:700;color:#a12000;text-align:center;margin:20px 0}
+</style>
+<!-- Dr.Cash SDK -->
+<script src="https://static.statthroat.tech/dist/snippet.min.js"></script>
+<script src="https://static.statthroat.tech/dist/lead.min.js"></script>
+<script src="https://static.statthroat.tech/dist/popState.min.js"></script>
+</head>
+<body>
+<div class="container">
+  <header class="header">
+    <div class="logo"><span class="gold">Esbelita</span> Cápsulas</div>
+    <h1>Resultados rápidos. Efecto de larga duración.</h1>
+    <img class="prod-img" src="https://static.statthroat.tech/pages/ea20dd25-5f2c-4eb4-a552-47a9c1e1e6b5/img/prod_v2_packs.png" alt="Esbelita">
+    <div class="price"><span class="old">1380 MXN</span> <span class="new">690 MXN</span></div>
+    <button class="btn" id="orderNowBtn">¡Quiero perder peso!</button>
+  </header>
+
+  <section class="benefits">
+    <h2>¿Por qué Esbelita es tan eficaz?</h2>
+    <ul>
+      <li>Acelera el metabolismo</li>
+      <li>Elimina la grasa del cuerpo</li>
+      <li>Reduce el colesterol</li>
+      <li>Suprime el apetito</li>
+    </ul>
+  </section>
+
+  <section id="countdown"></section>
+
+  <form class="orderForm" id="orderForm" method="post">
+    <h2>Formulario de orden</h2>
+    <div class="form-group"><input type="text" name="name" placeholder="Nombre" required></div>
+    <div class="form-group"><input type="text" name="phone" placeholder="Número de teléfono" required></div>
+    <div class="checkbox"><input type="checkbox" id="gdpr" required><label for="gdpr">Acepto la <a href="#" id="privacyLink">política de privacidad</a> y los <a href="#" id="termsLink">términos</a>.</label></div>
+    <button type="submit" class="btn">¡Quiero perder peso!</button>
+  </form>
+</div>
+
+<!-- Cookie Consent -->
+<div id="cookieBanner">
+  <span>Este sitio usa cookies para mejorar su experiencia.</span>
+  <button id="acceptCookies">Aceptar</button>
+</div>
+
+<!-- Privacy Modal -->
+<div class="modal" id="privacyModal"><div class="modal-content"><button class="modal-close" data-close="privacyModal">&times;</button><h3>Política de privacidad</h3><p>Su información será tratada con confidencialidad y solo se usará para procesar su pedido.</p></div></div>
+<!-- Terms Modal -->
+<div class="modal" id="termsModal"><div class="modal-content"><button class="modal-close" data-close="termsModal">&times;</button><h3>Términos y condiciones</h3><p>Al comprar acepta los términos de venta y la política de reembolso.</p></div></div>
+
+<script>
+// Countdown to midnight
+function updateCountdown(){
+  const now=new Date();
+  const midnight=new Date();
+  midnight.setHours(24,0,0,0);
+  const diff=midnight-now;
+  const h=Math.floor(diff/3600000);
+  const m=Math.floor((diff%3600000)/60000);
+  const s=Math.floor((diff%60000)/1000);
+  document.getElementById('countdown').textContent=`Oferta termina en ${h}h ${m}m ${s}s`;
+}
+setInterval(updateCountdown,1000);
+updateCountdown();
+
+// Cookie banner handling
+document.getElementById('acceptCookies').addEventListener('click',()=>{
+  document.getElementById('cookieBanner').style.display='none';
+});
+
+// Modal handling
+function openModal(id){document.getElementById(id).style.display='flex';}
+function closeModal(id){document.getElementById(id).style.display='none';}
+document.getElementById('privacyLink').addEventListener('click',e=>{e.preventDefault();openModal('privacyModal');});
+document.getElementById('termsLink').addEventListener('click',e=>{e.preventDefault();openModal('termsModal');});
+Array.from(document.querySelectorAll('.modal-close')).forEach(btn=>{
+  btn.addEventListener('click',()=>{closeModal(btn.dataset.close);});
+});
+
+// Dr.Cash integration
+if(window.drlead){
+  drlead.init({
+    token:"NGNLMDJMOGETMDQ2NI00OTY7LWIWZJATMDYYNDC5YTBHMDEW",
+    stream_code:"9f8zs",
+    thanks_page:"./Obrigado.html"
+  });
+}
+
+// Form submit fallback (if SDK not loaded)
+document.getElementById('orderForm').addEventListener('submit',e=>{
+  if(!window.drlead){
+    e.preventDefault();
+    alert('El formulario está temporalmente fuera de servicio. Por favor, intente más tarde.');
+  }
+});
+</script>
+</body>
+</html>

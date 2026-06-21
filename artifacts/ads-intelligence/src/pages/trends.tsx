@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Search, TrendingUp, Globe, MapPin, Sparkles, AlertCircle, Users, Heart, Cpu, Coins, Plus, Check, Loader2, BookOpen } from "lucide-react";
+import { Search, TrendingUp, Globe, MapPin, Sparkles, AlertCircle, Users, Heart, Cpu, Coins, Plus, Check, Loader2, BookOpen, Smartphone, Monitor, Trophy } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, PieChart, Pie, Cell } from "recharts";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useCreateKeyword, getListKeywordsQueryKey, customFetch } from "@workspace/api-client-react";
@@ -12,6 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 
 const GENDER_COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))"];
+const DEVICE_COLORS = ["hsl(var(--chart-4))", "hsl(var(--chart-5))"];
 
 function getDemographicsForKeyword(keyword: string) {
   let hash = 0;
@@ -45,7 +46,14 @@ function getDemographicsForKeyword(keyword: string) {
     { age: "65+", percentage: age65 },
   ];
 
-  return { genders, ages };
+  const mobileBase = 45 + (hash % 35); // 45% to 80%
+  const desktopBase = 100 - mobileBase;
+  const devices = [
+    { name: "Mobile", value: mobileBase },
+    { name: "Desktop", value: desktopBase },
+  ];
+
+  return { genders, ages, devices };
 }
 
 declare global {
@@ -166,6 +174,10 @@ export default function Trends() {
   const [loadingTheme, setLoadingTheme] = useState(false);
   const [addingKeywords, setAddingKeywords] = useState<Record<string, boolean>>({});
 
+  // Dr. Cash rank states
+  const [drcashRank, setDrcashRank] = useState<any[]>([]);
+  const [loadingRank, setLoadingRank] = useState(false);
+
   const demographics = getDemographicsForKeyword(activeKeyword);
 
   const PRESET_THEMES = [
@@ -268,6 +280,28 @@ export default function Trends() {
     });
   };
 
+  const fetchDrCashRank = async () => {
+    setLoadingRank(true);
+    try {
+      const data = await customFetch<any[]>("/api/keywords/drcash-rank");
+      setDrcashRank(data || []);
+    } catch (err: any) {
+      toast({
+        title: "Erro ao carregar ranking",
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingRank(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "drcash") {
+      fetchDrCashRank();
+    }
+  }, [activeTab]);
+
   return (
     <div className="p-8 space-y-8 animate-in fade-in duration-300">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -280,9 +314,10 @@ export default function Trends() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-white/40 backdrop-blur-md p-1 border border-border/40 rounded-xl grid grid-cols-2 max-w-xl w-full">
+        <TabsList className="bg-white/40 backdrop-blur-md p-1 border border-border/40 rounded-xl grid grid-cols-3 max-w-xl w-full">
           <TabsTrigger value="termo" className="rounded-lg text-xs md:text-sm font-semibold">Pesquisa por Termo</TabsTrigger>
           <TabsTrigger value="tema" className="rounded-lg text-xs md:text-sm font-semibold">Pesquisa por Tema</TabsTrigger>
+          <TabsTrigger value="drcash" className="rounded-lg text-xs md:text-sm font-semibold">Ranking Dr. Cash</TabsTrigger>
         </TabsList>
 
         <TabsContent value="termo" className="space-y-6">
@@ -393,20 +428,20 @@ export default function Trends() {
                 </CardContent>
               </Card>
 
-              {/* Demographic Audience Segmentation */}
+              {/* Demographic & Channel Audience Segmentation */}
               <Card className="md:col-span-7 rounded-2xl bg-white/50 backdrop-blur-lg border border-white/60 shadow-[0_8px_30px_rgba(100,120,255,0.02)]">
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
-                    <Users className="h-5 w-5 text-primary" /> Segmentação de Público Alvo (Estimativa de IA)
+                    <Users className="h-5 w-5 text-primary" /> Segmentação de Público & Canais de Busca (IA)
                   </CardTitle>
-                  <CardDescription>Perfil demográfico de interesse estimado por idade e gênero para o termo &quot;{activeKeyword}&quot;.</CardDescription>
+                  <CardDescription>Perfil demográfico e de canais de busca de interesse estimado por idade, gênero e dispositivo para o termo &quot;{activeKeyword}&quot;.</CardDescription>
                 </CardHeader>
                 <CardContent className="pt-4">
-                  <div className="grid gap-8 md:grid-cols-2">
+                  <div className="grid gap-8 md:grid-cols-3">
                     {/* Age distribution */}
                     <div className="space-y-4">
                       <h4 className="text-sm font-semibold text-muted-foreground text-center">Faixas Etárias</h4>
-                      <div className="h-[250px] w-full">
+                      <div className="h-[200px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={demographics.ages} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                             <XAxis dataKey="age" className="text-xs" tickLine={false} axisLine={false} />
@@ -421,15 +456,15 @@ export default function Trends() {
                     {/* Gender distribution */}
                     <div className="space-y-4 flex flex-col items-center justify-center">
                       <h4 className="text-sm font-semibold text-muted-foreground text-center w-full">Distribuição por Gênero</h4>
-                      <div className="h-[200px] w-full">
+                      <div className="h-[180px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                             <Pie
                               data={demographics.genders}
                               cx="50%"
                               cy="50%"
-                              innerRadius={50}
-                              outerRadius={70}
+                              innerRadius={45}
+                              outerRadius={65}
                               paddingAngle={5}
                               dataKey="value"
                             >
@@ -441,11 +476,47 @@ export default function Trends() {
                           </PieChart>
                         </ResponsiveContainer>
                       </div>
-                      <div className="flex justify-center gap-4 text-xs mt-2 flex-wrap">
+                      <div className="flex justify-center gap-3 text-xs mt-2 flex-wrap">
                         {demographics.genders.map((entry, index) => (
                           <div key={entry.name} className="flex items-center">
-                            <div className="w-3 h-3 rounded-full mr-1.5" style={{ backgroundColor: GENDER_COLORS[index % GENDER_COLORS.length] }} />
-                            <span className="text-muted-foreground">{entry.name} ({entry.value}%)</span>
+                            <div className="w-2.5 h-2.5 rounded-full mr-1" style={{ backgroundColor: GENDER_COLORS[index % GENDER_COLORS.length] }} />
+                            <span className="text-muted-foreground text-[11px]">{entry.name} ({entry.value}%)</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Device distribution */}
+                    <div className="space-y-4 flex flex-col items-center justify-center">
+                      <h4 className="text-sm font-semibold text-muted-foreground text-center w-full">Distribuição por Dispositivo</h4>
+                      <div className="h-[180px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={demographics.devices}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={45}
+                              outerRadius={65}
+                              paddingAngle={5}
+                              dataKey="value"
+                            >
+                              {demographics.devices.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={DEVICE_COLORS[index % DEVICE_COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <RechartsTooltip formatter={(val) => `${val}%`} contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex justify-center gap-3 text-xs mt-2 flex-wrap">
+                        {demographics.devices.map((entry, index) => (
+                          <div key={entry.name} className="flex items-center">
+                            <div className="w-2.5 h-2.5 rounded-full mr-1" style={{ backgroundColor: DEVICE_COLORS[index % DEVICE_COLORS.length] }} />
+                            <span className="text-muted-foreground text-[11px] flex items-center gap-0.5">
+                              {entry.name === "Mobile" ? <Smartphone className="h-3 w-3 text-muted-foreground" /> : <Monitor className="h-3 w-3 text-muted-foreground" />}
+                              {entry.name} ({entry.value}%)
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -640,6 +711,212 @@ export default function Trends() {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        <TabsContent value="drcash" className="space-y-6">
+          <Card className="rounded-2xl bg-white/50 backdrop-blur-lg border border-white/60 shadow-[0_8px_30px_rgba(100,120,255,0.02)] overflow-hidden">
+            <CardHeader className="pb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-yellow-500" /> Ranking Dr. Cash - Top 20 Mais Procurados
+                </CardTitle>
+                <CardDescription>
+                  Pesquisas estimadas por nome de produto e nicho integrados na rede do Dr. Cash no Brasil.
+                </CardDescription>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={loadingRank}
+                onClick={fetchDrCashRank}
+                className="rounded-xl flex items-center gap-1.5 self-start md:self-auto"
+              >
+                {loadingRank ? <Loader2 className="h-4 w-4 animate-spin" /> : <TrendingUp className="h-4 w-4" />}
+                Atualizar Rank
+              </Button>
+            </CardHeader>
+            <CardContent className="pt-4">
+              {loadingRank ? (
+                <div className="flex flex-col items-center justify-center py-16 space-y-4">
+                  <Loader2 className="h-10 w-10 text-primary animate-spin" />
+                  <p className="text-sm text-muted-foreground font-medium animate-pulse">Obtendo produtos e calculando métricas de buscas...</p>
+                </div>
+              ) : drcashRank.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-border/40 text-xs font-semibold text-muted-foreground uppercase">
+                        <th className="py-3 px-4 w-16 text-center">Rank</th>
+                        <th className="py-3 px-4">Produto</th>
+                        <th className="py-3 px-4 text-center">País</th>
+                        <th className="py-3 px-4">Categoria / Nicho</th>
+                        <th className="py-3 px-4">Volume (Últimos 30 dias)</th>
+                        <th className="py-3 px-4 text-center">Tendência</th>
+                        <th className="py-3 px-4">Concorrência</th>
+                        <th className="py-3 px-4">CPC Médio</th>
+                        <th className="py-3 px-4 text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/20">
+                      {drcashRank.map((item) => {
+                        const isAdding = addingKeywords[item.name] || false;
+                        
+                        // Competition badge
+                        let compBadge = null;
+                        switch (item.competition.toLowerCase()) {
+                          case "baixa":
+                            compBadge = <Badge variant="outline" className="text-green-500 border-green-500/20 bg-green-500/10 hover:bg-green-500/10">Baixa</Badge>;
+                            break;
+                          case "média":
+                          case "media":
+                            compBadge = <Badge variant="outline" className="text-yellow-500 border-yellow-500/20 bg-yellow-500/10 hover:bg-yellow-500/10">Média</Badge>;
+                            break;
+                          case "alta":
+                            compBadge = <Badge variant="outline" className="text-red-500 border-red-500/20 bg-red-500/10 hover:bg-red-500/10">Alta</Badge>;
+                            break;
+                          default:
+                            compBadge = <Badge variant="outline">{item.competition}</Badge>;
+                        }
+
+                        // Country details helper
+                        const getGeoDetails = (code: string) => {
+                          const geoMap: Record<string, { name: string; flag: string }> = {
+                            BR: { name: "Brasil", flag: "🇧🇷" },
+                            ES: { name: "Espanha", flag: "🇪🇸" },
+                            IT: { name: "Itália", flag: "🇮🇹" },
+                            PT: { name: "Portugal", flag: "🇵🇹" },
+                            DE: { name: "Alemanha", flag: "🇩🇪" },
+                            MX: { name: "México", flag: "🇲🇽" },
+                            BG: { name: "Bulgária", flag: "🇧🇬" },
+                            CO: { name: "Colômbia", flag: "🇨🇴" },
+                            RO: { name: "Romênia", flag: "🇷🇴" },
+                            RU: { name: "Rússia", flag: "🇷🇺" },
+                            PL: { name: "Polônia", flag: "🇵🇱" },
+                            CZ: { name: "Chéquia", flag: "🇨🇿" },
+                            HU: { name: "Hungria", flag: "🇭🇺" },
+                            SK: { name: "Eslováquia", flag: "🇸🇰" },
+                            US: { name: "EUA", flag: "🇺🇸" }
+                          };
+                          return geoMap[code.toUpperCase()] || { name: code, flag: "🌐" };
+                        };
+
+                        // Relative volume calculation
+                        const maxVol = Math.max(...drcashRank.map(r => r.searchVolume), 1);
+                        const volPct = Math.round((item.searchVolume / maxVol) * 100);
+
+                        // Trophy coloring for top 3
+                        let rankCell = null;
+                        if (item.rank === 1) {
+                          rankCell = <span title="1º Lugar" className="block text-center"><Trophy className="h-5 w-5 text-yellow-500 mx-auto filter drop-shadow" /></span>;
+                        } else if (item.rank === 2) {
+                          rankCell = <span title="2º Lugar" className="block text-center"><Trophy className="h-5 w-5 text-slate-400 mx-auto filter drop-shadow" /></span>;
+                        } else if (item.rank === 3) {
+                          rankCell = <span title="3º Lugar" className="block text-center"><Trophy className="h-5 w-5 text-amber-600 mx-auto filter drop-shadow" /></span>;
+                        } else {
+                          rankCell = <span className="font-semibold text-muted-foreground text-sm block text-center">{item.rank}</span>;
+                        }
+
+                        // Trend display
+                        const isPositiveTrend = item.trend >= 0;
+                        const trendColor = isPositiveTrend ? "text-green-600 bg-green-500/10 border-green-500/20" : "text-red-600 bg-red-500/10 border-red-500/20";
+
+                        return (
+                          <tr key={item.id} className="group hover:bg-white/40 transition-colors">
+                            <td className="py-3.5 px-4 text-center">{rankCell}</td>
+                            <td className="py-3.5 px-4">
+                              <span className="font-semibold text-foreground text-sm block">{item.name}</span>
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              <div className="flex gap-1.5 justify-center flex-wrap">
+                                {item.geo && Array.isArray(item.geo) ? (
+                                  item.geo.map((g: string) => {
+                                    const details = getGeoDetails(g);
+                                    return (
+                                      <Badge key={g} variant="outline" className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase border-primary/20 text-primary bg-primary/5 hover:bg-primary/10 flex items-center gap-1" title={details.name}>
+                                        <span>{details.flag}</span>
+                                        <span>{details.name}</span>
+                                      </Badge>
+                                    );
+                                  })
+                                ) : (
+                                  <span className="text-muted-foreground text-xs">-</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <Badge variant="secondary" className="font-normal text-xs rounded-lg">
+                                {item.category}
+                              </Badge>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="space-y-1.5 w-48">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="font-semibold text-foreground">{item.searchVolume.toLocaleString("pt-BR")}</span>
+                                  <span className="text-muted-foreground">{volPct}%</span>
+                                </div>
+                                <div className="w-full h-1.5 bg-muted/60 rounded-full overflow-hidden">
+                                  <div className="bg-primary h-full rounded-full transition-all duration-500" style={{ width: `${volPct}%` }} />
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4 text-center">
+                              {item.trend !== undefined && item.trend !== null ? (
+                                <Badge variant="outline" className={`text-xs font-semibold px-2 py-0.5 rounded ${trendColor}`}>
+                                  {isPositiveTrend ? "↑" : "↓"} {Math.abs(item.trend)}%
+                                </Badge>
+                              ) : (
+                                <span className="text-muted-foreground text-xs">-</span>
+                              )}
+                            </td>
+                            <td className="py-3.5 px-4">{compBadge}</td>
+                            <td className="py-3.5 px-4">
+                              <span className="font-mono text-sm text-foreground">
+                                {item.cpc ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(item.cpc) : "R$ 0,00"}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleAnalyzeOnTrends(item.name)}
+                                  className="rounded-lg h-8 text-xs font-medium border-border/80 hover:bg-primary/5 hover:text-primary transition-all duration-200"
+                                >
+                                  <TrendingUp className="h-3.5 w-3.5 mr-1" />
+                                  Analisar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  disabled={isAdding}
+                                  onClick={() => handleAddKeyword(item.name)}
+                                  className="rounded-lg h-8 text-xs font-medium transition-all duration-200 shadow-sm"
+                                >
+                                  {isAdding ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <Plus className="h-3.5 w-3.5 mr-1" />
+                                      Monitorar
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                  <AlertCircle className="h-8 w-8 text-muted-foreground/60 mb-2" />
+                  <p className="font-medium text-sm">Nenhum produto do Dr. Cash foi encontrado ou carregado.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

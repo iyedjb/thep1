@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doctorfox1ck - Parceiro Autorizado</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #5850ec;
+            --primary-hover: #453ec9;
+            --primary-light: rgba(88, 80, 236, 0.1);
+            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+            --text-dark: #1f2937;
+            --text-muted: #4b5563;
+            --card-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08), 0 15px 25px -10px rgba(0, 0, 0, 0.04);
+            --border-glass: rgba(255, 255, 255, 0.6);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, html {
+            width: 100%;
+            min-height: 100vh;
+            background: var(--bg-gradient);
+            font-family: 'Outfit', -apple-system, sans-serif;
+            color: var(--text-dark);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px 100px;
+        }
+
+        .landing-container {
+            display: grid;
+            grid-template-columns: 1.1fr 1fr;
+            gap: 40px;
+            max-width: 1000px;
+            width: 100%;
+            align-items: center;
+        }
+        
+        @media (max-width: 868px) {
+            .landing-container {
+                grid-template-columns: 1fr;
+                gap: 32px;
+                padding-bottom: 40px;
+            }
+        }
+        
+        /* Product Hero */
+        .product-hero {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            text-align: left;
+        }
+        .category-badge {
+            background-color: var(--primary-light);
+            color: var(--primary);
+            padding: 6px 14px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 16px;
+        }
+        .product-hero h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            line-height: 1.25;
+            color: var(--text-dark);
+            margin-bottom: 16px;
+            letter-spacing: -0.02em;
+        }
+        @media (max-width: 600px) {
+            .product-hero h1 {
+                font-size: 1.95rem;
+            }
+        }
+        .product-desc {
+            font-size: 1.05rem;
+            line-height: 1.6;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+        
+        /* Benefits List */
+        .benefits-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            width: 100%;
+        }
+        .benefit-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            color: var(--text-muted);
+        }
+        .check-icon {
+            width: 20px;
+            height: 20px;
+            fill: #10b981;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+        
+        /* Form Card */
+        .form-card {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 32px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid var(--border-glass);
+            width: 100%;
+            position: relative;
+            overflow: hidden;
+        }
+        @media (max-width: 600px) {
+            .form-card {
+                padding: 24px;
+            }
+        }
+        .form-header {
+            margin-bottom: 24px;
+            text-align: left;
+        }
+        .form-header h3 {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 6px;
+        }
+        .form-header p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+        
+        /* Form Elements */
+        .input-group {
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            text-align: left;
+        }
+        .input-group label {
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+        .input-group input {
+            width: 100%;
+            padding: 11px 14px;
+            border-radius: 10px;
+            border: 1px solid #d1d5db;
+            font-family: inherit;
+            font-size: 0.92rem;
+            color: var(--text-dark);
+            transition: all 0.2s;
+            background-color: #f9fafb;
+        }
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(88, 80, 236, 0.15);
+            background-color: #ffffff;
+        }
+        
+        /* Submit Button */
+        .submit-btn {
+            width: 100%;
+            background-color: var(--primary);
+            color: #ffffff;
+            border: none;
+            padding: 13px 20px;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s;
+            margin-top: 20px;
+            box-shadow: 0 4px 6px -1px rgba(88, 80, 236, 0.15);
+        }
+        .submit-btn:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 12px -2px rgba(88, 80, 236, 0.25);
+        }
+        .submit-btn:active {
+            transform: translateY(0);
+        }
+        .arrow-icon {
+            width: 18px;
+            height: 18px;
+            fill: currentColor;
+            transition: transform 0.2s;
+        }
+        .submit-btn:hover .arrow-icon {
+            transform: translateX(2px);
+        }
+        
+        /* Alerts & Success State */
+        .alert-box {
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            margin-top: 14px;
+            text-align: left;
+        }
+        .error-alert {
+            background-color: #fef2f2;
+            color: #b91c1c;
+            border: 1px solid #fca5a5;
+        }
+        
+        .success-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            padding: 16px 8px;
+            animation: scaleIn 0.3s ease-out forwards;
+        }
+        .success-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 9999px;
+            background-color: #ecfdf5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #10b981;
+            margin-bottom: 14px;
+            border: 1px solid #a7f3d0;
+        }
+        .success-icon svg {
+            width: 24px;
+            height: 24px;
+            fill: currentColor;
+        }
+        .success-box h4 {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #065f46;
+            margin-bottom: 10px;
+        }
+        .success-box p {
+            font-size: 0.88rem;
+            line-height: 1.45;
+            color: var(--text-muted);
+            margin-bottom: 14px;
+        }
+        .success-note {
+            font-size: 0.78rem !important;
+            font-weight: 600;
+            color: var(--primary) !important;
+        }
+        
+        /* Animations */
+        @keyframes scaleIn {
+            from { transform: scale(0.95); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        
+        /* Footer/Legal overlay elements */
+        .legal-bar {
+            background-color: rgba(17, 24, 39, 0.95);
+            backdrop-filter: blur(8px);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: #f3f4f6;
+            font-size: 0.72rem;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 1000;
+            flex-wrap: wrap;
+            gap: 12px;
+            width: 100%;
+        }
+        .legal-bar .disclaimer-text {
+            color: #9ca3af;
+            font-size: 0.65rem;
+            max-width: 50%;
+            text-align: left;
+        }
+        .legal-bar .links {
+            display: flex;
+            gap: 16px;
+        }
+        .legal-bar .links a {
+            color: #818cf8;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .legal-bar .links a:hover {
+            text-decoration: underline;
+        }
+        @media (max-width: 768px) {
+            .legal-bar {
+                flex-direction: column;
+                text-align: center;
+                padding: 16px;
+            }
+            .legal-bar .disclaimer-text {
+                max-width: 100%;
+                text-align: center;
+            }
+        }
+        
+        /* Modals style */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(17, 24, 39, 0.7);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .modal:target {
+            display: flex;
+        }
+        .modal-content {
+            background-color: #ffffff;
+            border-radius: 16px;
+            max-width: 500px;
+            width: 100%;
+            max-height: 80vh;
+            overflow-y: auto;
+            padding: 28px;
+            position: relative;
+            text-align: left;
+            box-shadow: var(--card-shadow);
+            color: #1f2937;
+        }
+        .modal-close {
+            position: absolute;
+            top: 12px; right: 16px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #9ca3af;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .modal-close:hover { color: #111827; }
+        .modal h2 { margin-bottom: 12px; font-size: 1.25rem; font-weight: 700; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
+        .modal p { margin-bottom: 12px; font-size: 0.85rem; color: #4b5563; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    
+    <div class="main-content">
+        <div class="landing-container">
+            <div class="product-hero animate-fade-in">
+                <span class="category-badge">Saúde & Bem-estar</span>
+                <h1>Seja bem-vindo à página de distribuição oficial.</h1>
+                <p class="product-desc">Oferecemos produtos de alta qualidade, fabricados sob os mais rigorosos padrões de segurança e controle. Compre com total segurança e garantia de satisfação direta do fabricante.</p>
+                
+                <div class="benefits-list">
+                    <div class="benefit-item">
+                        <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        <span><strong>Garantia de Satisfação:</strong> Proteção total para sua compra direta.</span>
+                    </div>
+                    <div class="benefit-item">
+                        <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        <span><strong>Garantia de Satisfação:</strong> Receba com total segurança e garantia direta de laboratório.</span>
+                    </div>
+                    <div class="benefit-item">
+                        <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                        <span><strong>Compra Protegida:</strong> Seus dados financeiros totalmente seguros.</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-card animate-fade-in" style="animation-delay: 0.1s;">
+                <div class="form-header">
+                    <h3>Solicitar Doctorfox1ck</h3>
+                    <p>Preencha os dados abaixo para receber o contato do suporte oficial e efetivar seu pedido.</p>
+                </div>
+                
+                <form class="orderForm">
+                    <div class="input-group">
+                        <label for="lead-name">Nome Completo</label>
+                        <input type="text" id="lead-name" name="name" placeholder="Ex: João Silva" required />
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="lead-phone">Telefone / WhatsApp</label>
+                        <input type="tel" id="lead-phone" name="phone" placeholder="Ex: (11) 99999-9999" required />
+                    </div>
+                    
+                    <button type="submit" class="submit-btn">
+                        <span>Ir para o Site Oficial</span>
+                        <svg class="arrow-icon" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+                    </button>
+                </form>
+                
+                <div id="error-container" class="alert-box error-alert" style="display: none;"></div>
+                
+                <div id="success-container" class="success-box" style="display: none;">
+                    <div class="success-icon">
+                        <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                    </div>
+                    <h4>Pedido Registrado com Sucesso!</h4>
+                    <p>Seus dados foram enviados. Um consultor oficial de vendas entrará em contato em breve para confirmar seu endereço de entrega e opções de frete.</p>
+                    <p class="success-note">Por favor, mantenha sua linha telefônica ativa.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overlay legal bar that floats on top -->
+    <div class="legal-bar">
+        <span>&copy; 2026 Doctorfox1ck. Todos os direitos reservados.</span>
+        <span class="disclaimer-text">Aviso Legal: Este site é um canal de redirecionamento informativo e não possui vínculos diretos ou de afiliação de patrocínio com o Google LLC, Google Ads ou Facebook Ads.</span>
+        <div class="links">
+            <a href="#privacy">Política de Privacidade</a>
+            <a href="#terms">Termos de Uso</a>
+            <a href="#contact">Contato</a>
+        </div>
+    </div>
+
+    <!-- Privacy Policy Modal -->
+    <div id="privacy" class="modal">
+        <div class="modal-content">
+            <a href="#" class="modal-close">&times;</a>
+            <h2>Política de Privacidade</h2>
+            <p>Sua privacidade é muito importante para nós. Esta Política de Privacidade descreve como suas informações pessoais são tratadas ao usar este site de redirecionamento.</p>
+            <p><strong>Coleta de Informações:</strong> Não coletamos informações de identificação pessoal neste site de redirecionamento, exceto eventuais dados anônimos de tráfego fornecidos por cookies de terceiros (como Google Analytics ou pixels de rastreamento) se ativados pelo proprietário.</p>
+            <p><strong>Links para Terceiros:</strong> Este site contém links redirecionando para sites externos. Não temos controle sobre as políticas de privacidade desses sites de terceiros, por isso recomendamos a leitura das políticas deles ao acessá-los.</p>
+            <p>Ao utilizar nosso site de redirecionamento, você concorda com os termos aqui dispostos.</p>
+        </div>
+    </div>
+
+    <!-- Terms of Use Modal -->
+    <div id="terms" class="modal">
+        <div class="modal-content">
+            <a href="#" class="modal-close">&times;</a>
+            <h2>Termos de Uso</h2>
+            <p>Seja bem-vindo ao nosso site de redirecionamento.</p>
+            <p><strong>Aceitação dos Termos:</strong> Ao utilizar este site, você concorda em cumprir e estar vinculado a estes Termos de Uso. Se você não concordar com qualquer parte destes termos, não utilize o site.</p>
+            <p><strong>Uso do Site:</strong> Este site tem como objetivo fornecer um canal informativo seguro de redirecionamento para o site oficial do produto. Você concorda em não tentar violar a segurança do site, usar robôs de scraping ou praticar qualquer atividade ilícita aqui.</p>
+            <p><strong>Limitação de Responsabilidade:</strong> Não nos responsabilizamos por qualquer compra realizada no site de destino final. Toda a transação comercial é de responsabilidade exclusiva do fornecedor oficial do produto ou serviço acessado.</p>
+        </div>
+    </div>
+
+    <!-- Contact Modal -->
+    <div id="contact" class="modal">
+        <div class="modal-content">
+            <a href="#" class="modal-close">&times;</a>
+            <h2>Contato</h2>
+            <p>Precisa de suporte ou tem alguma dúvida técnica em relação a este redirecionador?</p>
+            <p>Entre em contato conosco pelo e-mail oficial abaixo:</p>
+            <p style="font-weight: 600; color: var(--primary); margin-top: 16px;">
+                suporte@doctorfox1ck.com
+            </p>
+            <p style="font-size: 0.75rem; color: #9ca3af; margin-top: 24px;">Responderemos o mais breve possível.</p>
+        </div>
+    </div>
+
+    <script src="https://snippet.infothroat.com/dist/api/lead-1.1.0.min.js"></script>
+    <script>
+        drlead.init({
+            params: {
+                token: "NGNLMDJMOGETMDQ2NI00OTY3LWIWZJATMDYYNDC5YTBHMDEW",
+                stream_code: "df",
+                thanks_page: "#"
+            },
+            callback: function(error, response) {
+                var form = document.querySelector('.orderForm');
+                var successDiv = document.getElementById('success-container');
+                var errorDiv = document.getElementById('error-container');
+                if (error) {
+                    errorDiv.style.display = 'block';
+                    errorDiv.innerText = error.message || 'Ocorreu um erro ao registrar seu pedido. Por favor, tente novamente.';
+                } else {
+                    form.style.display = 'none';
+                    successDiv.style.display = 'block';
+                    if (errorDiv) errorDiv.style.display = 'none';
+                }
+            }
+        });
+    </script>
+</html>

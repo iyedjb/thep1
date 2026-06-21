@@ -1,14 +1,30 @@
 import { Router } from "express";
 import { requireAuth } from "./auth";
+import { getDb } from "../lib/sqlite";
 import https from "https";
 
 const router = Router();
 
 const DR_CASH_API = "drcash.io";
-const DR_CASH_TOKEN = process.env.DR_CASH_API_TOKEN || "NGNLMDJMOGETMDQ2NI00OTY3LWIWZJATMDYYNDC5YTBHMDEW";
+
+// Middleware to retrieve user's Dr. Cash token and attach it to req
+async function attachDrCashToken(req: any, res: any, next: any) {
+  const db = getDb();
+  try {
+    const user = await db.prepare("SELECT drcash_token FROM users WHERE id = ?").get(req.userId) as any;
+    if (!user || !user.drcash_token) {
+      res.status(400).json({ error: "token_missing", message: "API Token do Dr. Cash não configurado." });
+      return;
+    }
+    req.drcashToken = user.drcash_token;
+    next();
+  } catch (err: any) {
+    res.status(500).json({ error: "Erro ao obter token do Dr. Cash: " + err.message });
+  }
+}
 
 // Helper to call the real Dr. Cash API
-function drCashRequest(path: string, method: "GET" | "POST" | "DELETE" = "GET", body?: any): Promise<any> {
+function drCashRequest(token: string, path: string, method: "GET" | "POST" | "DELETE" = "GET", body?: any): Promise<any> {
   return new Promise((resolve, reject) => {
     const postData = body ? JSON.stringify(body) : undefined;
     const options: https.RequestOptions = {
@@ -16,7 +32,7 @@ function drCashRequest(path: string, method: "GET" | "POST" | "DELETE" = "GET", 
       path,
       method,
       headers: {
-        Authorization: `Bearer ${DR_CASH_TOKEN}`,
+        Authorization: `Bearer ${token}`,
         Accept: "application/json",
         Origin: "https://affiliate.dr.cash",
         Referer: "https://affiliate.dr.cash/",
@@ -52,8 +68,8 @@ function drCashRequest(path: string, method: "GET" | "POST" | "DELETE" = "GET", 
   });
 }
 
-function drCashGet(path: string): Promise<any> {
-  return drCashRequest(path, "GET");
+function drCashGet(token: string, path: string): Promise<any> {
+  return drCashRequest(token, path, "GET");
 }
 
 // In-memory postback settings
@@ -69,12 +85,61 @@ let drcashSettings = {
   },
 };
 
+// ─── USER TOKEN ENDPOINTS ───────────────────────────────────────────────────
+
+// GET /drcash/token - get the logged in user's API token (or null if not configured)
+router.get("/drcash/token", requireAuth, async (req: any, res) => {
+  const db = getDb();
+  try {
+    const user = await db.prepare("SELECT drcash_token FROM users WHERE id = ?").get(req.userId) as any;
+    res.json({ token: user?.drcash_token || null });
+  } catch (err: any) {
+    res.status(500).json({ error: "Erro ao carregar token do Dr. Cash: " + err.message });
+  }
+});
+
+// POST /drcash/token - validate and save user's API token
+router.post("/drcash/token", requireAuth, async (req: any, res) => {
+  const { token } = req.body;
+  if (!token) {
+    res.status(400).json({ error: "Token é obrigatório" });
+    return;
+  }
+
+  try {
+    // Validate the token against the real Dr. Cash API
+    const data = await drCashRequest(token, "/v1/profile", "GET");
+    if (data?.status === "BAD_REQUEST" || !data?.payload?.item) {
+      res.status(400).json({ error: "Token inválido ou não autorizado pelo Dr. Cash" });
+      return;
+    }
+
+    // Save token to database
+    const db = getDb();
+    await db.prepare("UPDATE users SET drcash_token = ? WHERE id = ?").run(token, req.userId);
+    res.json({ success: true, token });
+  } catch (err: any) {
+    res.status(400).json({ error: "Falha ao validar o token com o Dr. Cash: " + err.message });
+  }
+});
+
+// DELETE /drcash/token - disconnect/delete user's API token
+router.delete("/drcash/token", requireAuth, async (req: any, res) => {
+  const db = getDb();
+  try {
+    await db.prepare("UPDATE users SET drcash_token = NULL WHERE id = ?").run(req.userId);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: "Erro ao remover token do Dr. Cash: " + err.message });
+  }
+});
+
 // ─── PROFILE & BALANCE ────────────────────────────────────────────────────────
 
 // GET /drcash/profile - real profile from Dr. Cash API
-router.get("/drcash/profile", requireAuth, async (req, res) => {
+router.get("/drcash/profile", requireAuth, attachDrCashToken, async (req: any, res) => {
   try {
-    const data = await drCashGet("/v1/profile");
+    const data = await drCashGet(req.drcashToken, "/v1/profile");
     const profile = data?.payload?.item;
     if (!profile) {
       res.status(502).json({ error: "Could not fetch profile from Dr. Cash" });
@@ -95,9 +160,9 @@ router.get("/drcash/profile", requireAuth, async (req, res) => {
 });
 
 // GET /drcash/balance - real balance from Dr. Cash API
-router.get("/drcash/balance", requireAuth, async (req, res) => {
+router.get("/drcash/balance", requireAuth, attachDrCashToken, async (req: any, res) => {
   try {
-    const data = await drCashGet("/v1/balance");
+    const data = await drCashGet(req.drcashToken, "/v1/balance");
     const items = data?.payload?.items || [];
     res.json({ items });
   } catch (err: any) {
@@ -106,9 +171,9 @@ router.get("/drcash/balance", requireAuth, async (req, res) => {
 });
 
 // GET /drcash/wallets - real wallets from Dr. Cash API
-router.get("/drcash/wallets", requireAuth, async (req, res) => {
+router.get("/drcash/wallets", requireAuth, attachDrCashToken, async (req: any, res) => {
   try {
-    const data = await drCashGet("/v1/wallet?limit=20");
+    const data = await drCashGet(req.drcashToken, "/v1/wallet?limit=20");
     if (data?.status === "BAD_REQUEST") {
       res.status(400).json({ error: data?.payload?.message || "Error fetching wallets" });
       return;
@@ -121,9 +186,9 @@ router.get("/drcash/wallets", requireAuth, async (req, res) => {
 });
 
 // POST /drcash/wallets - create a wallet on Dr. Cash API (with fallback indicator)
-router.post("/drcash/wallets", requireAuth, async (req, res) => {
+router.post("/drcash/wallets", requireAuth, attachDrCashToken, async (req: any, res) => {
   try {
-    const data = await drCashRequest("/v1/wallet", "POST", req.body);
+    const data = await drCashRequest(req.drcashToken, "/v1/wallet", "POST", req.body);
     if (data?.status === "OK" || data?.payload?.id) {
       res.json({ success: true, wallet: data?.payload?.item || data?.payload });
       return;
@@ -135,10 +200,10 @@ router.post("/drcash/wallets", requireAuth, async (req, res) => {
 });
 
 // DELETE /drcash/wallets/:id - delete a wallet on Dr. Cash API
-router.delete("/drcash/wallets/:id", requireAuth, async (req, res) => {
+router.delete("/drcash/wallets/:id", requireAuth, attachDrCashToken, async (req: any, res) => {
   try {
     const { id } = req.params;
-    const data = await drCashRequest(`/v1/wallet/${id}`, "DELETE");
+    const data = await drCashRequest(req.drcashToken, `/v1/wallet/${id}`, "DELETE");
     if (data?.status === "BAD_REQUEST") {
       res.status(400).json({ error: data?.payload?.message || "Error deleting wallet" });
       return;
@@ -149,11 +214,10 @@ router.delete("/drcash/wallets/:id", requireAuth, async (req, res) => {
   }
 });
 
-
 // ─── OFFERS ───────────────────────────────────────────────────────────────────
 
 // GET /drcash/offers - proxy real offers from Dr. Cash API
-router.get("/drcash/offers", requireAuth, async (req, res) => {
+router.get("/drcash/offers", requireAuth, attachDrCashToken, async (req: any, res) => {
   try {
     const {
       search,
@@ -175,7 +239,7 @@ router.get("/drcash/offers", requireAuth, async (req, res) => {
     if (sortBy) params.set("sort_by", sortBy as string);
     if (sortDir) params.set("sort_dir", sortDir as string);
 
-    const data = await drCashGet(`/v1/offer?${params.toString()}`);
+    const data = await drCashGet(req.drcashToken, `/v1/offer?${params.toString()}`);
 
     if (data?.status === "BAD_REQUEST") {
       res.status(400).json({ error: data?.payload?.message || "Bad request to Dr. Cash API" });
@@ -222,10 +286,10 @@ router.get("/drcash/offers", requireAuth, async (req, res) => {
 });
 
 // GET /drcash/offers/:id - single offer detail
-router.get("/drcash/offers/:id", requireAuth, async (req, res) => {
+router.get("/drcash/offers/:id", requireAuth, attachDrCashToken, async (req: any, res) => {
   try {
     const { id } = req.params;
-    const data = await drCashGet(`/v1/offer/${id}`);
+    const data = await drCashGet(req.drcashToken, `/v1/offer/${id}`);
     if (data?.status === "BAD_REQUEST") {
       res.status(404).json({ error: "Offer not found" });
       return;
@@ -240,9 +304,9 @@ router.get("/drcash/offers/:id", requireAuth, async (req, res) => {
 // ─── FILTERS ──────────────────────────────────────────────────────────────────
 
 // GET /drcash/categories - real categories from Dr. Cash API
-router.get("/drcash/categories", requireAuth, async (req, res) => {
+router.get("/drcash/categories", requireAuth, attachDrCashToken, async (req: any, res) => {
   try {
-    const data = await drCashGet("/v1/filter/category");
+    const data = await drCashGet(req.drcashToken, "/v1/filter/category");
     const items = data?.payload?.items || [];
     res.json(items);
   } catch (err: any) {
@@ -251,9 +315,9 @@ router.get("/drcash/categories", requireAuth, async (req, res) => {
 });
 
 // GET /drcash/countries - real countries from Dr. Cash API
-router.get("/drcash/countries", requireAuth, async (req, res) => {
+router.get("/drcash/countries", requireAuth, attachDrCashToken, async (req: any, res) => {
   try {
-    const data = await drCashGet("/v1/filter/country");
+    const data = await drCashGet(req.drcashToken, "/v1/filter/country");
     const items = data?.payload?.items || [];
     res.json(items);
   } catch (err: any) {
@@ -264,14 +328,14 @@ router.get("/drcash/countries", requireAuth, async (req, res) => {
 // ─── STREAMS ──────────────────────────────────────────────────────────────────
 
 // GET /drcash/streams - real streams (campaigns) from Dr. Cash API
-router.get("/drcash/streams", requireAuth, async (req, res) => {
+router.get("/drcash/streams", requireAuth, attachDrCashToken, async (req: any, res) => {
   try {
     const { page = "0", limit = "20" } = req.query;
     const params = new URLSearchParams();
     params.set("limit", String(Math.min(Number(limit), 100)));
     params.set("offset", String(Number(page) * Number(limit)));
 
-    const data = await drCashGet(`/v1/stream?${params.toString()}`);
+    const data = await drCashGet(req.drcashToken, `/v1/stream?${params.toString()}`);
     if (data?.status === "BAD_REQUEST") {
       res.status(400).json({ error: data?.payload?.message });
       return;
@@ -287,12 +351,12 @@ router.get("/drcash/streams", requireAuth, async (req, res) => {
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
 
 // GET /drcash/settings
-router.get("/drcash/settings", requireAuth, (req, res) => {
+router.get("/drcash/settings", requireAuth, attachDrCashToken, (req, res) => {
   res.json(drcashSettings);
 });
 
 // POST /drcash/settings
-router.post("/drcash/settings", requireAuth, (req, res) => {
+router.post("/drcash/settings", requireAuth, attachDrCashToken, (req, res) => {
   const { url, triggers } = req.body;
   if (url !== undefined) drcashSettings.postback.url = url;
   if (triggers !== undefined) drcashSettings.postback.triggers = triggers;
@@ -300,10 +364,10 @@ router.post("/drcash/settings", requireAuth, (req, res) => {
 });
 
 // GET /drcash/offers/:id/templates - real templates for an offer
-router.get("/drcash/offers/:id/templates", requireAuth, async (req, res) => {
+router.get("/drcash/offers/:id/templates", requireAuth, attachDrCashToken, async (req: any, res) => {
   try {
     const { id } = req.params;
-    const data = await drCashGet(`/v1/template?offer_id=${id}&limit=50`);
+    const data = await drCashGet(req.drcashToken, `/v1/template?offer_id=${id}&limit=50`);
     if (data?.status === "BAD_REQUEST") {
       res.status(400).json({ error: data?.payload?.message || "Error fetching templates" });
       return;
@@ -316,9 +380,9 @@ router.get("/drcash/offers/:id/templates", requireAuth, async (req, res) => {
 });
 
 // GET /drcash/domains - real domains list
-router.get("/drcash/domains", requireAuth, async (req, res) => {
+router.get("/drcash/domains", requireAuth, attachDrCashToken, async (req: any, res) => {
   try {
-    const data = await drCashGet("/v1/domain?limit=100");
+    const data = await drCashGet(req.drcashToken, "/v1/domain?limit=100");
     if (data?.status === "BAD_REQUEST") {
       res.status(400).json({ error: data?.payload?.message || "Error fetching domains" });
       return;
@@ -331,9 +395,9 @@ router.get("/drcash/domains", requireAuth, async (req, res) => {
 });
 
 // POST /drcash/streams - create campaign on Dr. Cash
-router.post("/drcash/streams", requireAuth, async (req, res) => {
+router.post("/drcash/streams", requireAuth, attachDrCashToken, async (req: any, res) => {
   try {
-    const data = await drCashRequest("/v1/stream", "POST", req.body);
+    const data = await drCashRequest(req.drcashToken, "/v1/stream", "POST", req.body);
     if (data?.status === "BAD_REQUEST") {
       res.status(400).json({ error: data?.payload?.message || "Failed to create stream" });
       return;
@@ -345,10 +409,10 @@ router.post("/drcash/streams", requireAuth, async (req, res) => {
 });
 
 // GET /drcash/offers/top - proxy top offers from Dr. Cash API
-router.get("/drcash/offers/top", requireAuth, async (req, res) => {
+router.get("/drcash/offers/top", requireAuth, attachDrCashToken, async (req: any, res) => {
   try {
     const { type = "1", limit = "10" } = req.query;
-    const data = await drCashGet(`/v1/offer/top?type=${type}&limit=${limit}`);
+    const data = await drCashGet(req.drcashToken, `/v1/offer/top?type=${type}&limit=${limit}`);
     if (data?.status === "BAD_REQUEST") {
       res.status(400).json({ error: data?.payload?.message || "Error fetching top offers" });
       return;

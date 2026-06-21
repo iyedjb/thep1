@@ -12,6 +12,7 @@ export * from './campaignConversion';
 export * from './campaignInput';
 export * from './campaignUpdate';
 export * from './dashboardSummary';
+export * from './drCashRankItem';
 export * from './getDashboardSummaryParams';
 export * from './getKeywordTrendsParams';
 export * from './getPerformanceParams';

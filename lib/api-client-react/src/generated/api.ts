@@ -26,6 +26,7 @@ import type {
   CampaignInput,
   CampaignUpdate,
   DashboardSummary,
+  DrCashRankItem,
   GetDashboardSummaryParams,
   GetKeywordTrendsParams,
   GetPerformanceParams,
@@ -1420,6 +1421,83 @@ export function useGetTopKeywordsByTheme<TData = Awaited<ReturnType<typeof getTo
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
   const queryOptions = getGetTopKeywordsByThemeQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+
+
+
+
+
+
+export const getGetDrCashSearchRankUrl = () => {
+
+
+
+
+  return `/api/keywords/drcash-rank`
+}
+
+/**
+ * @summary Get top 20 most searched Dr. Cash products
+ */
+export const getDrCashSearchRank = async ( options?: RequestInit): Promise<DrCashRankItem[]> => {
+
+  return customFetch<DrCashRankItem[]>(getGetDrCashSearchRankUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetDrCashSearchRankQueryKey = () => {
+    return [
+    `/api/keywords/drcash-rank`
+    ] as const;
+    }
+
+
+export const getGetDrCashSearchRankQueryOptions = <TData = Awaited<ReturnType<typeof getDrCashSearchRank>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDrCashSearchRank>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetDrCashSearchRankQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getDrCashSearchRank>>> = ({ signal }) => getDrCashSearchRank({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getDrCashSearchRank>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetDrCashSearchRankQueryResult = NonNullable<Awaited<ReturnType<typeof getDrCashSearchRank>>>
+export type GetDrCashSearchRankQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get top 20 most searched Dr. Cash products
+ */
+
+export function useGetDrCashSearchRank<TData = Awaited<ReturnType<typeof getDrCashSearchRank>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getDrCashSearchRank>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetDrCashSearchRankQueryOptions(options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 

@@ -222,6 +222,12 @@ export default function DrCash() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
+  // API Token verification
+  const [apiToken, setApiToken] = useState<string | null>(null);
+  const [isLoadingToken, setIsLoadingToken] = useState(true);
+  const [inputToken, setInputToken] = useState("");
+  const [isVerifyingToken, setIsVerifyingToken] = useState(false);
+
   // Navigation controller for inner sidebar
   const [activeSection, setActiveSection] = useState<
     "leads" | "campanhas" | "estatisticas" | "instrumentos" | "ofertas" | "financas" | "definicoes"
@@ -315,7 +321,94 @@ export default function DrCash() {
 
   // ── Data fetchers ───────────────────────────────────────────────────────
 
+  // ── Token Handlers ───────────────────────────────────────────────────────
+
+  const handleSaveToken = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = inputToken.trim();
+    if (!token) {
+      toast({
+        title: "Campo obrigatório",
+        description: "Digite o seu token de API do Dr. Cash.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsVerifyingToken(true);
+    try {
+      const res = await customFetch<{ success: boolean; token: string }>("/api/drcash/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      });
+
+      if (res.success) {
+        setApiToken(res.token);
+        toast({
+          title: "Sincronizado!",
+          description: "Sua conta do Dr. Cash foi integrada com sucesso.",
+          variant: "default",
+        });
+
+        // Initialize user data since token is now present
+        await Promise.all([
+          fetchCategories(),
+          fetchCountries(),
+          fetchBalance(),
+          fetchProfile(),
+          fetchDomains(),
+        ]);
+
+        try {
+          const s = await customFetch<DrCashSettings>("/api/drcash/settings");
+          setSettings(s);
+          setPostbackUrl(s.postback.url);
+          setTriggers(s.postback.triggers);
+        } catch (err) {
+          console.warn("Failed to load settings:", err);
+        }
+      }
+    } catch (err: any) {
+      toast({
+        title: "Erro de validação",
+        description: err.message || "Token inválido ou não autorizado pelo Dr. Cash.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsVerifyingToken(false);
+    }
+  };
+
+  const handleDisconnectToken = async () => {
+    if (!confirm("Tem certeza que deseja desconectar sua conta Dr. Cash do RatoeiraAds? Isso removerá a sincronização das suas campanhas, ofertas e finanças nesta interface.")) {
+      return;
+    }
+
+    try {
+      await customFetch("/api/drcash/token", {
+        method: "DELETE",
+      });
+      setApiToken(null);
+      setInputToken("");
+      toast({
+        title: "Integração Desconectada",
+        description: "Sua conta do Dr. Cash foi desconectada com sucesso.",
+        variant: "default",
+      });
+    } catch (err: any) {
+      toast({
+        title: "Erro ao desconectar",
+        description: err.message || "Não foi possível desconectar a conta.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // ── Data fetchers ───────────────────────────────────────────────────────
+
   const fetchCategories = async () => {
+    if (!apiToken) return;
     try {
       const data = await customFetch<Category[]>("/api/drcash/categories");
       setCategories(data);
@@ -325,6 +418,7 @@ export default function DrCash() {
   };
 
   const fetchCountries = async () => {
+    if (!apiToken) return;
     try {
       const data = await customFetch<Country[]>("/api/drcash/countries");
       setCountries(data);
@@ -334,6 +428,7 @@ export default function DrCash() {
   };
 
   const fetchBalance = async () => {
+    if (!apiToken) return;
     try {
       const data = await customFetch<{ items: BalanceItem[] }>("/api/drcash/balance");
       setBalanceItems(data.items || []);
@@ -343,6 +438,7 @@ export default function DrCash() {
   };
 
   const fetchProfile = async () => {
+    if (!apiToken) return;
     try {
       const data = await customFetch<{ name: string; email: string }>("/api/drcash/profile");
       if (data.name) setProfileName(data.name);
@@ -353,6 +449,7 @@ export default function DrCash() {
   };
 
   const fetchOffers = useCallback(async (page = 0) => {
+    if (!apiToken) return;
     setIsLoadingOffers(true);
     try {
       const queryParams = new URLSearchParams();
@@ -376,9 +473,10 @@ export default function DrCash() {
     } finally {
       setIsLoadingOffers(false);
     }
-  }, [searchQuery, selectedGeo, selectedCategory]);
+  }, [searchQuery, selectedGeo, selectedCategory, apiToken]);
 
   const fetchOfferTemplates = async (offerId: number) => {
+    if (!apiToken) return;
     setIsLoadingTemplates(true);
     try {
       const data = await customFetch<DrCashTemplate[]>(`/api/drcash/offers/${offerId}/templates`);
@@ -391,6 +489,7 @@ export default function DrCash() {
   };
 
   const fetchDomains = async () => {
+    if (!apiToken) return;
     try {
       const data = await customFetch<DrCashDomain[]>("/api/drcash/domains");
       setDbDomains(data || []);
@@ -404,6 +503,7 @@ export default function DrCash() {
   };
 
   const fetchWallets = async () => {
+    if (!apiToken) return;
     setIsLoadingWallets(true);
     try {
       const apiWallets = await customFetch<DrCashWallet[]>("/api/drcash/wallets");
@@ -438,6 +538,7 @@ export default function DrCash() {
   };
 
   const fetchDashboardData = async () => {
+    if (!apiToken) return;
     setIsLoadingDashboard(true);
     try {
       const [topRes, streamsRes] = await Promise.all([
@@ -457,27 +558,43 @@ export default function DrCash() {
     if (activeSection === "financas") {
       fetchWallets();
     }
-  }, [activeSection]);
+  }, [activeSection, apiToken]);
 
   // ── Initial load ────────────────────────────────────────────────────────
 
   useEffect(() => {
     const init = async () => {
-      await Promise.all([
-        fetchCategories(),
-        fetchCountries(),
-        fetchBalance(),
-        fetchProfile(),
-        fetchDomains(),
-      ]);
-
+      setIsLoadingToken(true);
+      let tokenValue = null;
       try {
-        const s = await customFetch<DrCashSettings>("/api/drcash/settings");
-        setSettings(s);
-        setPostbackUrl(s.postback.url);
-        setTriggers(s.postback.triggers);
+        const res = await customFetch<{ token: string | null }>("/api/drcash/token");
+        tokenValue = res.token;
+        if (tokenValue) {
+          setApiToken(tokenValue);
+        }
       } catch (err) {
-        console.warn("Failed to load settings:", err);
+        console.warn("Failed to retrieve Dr. Cash token:", err);
+      } finally {
+        setIsLoadingToken(false);
+      }
+
+      if (tokenValue) {
+        await Promise.all([
+          fetchCategories(),
+          fetchCountries(),
+          fetchBalance(),
+          fetchProfile(),
+          fetchDomains(),
+        ]);
+
+        try {
+          const s = await customFetch<DrCashSettings>("/api/drcash/settings");
+          setSettings(s);
+          setPostbackUrl(s.postback.url);
+          setTriggers(s.postback.triggers);
+        } catch (err) {
+          console.warn("Failed to load settings:", err);
+        }
       }
 
       // Load payout history from localStorage, or initialize with mock defaults
@@ -523,8 +640,10 @@ export default function DrCash() {
   }, []);
 
   useEffect(() => {
-    fetchOffers(0);
-  }, [selectedGeo, selectedCategory]);
+    if (apiToken) {
+      fetchOffers(0);
+    }
+  }, [selectedGeo, selectedCategory, apiToken]);
 
   useEffect(() => {
     if (selectedOfferId) {
@@ -1764,78 +1883,115 @@ export default function DrCash() {
   // ── RENDER 3: Settings ────────────────────────────────────────────────────
 
   const renderDefinicoes = () => (
-    <Card className="rounded-2xl border border-slate-200 bg-white max-w-3xl mx-auto shadow-sm animate-in fade-in duration-300">
-      <CardHeader className="border-b border-slate-100 pb-4">
-        <CardTitle className="text-lg font-bold text-slate-800">Configuração de Postback Global (S2S)</CardTitle>
-        <CardDescription>Integre e envie dados de conversão do Dr. Cash de volta para a sua plataforma de vendas</CardDescription>
-      </CardHeader>
-      <CardContent className="p-6 space-y-6">
-        <div className="space-y-1.5 text-left">
-          <Label htmlFor="pb-url" className="text-xs font-semibold text-slate-700">Postback URL Global</Label>
-          <Input
-            id="pb-url"
-            type="text"
-            placeholder="https://sua-s2s-url.com/postback?orderid={uuid}&product={offer}&amount={payment}"
-            value={postbackUrl}
-            onChange={(e) => setPostbackUrl(e.target.value)}
-            className="rounded-xl border-slate-200 bg-slate-50 font-mono text-xs focus:bg-white focus-visible:ring-primary focus-visible:border-primary shadow-xs h-12"
-          />
-        </div>
-
-        <div className="space-y-3 text-left">
-          <Label className="text-xs font-semibold text-slate-700">Status de Envio de Postback</Label>
-          <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/50">
-            <div className="flex items-center space-x-2">
-              <Checkbox id="trigger-new" checked={triggers.new} onCheckedChange={(checked) => setTriggers({ ...triggers, new: !!checked })} />
-              <label htmlFor="trigger-new" className="text-xs font-medium text-slate-600 cursor-pointer">Nova conversão (Pendente)</label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox id="trigger-confirmed" checked={triggers.confirmed} onCheckedChange={(checked) => setTriggers({ ...triggers, confirmed: !!checked })} />
-              <label htmlFor="trigger-confirmed" className="text-xs font-medium text-slate-600 cursor-pointer">Confirmação da conversão (Aprovada)</label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox id="trigger-rejected" checked={triggers.rejected} onCheckedChange={(checked) => setTriggers({ ...triggers, rejected: !!checked })} />
-              <label htmlFor="trigger-rejected" className="text-xs font-medium text-slate-600 cursor-pointer">Rejeição da conversão (Cancelada)</label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox id="trigger-trash" checked={triggers.trash} onCheckedChange={(checked) => setTriggers({ ...triggers, trash: !!checked })} />
-              <label htmlFor="trigger-trash" className="text-xs font-medium text-slate-600 cursor-pointer">Conversão do lixo (Spam)</label>
-            </div>
+    <div className="space-y-6">
+      <Card className="rounded-2xl border border-slate-200 bg-white max-w-3xl mx-auto shadow-sm animate-in fade-in duration-300">
+        <CardHeader className="border-b border-slate-100 pb-4">
+          <CardTitle className="text-lg font-bold text-slate-800">Configuração de Postback Global (S2S)</CardTitle>
+          <CardDescription>Integre e envie dados de conversão do Dr. Cash de volta para a sua plataforma de vendas</CardDescription>
+        </CardHeader>
+        <CardContent className="p-6 space-y-6">
+          <div className="space-y-1.5 text-left">
+            <Label htmlFor="pb-url" className="text-xs font-semibold text-slate-700">Postback URL Global</Label>
+            <Input
+              id="pb-url"
+              type="text"
+              placeholder="https://sua-s2s-url.com/postback?orderid={uuid}&product={offer}&amount={payment}"
+              value={postbackUrl}
+              onChange={(e) => setPostbackUrl(e.target.value)}
+              className="rounded-xl border-slate-200 bg-slate-50 font-mono text-xs focus:bg-white focus-visible:ring-primary focus-visible:border-primary shadow-xs h-12"
+            />
           </div>
-        </div>
 
-        <div className="space-y-3 text-left">
-          <Label className="text-xs font-semibold text-slate-700">Macros Disponíveis (Dr. Cash)</Label>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] font-mono bg-slate-50 p-4 rounded-xl border border-slate-200/50">
-            {[
-              ["{uuid}", "ID da transação único"],
-              ["{offer}", "Identificação da oferta no sistema"],
-              ["{payment}", "Recompensa (payout)"],
-              ["{currency}", "Moeda (ex: USD)"],
-              ["{status}", "Status da conversão (suspensa/aprovada)"],
-              ["{sub1} - {sub5}", "Sub-contas personalizadas"],
-              ["{ip}", "IP do cliente"],
-              ["{campaign}", "Código da campanha"],
-            ].map(([macro, desc]) => (
-              <div key={macro} className="flex justify-between border-b border-slate-200/40 pb-1.5">
-                <span className="text-emerald-600 font-bold">{macro}</span>
-                <span className="text-slate-500">{desc}</span>
+          <div className="space-y-3 text-left">
+            <Label className="text-xs font-semibold text-slate-700">Status de Envio de Postback</Label>
+            <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200/50">
+              <div className="flex items-center space-x-2">
+                <Checkbox id="trigger-new" checked={triggers.new} onCheckedChange={(checked) => setTriggers({ ...triggers, new: !!checked })} />
+                <label htmlFor="trigger-new" className="text-xs font-medium text-slate-600 cursor-pointer">Nova conversão (Pendente)</label>
               </div>
-            ))}
+              <div className="flex items-center space-x-2">
+                <Checkbox id="trigger-confirmed" checked={triggers.confirmed} onCheckedChange={(checked) => setTriggers({ ...triggers, confirmed: !!checked })} />
+                <label htmlFor="trigger-confirmed" className="text-xs font-medium text-slate-600 cursor-pointer">Confirmação da conversão (Aprovada)</label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox id="trigger-rejected" checked={triggers.rejected} onCheckedChange={(checked) => setTriggers({ ...triggers, rejected: !!checked })} />
+                <label htmlFor="trigger-rejected" className="text-xs font-medium text-slate-600 cursor-pointer">Rejeição da conversão (Cancelada)</label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox id="trigger-trash" checked={triggers.trash} onCheckedChange={(checked) => setTriggers({ ...triggers, trash: !!checked })} />
+                <label htmlFor="trigger-trash" className="text-xs font-medium text-slate-600 cursor-pointer">Conversão do lixo (Spam)</label>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div className="pt-4 border-t border-slate-100 flex justify-end">
-          <Button
-            onClick={handleSaveSettings}
-            disabled={isSavingSettings}
-            className="rounded-xl h-11 px-6 font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2"
-          >
-            {isSavingSettings ? <><Loader2 className="h-4 w-4 animate-spin" /> Salvando...</> : <><Save className="h-4 w-4" /> Guardar alterações</>}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          <div className="space-y-3 text-left">
+            <Label className="text-xs font-semibold text-slate-700">Macros Disponíveis (Dr. Cash)</Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] font-mono bg-slate-50 p-4 rounded-xl border border-slate-200/50">
+              {[
+                ["{uuid}", "ID da transação único"],
+                ["{offer}", "Identificação da oferta no sistema"],
+                ["{payment}", "Recompensa (payout)"],
+                ["{currency}", "Moeda (ex: USD)"],
+                ["{status}", "Status da conversão (suspensa/aprovada)"],
+                ["{sub1} - {sub5}", "Sub-contas personalizadas"],
+                ["{ip}", "IP do cliente"],
+                ["{campaign}", "Código da campanha"],
+              ].map(([macro, desc]) => (
+                <div key={macro} className="flex justify-between border-b border-slate-200/40 pb-1.5">
+                  <span className="text-emerald-600 font-bold">{macro}</span>
+                  <span className="text-slate-500">{desc}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100 flex justify-end">
+            <Button
+              onClick={handleSaveSettings}
+              disabled={isSavingSettings}
+              className="rounded-xl h-11 px-6 font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2"
+            >
+              {isSavingSettings ? <><Loader2 className="h-4 w-4 animate-spin" /> Salvando...</> : <><Save className="h-4 w-4" /> Guardar alterações</>}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl border border-slate-200 bg-white max-w-3xl mx-auto shadow-sm">
+        <CardHeader className="border-b border-slate-100 pb-4">
+          <CardTitle className="text-lg font-bold text-slate-800">
+            Integração Dr. Cash
+          </CardTitle>
+          <CardDescription>Gerencie a chave de API de sua conta Dr. Cash integrada</CardDescription>
+        </CardHeader>
+        <CardContent className="p-6 space-y-4 text-left">
+          <div className="bg-slate-50 border border-slate-200/50 rounded-xl p-4 space-y-3">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-semibold text-slate-600">Status da Integração:</span>
+              <span className="font-extrabold text-emerald-600 flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" /> Ativa e Sincronizada
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-semibold text-slate-600">Chave de API:</span>
+              <span className="font-mono text-slate-500 bg-white border border-slate-150 px-2 py-0.5 rounded text-[11px]">
+                {apiToken ? `${apiToken.substring(0, 12)}...${apiToken.substring(apiToken.length - 8)}` : "Não configurado"}
+              </span>
+            </div>
+          </div>
+          <div className="pt-2 flex justify-end">
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDisconnectToken}
+              className="rounded-xl h-10 px-4 font-bold bg-rose-600 hover:bg-rose-700 text-white cursor-pointer shadow-xs transition-colors"
+            >
+              Desconectar Conta
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 
   // ── RENDER 3.5: Finanças ──────────────────────────────────────────────────
@@ -2232,6 +2388,66 @@ export default function DrCash() {
 
   // ── Main layout ───────────────────────────────────────────────────────────
 
+  if (isLoadingToken) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-white">
+        <span className="text-xs font-medium text-slate-400">Verificando status de integração...</span>
+      </div>
+    );
+  }
+
+  if (!apiToken) {
+    return (
+      <div className="p-6 bg-[#fafafa] min-h-screen flex items-center justify-center">
+        <Card className="w-full max-w-md rounded-2xl border border-slate-200/60 bg-white p-8 shadow-xs">
+          <CardContent className="space-y-6 p-0 text-left">
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
+                Integração Dr. Cash
+              </h2>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Conecte sua conta informando seu token de acesso de API para sincronizar suas ofertas, campanhas e finanças.
+              </p>
+            </div>
+
+            <form onSubmit={handleSaveToken} className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="api-token" className="text-[11px] font-semibold text-slate-600">Token de API</Label>
+                <Input
+                  id="api-token"
+                  type="password"
+                  placeholder="Cole seu token de acesso de API"
+                  value={inputToken}
+                  onChange={(e) => setInputToken(e.target.value)}
+                  className="rounded-lg border-slate-200 focus-visible:ring-black focus-visible:border-black shadow-none h-10 text-xs bg-white"
+                  required
+                />
+              </div>
+
+              <Button
+                type="submit"
+                disabled={isVerifyingToken}
+                className="w-full rounded-lg h-10 text-xs font-bold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center border-none shadow-none cursor-pointer"
+              >
+                {isVerifyingToken ? "Sincronizando..." : "Conectar Conta"}
+              </Button>
+            </form>
+
+            <div className="border-t border-slate-100 pt-4 space-y-2 text-slate-500 text-[11px]">
+              <span className="font-semibold text-slate-800">Como obter o seu token:</span>
+              <ol className="list-decimal list-inside space-y-1.5 leading-relaxed text-slate-500">
+                <li>Acesse o painel do <a href="https://affiliate.dr.cash" target="_blank" rel="noopener noreferrer" className="text-slate-800 font-semibold hover:underline">affiliate.dr.cash</a></li>
+                <li>Clique no seu nome no canto superior direito e selecione Perfil (Profile)</li>
+                <li>Copie o campo Access Token no topo da página</li>
+                <li>Cole no campo acima para estabelecer a sincronização</li>
+              </ol>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6 animate-in fade-in duration-300 bg-[#f8fafc] min-h-screen">
 
@@ -2287,7 +2503,7 @@ export default function DrCash() {
               { id: "instrumentos", label: "Instrumentos", icon: Sliders },
               { id: "ofertas", label: "Ofertas", icon: Tag },
               { id: "financas", label: "Finanças", icon: Wallet },
-              ...(!isPostbackConfigured ? [{ id: "definicoes", label: "Definições", icon: Settings }] : []),
+              { id: "definicoes", label: "Definições", icon: Settings },
             ].map((item) => {
               const Icon = item.icon;
               const isActive = activeSection === item.id;

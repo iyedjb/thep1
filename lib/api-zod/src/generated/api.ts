@@ -272,3 +272,19 @@ export const GetTopKeywordsByThemeResponseItem = zod.object({
 export const GetTopKeywordsByThemeResponse = zod.array(GetTopKeywordsByThemeResponseItem)
 
 
+/**
+ * @summary Get top 20 most searched Dr. Cash products
+ */
+export const GetDrCashSearchRankResponseItem = zod.object({
+  "rank": zod.number(),
+  "id": zod.number(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "searchVolume": zod.number(),
+  "competition": zod.string(),
+  "cpc": zod.number(),
+  "geo": zod.array(zod.string())
+})
+export const GetDrCashSearchRankResponse = zod.array(GetDrCashSearchRankResponseItem)
+
+
