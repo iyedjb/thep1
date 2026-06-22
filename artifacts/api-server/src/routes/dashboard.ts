@@ -1,232 +1,153 @@
 import { Router } from "express";
-import { getDb } from "../lib/sqlite";
 import { requireAuth } from "./auth";
 import {
   getPerformanceSummary,
   getDailyPerformance,
   getConversionsByCampaign,
-  isGoogleAdsConfigured,
 } from "../lib/google-ads";
 import { logger } from "../lib/logger";
+import { getGoogleAdsConnection } from "../lib/google-ads-connections";
 
 const router = Router();
 
 router.get("/status/google-ads", requireAuth, async (req: any, res): Promise<void> => {
-  const configured = isGoogleAdsConfigured();
-  if (!configured) {
+  const connection = await getGoogleAdsConnection(req.userId);
+  if (!connection) {
     res.json({
       configured: false,
       status: "not_configured",
-      customerId: process.env["GOOGLE_ADS_CUSTOMER_ID"] || null,
-      error: "Credenciais do Google Ads não encontradas no arquivo .env"
+      customerId: null,
+      accounts: [],
+      error: "Google Ads ainda não está conectado",
     });
     return;
   }
 
-  try {
-    // Attempt a lightweight query to verify connectivity
-    await getPerformanceSummary(1);
+  if (!connection.customerId) {
     res.json({
       configured: true,
-      status: "connected",
-      customerId: process.env["GOOGLE_ADS_CUSTOMER_ID"],
-      error: null
+      status: "needs_account",
+      customerId: null,
+      accounts: connection.accessibleCustomerIds,
+      error: null,
     });
-  } catch (err: any) {
-    res.json({
-      configured: true,
-      status: "error",
-      customerId: process.env["GOOGLE_ADS_CUSTOMER_ID"],
-      error: err.message || String(err)
-    });
+    return;
   }
+
+  res.json({
+    configured: true,
+    status: "connected",
+    customerId: connection.customerId,
+    accounts: connection.accessibleCustomerIds,
+    error: null,
+  });
 });
 
 router.get("/dashboard/summary", requireAuth, async (req: any, res): Promise<void> => {
-  const db = getDb();
   const days = parseInt((req.query.days as string) ?? "30", 10) || 30;
-
-  // ── Try Google Ads first ─────────────────────────────────────────────────
-  if (isGoogleAdsConfigured()) {
-    try {
-      const gSummary = await getPerformanceSummary(days);
-      if (gSummary) {
-        // Real ROAS from Google Ads (conversions_value / cost)
-        const roas =
-          gSummary.cost > 0 ? gSummary.conversionsValue / gSummary.cost : 0;
-
-        // Previous period for comparison (same window before current)
-        const prevSummary = await getPerformanceSummary(days * 2);
-        const prevCost = (prevSummary?.cost ?? 0) - gSummary.cost;
-        const prevClicks = (prevSummary?.clicks ?? 0) - gSummary.clicks;
-        const prevConversions = (prevSummary?.conversions ?? 0) - gSummary.conversions;
-
-        const prevCpc = prevClicks > 0 ? prevCost / prevClicks : 0;
-        const prevCpa =
-          prevConversions > 0 ? prevCost / prevConversions : 0;
-        const prevCtr =
-          prevClicks > 0 ? (prevConversions / prevClicks) * 100 : 0;
-
-        const pct = (cur: number, prev: number) =>
-          prev === 0 ? 0 : Math.round(((cur - prev) / prev) * 1000) / 10;
-
-        res.json({
-          cpcAvg: Math.round(gSummary.averageCpc * 100) / 100,
-          cpa:
-            gSummary.conversions > 0
-              ? Math.round((gSummary.cost / gSummary.conversions) * 100) / 100
-              : 0,
-          ctr: Math.round(gSummary.ctr * 100) / 100,
-          roas: Math.round(roas * 100) / 100,
-          conversions: gSummary.conversions,
-          totalCost: Math.round(gSummary.cost * 100) / 100,
-          cpcChange: pct(gSummary.averageCpc, prevCpc),
-          cpaChange: pct(
-            gSummary.conversions > 0 ? gSummary.cost / gSummary.conversions : 0,
-            prevCpa
-          ),
-          ctrChange: pct(gSummary.ctr, prevCtr),
-          roasChange: 0,
-          source: "google-ads",
-        });
-        return;
-      }
-    } catch (err: any) {
-      logger.warn({ err: err.message }, "Google Ads dashboard summary failed, falling back to database");
-    }
+  const connection = await getGoogleAdsConnection(req.userId);
+  if (!connection?.customerId) {
+    res.status(409).json({ error: "Google Ads ainda não está conectado" });
+    return;
   }
 
   try {
-    // ── Fallback: Database local data ──────────────────────────────────────────
-    const now = new Date();
-    const currentCutoff = new Date(now);
-    currentCutoff.setDate(currentCutoff.getDate() - days);
-    const currentCutoffStr = currentCutoff.toISOString().split("T")[0];
+    const credentials = toCredentials(connection);
+    const summary = await getPerformanceSummary(days, credentials);
+    if (!summary) {
+      res.json(emptySummary());
+      return;
+    }
 
-    const previousCutoff = new Date(currentCutoff);
-    previousCutoff.setDate(previousCutoff.getDate() - days);
-    const previousCutoffStr = previousCutoff.toISOString().split("T")[0];
-
-    const currentRows = await db.prepare(
-      "SELECT clicks, conversions, cost FROM performance_data WHERE date >= ?"
-    ).all(currentCutoffStr) as Array<{ clicks: number; conversions: number; cost: number }>;
-
-    const previousRows = await db.prepare(
-      "SELECT clicks, conversions, cost FROM performance_data WHERE date >= ? AND date < ?"
-    ).all(previousCutoffStr, currentCutoffStr) as Array<{ clicks: number; conversions: number; cost: number }>;
-
-    const totalClicks = currentRows.reduce((s, r) => s + r.clicks, 0);
-    const totalConversions = currentRows.reduce((s, r) => s + r.conversions, 0);
-    const totalCost = currentRows.reduce((s, r) => s + r.cost, 0);
-
-    const cpcAvg = totalClicks > 0 ? totalCost / totalClicks : 0;
-    const cpa = totalConversions > 0 ? totalCost / totalConversions : 0;
-    const ctr = totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0;
-
-    const campaigns = await db.prepare("SELECT budget, roas FROM campaigns WHERE status = 'ativo'").all() as any[];
-    const totalBudget = campaigns.reduce((s, c) => s + c.budget, 0);
-    const weightedRoas =
-      totalBudget > 0
-        ? campaigns.reduce((s, c) => s + c.roas * (c.budget / totalBudget), 0)
-        : 0;
-
-    const prevClicks = previousRows.reduce((s, r) => s + r.clicks, 0);
-    const prevConversions = previousRows.reduce((s, r) => s + r.conversions, 0);
-    const prevCost = previousRows.reduce((s, r) => s + r.cost, 0);
-    const prevCpc = prevClicks > 0 ? prevCost / prevClicks : 0;
-    const prevCpa = prevConversions > 0 ? prevCost / prevConversions : 0;
-    const prevCtr = prevClicks > 0 ? (prevConversions / prevClicks) * 100 : 0;
-
-    const pct = (cur: number, prev: number) =>
-      prev === 0 ? 0 : Math.round(((cur - prev) / prev) * 1000) / 10;
+    const roas = summary.cost > 0 ? summary.conversionsValue / summary.cost : 0;
+    const previousWindow = await getPerformanceSummary(days * 2, credentials);
+    const previousCost = (previousWindow?.cost ?? 0) - summary.cost;
+    const previousClicks = (previousWindow?.clicks ?? 0) - summary.clicks;
+    const previousConversions = (previousWindow?.conversions ?? 0) - summary.conversions;
+    const previousCpc = previousClicks > 0 ? previousCost / previousClicks : 0;
+    const previousCpa = previousConversions > 0 ? previousCost / previousConversions : 0;
+    const previousCtr = previousClicks > 0 ? (previousConversions / previousClicks) * 100 : 0;
+    const percentChange = (current: number, previous: number) =>
+      previous === 0 ? 0 : Math.round(((current - previous) / previous) * 1000) / 10;
 
     res.json({
-      cpcAvg: Math.round(cpcAvg * 100) / 100,
-      cpa: Math.round(cpa * 100) / 100,
-      ctr: Math.round(ctr * 100) / 100,
-      roas: Math.round(weightedRoas * 100) / 100,
-      conversions: totalConversions,
-      totalCost: Math.round(totalCost * 100) / 100,
-      cpcChange: pct(cpcAvg, prevCpc),
-      cpaChange: pct(cpa, prevCpa),
-      ctrChange: pct(ctr, prevCtr),
-      roasChange: pct(weightedRoas, weightedRoas),
-      source: "postgres",
+      cpcAvg: Math.round(summary.averageCpc * 100) / 100,
+      cpa: summary.conversions > 0 ? Math.round((summary.cost / summary.conversions) * 100) / 100 : 0,
+      ctr: Math.round(summary.ctr * 100) / 100,
+      roas: Math.round(roas * 100) / 100,
+      conversions: summary.conversions,
+      totalCost: Math.round(summary.cost * 100) / 100,
+      cpcChange: percentChange(summary.averageCpc, previousCpc),
+      cpaChange: percentChange(summary.conversions > 0 ? summary.cost / summary.conversions : 0, previousCpa),
+      ctrChange: percentChange(summary.ctr, previousCtr),
+      roasChange: 0,
+      source: "google-ads",
     });
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro ao obter resumo do dashboard: " + err.message });
+  } catch (error: any) {
+    logger.warn({ error: error.message }, "Google Ads dashboard summary failed");
+    res.status(502).json({ error: "Não foi possível carregar os dados do Google Ads" });
   }
 });
 
 router.get("/dashboard/performance", requireAuth, async (req: any, res): Promise<void> => {
-  const db = getDb();
   const days = parseInt((req.query.days as string) ?? "30", 10) || 30;
-
-  // Try Google Ads first
-  if (isGoogleAdsConfigured()) {
-    try {
-      const gData = await getDailyPerformance(days);
-      if (gData.length > 0) {
-        res.json(gData);
-        return;
-      }
-    } catch (err: any) {
-      logger.warn({ err: err.message }, "Google Ads performance failed, falling back to database");
-    }
+  const connection = await getGoogleAdsConnection(req.userId);
+  if (!connection?.customerId) {
+    res.status(409).json({ error: "Google Ads ainda não está conectado" });
+    return;
   }
 
   try {
-    // Fallback: Database
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - days);
-    const cutoffStr = cutoff.toISOString().split("T")[0];
-
-    const rows = await db.prepare(
-      "SELECT date, clicks, conversions, cost FROM performance_data WHERE date >= ? ORDER BY date ASC"
-    ).all(cutoffStr) as Array<{ date: string; clicks: number; conversions: number; cost: number }>;
-
-    res.json(rows.map(r => ({ ...r, cost: Math.round(r.cost * 100) / 100 })));
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro ao obter desempenho diário: " + err.message });
+    res.json(await getDailyPerformance(days, toCredentials(connection)));
+  } catch (error: any) {
+    logger.warn({ error: error.message }, "Google Ads performance failed");
+    res.status(502).json({ error: "Não foi possível carregar o desempenho do Google Ads" });
   }
 });
 
-router.get("/dashboard/conversions-by-campaign", requireAuth, async (_req, res): Promise<void> => {
-  const db = getDb();
-
-  // Try Google Ads first
-  if (isGoogleAdsConfigured()) {
-    try {
-      const gData = await getConversionsByCampaign();
-      if (gData.length > 0) {
-        const total = gData.reduce((s, c) => s + c.conversions, 0);
-        res.json(gData.map(c => ({
-          name: c.campaignName,
-          value: c.conversions,
-          percentage: total > 0 ? Math.round((c.conversions / total) * 10000) / 100 : 0,
-        })));
-        return;
-      }
-    } catch (err: any) {
-      logger.warn({ err: err.message }, "Google Ads conversions failed, falling back to database");
-    }
+router.get("/dashboard/conversions-by-campaign", requireAuth, async (req: any, res): Promise<void> => {
+  const connection = await getGoogleAdsConnection(req.userId);
+  if (!connection?.customerId) {
+    res.status(409).json({ error: "Google Ads ainda não está conectado" });
+    return;
   }
 
   try {
-    // Fallback: Database
-    const campaigns = await db.prepare(
-      "SELECT name, conversions FROM campaigns ORDER BY conversions DESC"
-    ).all() as Array<{ name: string; conversions: number }>;
-
-    const total = campaigns.reduce((s, c) => s + c.conversions, 0);
-    res.json(campaigns.map(c => ({
-      name: c.name,
-      value: c.conversions,
-      percentage: total > 0 ? Math.round((c.conversions / total) * 10000) / 100 : 0,
+    const campaigns = await getConversionsByCampaign(toCredentials(connection));
+    const total = campaigns.reduce((sum, campaign) => sum + campaign.conversions, 0);
+    res.json(campaigns.map((campaign) => ({
+      name: campaign.campaignName,
+      value: campaign.conversions,
+      percentage: total > 0 ? Math.round((campaign.conversions / total) * 10000) / 100 : 0,
     })));
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro ao obter conversões por campanha: " + err.message });
+  } catch (error: any) {
+    logger.warn({ error: error.message }, "Google Ads conversions failed");
+    res.status(502).json({ error: "Não foi possível carregar as conversões do Google Ads" });
   }
 });
+
+function emptySummary() {
+  return {
+    cpcAvg: 0,
+    cpa: 0,
+    ctr: 0,
+    roas: 0,
+    conversions: 0,
+    totalCost: 0,
+    cpcChange: 0,
+    cpaChange: 0,
+    ctrChange: 0,
+    roasChange: 0,
+    source: "google-ads",
+  };
+}
+
+function toCredentials(connection: NonNullable<Awaited<ReturnType<typeof getGoogleAdsConnection>>>) {
+  return {
+    refreshToken: connection.refreshToken,
+    customerId: connection.customerId!,
+    loginCustomerId: connection.loginCustomerId,
+  };
+}
 
 export default router;

@@ -314,7 +314,7 @@ export default function Trends() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-white/40 backdrop-blur-md p-1 border border-border/40 rounded-xl grid grid-cols-3 max-w-xl w-full">
+        <TabsList className="bg-muted/40 backdrop-blur-md p-1 border border-border/40 rounded-xl grid grid-cols-3 max-w-xl w-full">
           <TabsTrigger value="termo" className="rounded-lg text-xs md:text-sm font-semibold">Pesquisa por Termo</TabsTrigger>
           <TabsTrigger value="tema" className="rounded-lg text-xs md:text-sm font-semibold">Pesquisa por Tema</TabsTrigger>
           <TabsTrigger value="drcash" className="rounded-lg text-xs md:text-sm font-semibold">Ranking Dr. Cash</TabsTrigger>
@@ -322,7 +322,7 @@ export default function Trends() {
 
         <TabsContent value="termo" className="space-y-6">
           {/* Filters Card */}
-          <div className="flex flex-wrap md:flex-nowrap gap-4 items-center justify-between bg-white/50 backdrop-blur-md p-4 border border-border/60 rounded-2xl">
+          <div className="flex flex-wrap md:flex-nowrap gap-4 items-center justify-between bg-card/50 backdrop-blur-md p-4 border border-border/40 rounded-2xl">
             <form onSubmit={handleSearch} className="flex gap-2 w-full md:w-auto md:max-w-md shrink-0">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -375,7 +375,7 @@ export default function Trends() {
           {activeKeyword ? (
             <div className="grid gap-6 md:grid-cols-7">
               {/* Interest Over Time */}
-              <Card className="md:col-span-4 rounded-2xl bg-white/50 backdrop-blur-lg border border-white/60 shadow-[0_8px_30px_rgba(100,120,255,0.02)]">
+              <Card className="md:col-span-4 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
                     Interesse ao longo do tempo para &quot;{activeKeyword}&quot;
@@ -393,7 +393,7 @@ export default function Trends() {
               </Card>
 
               {/* Interest by Region */}
-              <Card className="md:col-span-3 rounded-2xl bg-white/50 backdrop-blur-lg border border-white/60 shadow-[0_8px_30px_rgba(100,120,255,0.02)]">
+              <Card className="md:col-span-3 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
                     <MapPin className="h-5 w-5 text-primary" /> Interesse por Região
@@ -411,7 +411,7 @@ export default function Trends() {
               </Card>
 
               {/* Related Queries */}
-              <Card className="md:col-span-7 rounded-2xl bg-white/50 backdrop-blur-lg border border-white/60 shadow-[0_8px_30px_rgba(100,120,255,0.02)]">
+              <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
                     <Sparkles className="h-5 w-5 text-primary" /> Consultas Relacionadas
@@ -429,7 +429,7 @@ export default function Trends() {
               </Card>
 
               {/* Demographic & Channel Audience Segmentation */}
-              <Card className="md:col-span-7 rounded-2xl bg-white/50 backdrop-blur-lg border border-white/60 shadow-[0_8px_30px_rgba(100,120,255,0.02)]">
+              <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
                 <CardHeader>
                   <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
                     <Users className="h-5 w-5 text-primary" /> Segmentação de Público & Canais de Busca (IA)
@@ -534,7 +534,7 @@ export default function Trends() {
         </TabsContent>
 
         <TabsContent value="tema" className="space-y-6">
-          <div className="bg-white/50 backdrop-blur-md p-6 border border-border/60 rounded-2xl space-y-6 shadow-[0_8px_30px_rgba(100,120,255,0.01)]">
+          <div className="bg-card/50 backdrop-blur-md p-6 border border-border/40 rounded-2xl space-y-6 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-semibold text-foreground">Termos mais buscados por Canal/Tema</h3>
@@ -573,7 +573,7 @@ export default function Trends() {
                     className={`flex flex-col items-start p-4 text-left border rounded-xl transition-all hover:scale-[1.02] hover:shadow-md ${
                       isSelected
                         ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                        : "border-border/60 bg-white/80 hover:bg-white"
+                        : "border-border/60 bg-card/80 hover:bg-card"
                     }`}
                   >
                     <div className={`p-2 rounded-lg mb-3 ${theme.color}`}>
@@ -588,7 +588,7 @@ export default function Trends() {
           </div>
 
           {selectedTheme && (
-            <Card className="rounded-2xl bg-white/50 backdrop-blur-lg border border-white/60 shadow-[0_8px_30px_rgba(100,120,255,0.02)] overflow-hidden">
+            <Card className="rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)] overflow-hidden">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg font-semibold text-foreground flex items-center justify-between">
                   <span>Palavras mais buscadas em &quot;{selectedTheme}&quot;</span>
@@ -646,7 +646,7 @@ export default function Trends() {
                           const volumePercentage = Math.round((item.searchVolume / maxVolume) * 100);
 
                           return (
-                            <tr key={item.keyword} className="group hover:bg-white/40 transition-colors">
+                            <tr key={item.keyword} className="group hover:bg-muted/40 transition-colors">
                               <td className="py-3.5 px-4">
                                 <span className="font-semibold text-foreground text-sm block">{item.keyword}</span>
                               </td>
@@ -714,7 +714,7 @@ export default function Trends() {
         </TabsContent>
 
         <TabsContent value="drcash" className="space-y-6">
-          <Card className="rounded-2xl bg-white/50 backdrop-blur-lg border border-white/60 shadow-[0_8px_30px_rgba(100,120,255,0.02)] overflow-hidden">
+          <Card className="rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)] overflow-hidden">
             <CardHeader className="pb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
@@ -821,7 +821,7 @@ export default function Trends() {
                         const trendColor = isPositiveTrend ? "text-green-600 bg-green-500/10 border-green-500/20" : "text-red-600 bg-red-500/10 border-red-500/20";
 
                         return (
-                          <tr key={item.id} className="group hover:bg-white/40 transition-colors">
+                          <tr key={item.id} className="group hover:bg-muted/40 transition-colors">
                             <td className="py-3.5 px-4 text-center">{rankCell}</td>
                             <td className="py-3.5 px-4">
                               <span className="font-semibold text-foreground text-sm block">{item.name}</span>

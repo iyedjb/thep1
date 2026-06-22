@@ -39,6 +39,12 @@ export async function initDb() {
       google_campaign_id VARCHAR(255),
       target_ages TEXT,
       target_genders TEXT,
+      target_locations TEXT,
+      target_languages TEXT,
+      bidding_strategy VARCHAR(100),
+      ad_networks TEXT,
+      start_date VARCHAR(50),
+      end_date VARCHAR(50),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -60,7 +66,8 @@ export async function initDb() {
       period VARCHAR(50) NOT NULL DEFAULT '12 meses',
       analysis TEXT,
       intent VARCHAR(100),
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS keyword_trends (
@@ -68,6 +75,16 @@ export async function initDb() {
       keyword_id INTEGER NOT NULL REFERENCES keywords(id) ON DELETE CASCADE,
       month VARCHAR(50) NOT NULL,
       volume INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS google_ads_connections (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      refresh_token_encrypted TEXT NOT NULL,
+      customer_id VARCHAR(255),
+      login_customer_id VARCHAR(255),
+      accessible_customer_ids TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
@@ -89,6 +106,27 @@ export async function initDb() {
   } catch (e) {}
   try {
     await db.exec("ALTER TABLE keywords ADD COLUMN intent VARCHAR(100);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE keywords ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE campaigns ADD COLUMN target_locations TEXT;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE campaigns ADD COLUMN target_languages TEXT;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE campaigns ADD COLUMN bidding_strategy VARCHAR(100);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE campaigns ADD COLUMN ad_networks TEXT;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE campaigns ADD COLUMN start_date VARCHAR(50);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE campaigns ADD COLUMN end_date VARCHAR(50);");
   } catch (e) {}
 
   return db;

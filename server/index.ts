@@ -47,7 +47,7 @@ const services: Service[] = [
     cwd: path.join(rootDir, "artifacts/ads-intelligence"),
     command: pnpmCmd,
     args: [...pnpmArgs, "run", "dev"],
-    env: { PORT: "3001" },
+    env: { PORT: process.env.ADS_PORT || "3001" },
     color: "\x1b[32m", // Green
   },
 ];

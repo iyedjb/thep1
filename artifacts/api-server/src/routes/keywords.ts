@@ -3,9 +3,10 @@ import { getDb } from "../lib/sqlite";
 import https from "https";
 import { requireAuth } from "./auth";
 import { CreateKeywordBody } from "@workspace/api-zod";
-import { analyzeKeywordWithAI, generateKeywordSuggestionsWithAI, getTopKeywordsByTheme, getRealProductRankingsWithAI } from "../lib/gemini";
-import { getKeywordMetrics, getKeywordIdeas, isGoogleAdsConfigured } from "../lib/google-ads";
+import { analyzeKeywordWithAI, generateKeywordSuggestionsWithAI, getTopKeywordsByTheme, getRealProductRankingsWithAI, getKeywordMetricsWithAI } from "../lib/gemini";
+import { getKeywordMetrics, getKeywordIdeas } from "../lib/google-ads";
 import { logger } from "../lib/logger";
+import { getGoogleAdsConnection } from "../lib/google-ads-connections";
 
 const router = Router();
 
@@ -29,8 +30,8 @@ router.get("/keywords", requireAuth, async (req: any, res) => {
   const search = req.query.search as string | undefined;
   try {
     const rows = search
-      ? await db.prepare("SELECT * FROM keywords WHERE keyword LIKE ? ORDER BY search_volume DESC").all(`%${search}%`)
-      : await db.prepare("SELECT * FROM keywords ORDER BY search_volume DESC").all();
+      ? await db.prepare("SELECT * FROM keywords WHERE user_id = ? AND keyword LIKE ? ORDER BY search_volume DESC").all(req.userId, `%${search}%`)
+      : await db.prepare("SELECT * FROM keywords WHERE user_id = ? ORDER BY search_volume DESC").all(req.userId);
     res.json((rows as any[]).map(mapKeyword));
   } catch (err: any) {
     res.status(500).json({ error: "Erro ao buscar palavras-chave: " + err.message });
@@ -48,7 +49,8 @@ router.get("/keywords/suggestions", requireAuth, async (req: any, res) => {
   }
 
   // If Google Ads is not configured, fall back directly to Gemini AI
-  if (!isGoogleAdsConfigured()) {
+  const connection = await getGoogleAdsConnection(req.userId);
+  if (!connection?.customerId) {
     try {
       const suggestions = await generateKeywordSuggestionsWithAI(seed, location);
       res.json({ suggestions, source: "gemini-ai", message: "Google Ads não configurado. Utilizando sugestões de IA." });
@@ -59,7 +61,7 @@ router.get("/keywords/suggestions", requireAuth, async (req: any, res) => {
   }
 
   try {
-    const ideas = await getKeywordIdeas(seed, location);
+    const ideas = await getKeywordIdeas(seed, location, toCredentials(connection));
     res.json({ suggestions: ideas, source: "google-keyword-planner" });
   } catch (error: any) {
     // If Google Ads fails (e.g. CUSTOMER_NOT_ENABLED), fall back to Gemini AI instead of failing
@@ -421,61 +423,57 @@ router.post("/keywords", requireAuth, async (req: any, res) => {
   const { keyword, location } = parse.data;
   const locationStr = location ?? "Brasil";
 
-  // Try to get real data from Google Keyword Planner
-  let searchVolume: number;
-  let competition: string;
-  let cpc: number;
-  let dataSource = "estimated";
+  let searchVolume = 0;
+  let competition = "média";
+  let cpc = 0;
+  let dataSource = "google-keyword-planner";
   let realTrends: Array<{ month: string; volume: number }> | undefined;
 
-  if (isGoogleAdsConfigured()) {
+  const connection = await getGoogleAdsConnection(req.userId);
+  if (connection?.customerId) {
     try {
-      const realMetrics = await getKeywordMetrics(keyword, locationStr);
+      const realMetrics = await getKeywordMetrics(keyword, locationStr, toCredentials(connection));
       if (realMetrics) {
         searchVolume = realMetrics.avgMonthlySearches;
         competition = realMetrics.competition;
         cpc = realMetrics.avgCpc;
         dataSource = "google-keyword-planner";
         realTrends = realMetrics.trends;
-      } else {
-        // Fallback: estimated values
-        searchVolume = Math.round(5000 + Math.random() * 45000);
-        const competitions = ["baixa", "média", "alta"];
-        competition = competitions[Math.floor(Math.random() * 3)];
-        cpc = Math.round((0.5 + Math.random() * 3) * 100) / 100;
       }
     } catch (err: any) {
-      logger.warn({ err: err.message }, "Google Ads getKeywordMetrics failed, falling back to estimated data");
-      searchVolume = Math.round(5000 + Math.random() * 45000);
-      const competitions = ["baixa", "média", "alta"];
-      competition = competitions[Math.floor(Math.random() * 3)];
-      cpc = Math.round((0.5 + Math.random() * 3) * 100) / 100;
+      logger.warn({ err: err.message }, "Google Ads getKeywordMetrics failed, falling back to Gemini AI");
     }
-  } else {
-    // Fallback: estimated values
-    searchVolume = Math.round(5000 + Math.random() * 45000);
-    const competitions = ["baixa", "média", "alta"];
-    competition = competitions[Math.floor(Math.random() * 3)];
-    cpc = Math.round((0.5 + Math.random() * 3) * 100) / 100;
+  }
+
+  // If we couldn't fetch real metrics from Google Ads (either because it is not connected or the API request failed)
+  if (!realTrends || realTrends.length === 0) {
+    try {
+      const aiMetrics = await getKeywordMetricsWithAI(keyword, locationStr);
+      searchVolume = aiMetrics.searchVolume;
+      competition = aiMetrics.competition;
+      cpc = aiMetrics.cpc;
+      dataSource = "gemini-ai";
+      realTrends = aiMetrics.trends;
+    } catch (aiErr: any) {
+      logger.warn({ err: aiErr.message }, "Gemini getKeywordMetricsWithAI failed, using default fallback");
+      searchVolume = 1000;
+      competition = "média";
+      cpc = 1.5;
+      dataSource = "local-fallback";
+      const months = ["Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez", "Jan", "Fev", "Mar", "Abr", "Mai"];
+      realTrends = months.map(m => ({ month: m, volume: 1000 }));
+    }
   }
 
   try {
     const result = await db.prepare(
-      "INSERT INTO keywords (keyword, search_volume, competition, cpc, location, period) VALUES (?, ?, ?, ?, ?, ?)"
-    ).run(keyword, searchVolume, competition, cpc, locationStr, "12 meses");
+      "INSERT INTO keywords (user_id, keyword, search_volume, competition, cpc, location, period) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(req.userId, keyword, searchVolume, competition, cpc, locationStr, "12 meses");
     const kwId = Number(result.lastInsertRowid);
 
     if (realTrends && realTrends.length > 0) {
-      // Insert real monthly trends from Google Ads
       for (const t of realTrends) {
         await db.prepare("INSERT INTO keyword_trends (keyword_id, month, volume) VALUES (?, ?, ?)").run(kwId, t.month, t.volume);
-      }
-    } else {
-      // Generate trends
-      const months = ["Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez", "Jan", "Fev", "Mar", "Abr", "Mai"];
-      for (const month of months) {
-        const vol = Math.round(searchVolume * (0.7 + Math.random() * 0.6));
-        await db.prepare("INSERT INTO keyword_trends (keyword_id, month, volume) VALUES (?, ?, ?)").run(kwId, month, vol);
       }
     }
 
@@ -489,7 +487,7 @@ router.post("/keywords", requireAuth, async (req: any, res) => {
 router.post("/keywords/:id/analyze", requireAuth, async (req: any, res) => {
   const db = getDb();
   try {
-    const kw = await db.prepare("SELECT * FROM keywords WHERE id = ?").get(Number(req.params.id)) as any;
+    const kw = await db.prepare("SELECT * FROM keywords WHERE id = ? AND user_id = ?").get(Number(req.params.id), req.userId) as any;
     if (!kw) {
       res.status(404).json({ error: "Keyword not found" });
       return;
@@ -515,7 +513,7 @@ router.get("/keywords/trends", requireAuth, async (req: any, res) => {
   const keyword = req.query.keyword as string | undefined;
   try {
     if (keyword) {
-      const kw = await db.prepare("SELECT id FROM keywords WHERE keyword = ?").get(keyword) as any;
+      const kw = await db.prepare("SELECT id FROM keywords WHERE keyword = ? AND user_id = ?").get(keyword, req.userId) as any;
       if (kw) {
         const trends = await db.prepare(
           "SELECT month, volume FROM keyword_trends WHERE keyword_id = ? ORDER BY id ASC"
@@ -524,7 +522,7 @@ router.get("/keywords/trends", requireAuth, async (req: any, res) => {
         return;
       }
     }
-    const firstKw = await db.prepare("SELECT id FROM keywords LIMIT 1").get() as any;
+    const firstKw = await db.prepare("SELECT id FROM keywords WHERE user_id = ? LIMIT 1").get(req.userId) as any;
     if (!firstKw) {
       res.json([]);
       return;
@@ -539,12 +537,12 @@ router.get("/keywords/trends", requireAuth, async (req: any, res) => {
 });
 
 // Real intent breakdown computed from actual keyword data in the database
-router.get("/keywords/intent-breakdown", requireAuth, async (_req, res) => {
+router.get("/keywords/intent-breakdown", requireAuth, async (req: any, res) => {
   const db = getDb();
   try {
     const rows = await db.prepare(
-      "SELECT intent, COUNT(*) as count FROM keywords WHERE intent IS NOT NULL GROUP BY intent"
-    ).all() as Array<{ intent: string; count: number }>;
+      "SELECT intent, COUNT(*) as count FROM keywords WHERE user_id = ? AND intent IS NOT NULL GROUP BY intent"
+    ).all(req.userId) as Array<{ intent: string; count: number }>;
 
     const total = rows.reduce((sum, r) => sum + r.count, 0);
 
@@ -572,5 +570,13 @@ router.get("/keywords/intent-breakdown", requireAuth, async (_req, res) => {
     res.status(500).json({ error: "Erro ao obter breakdown de intenção: " + err.message });
   }
 });
+
+function toCredentials(connection: NonNullable<Awaited<ReturnType<typeof getGoogleAdsConnection>>>) {
+  return {
+    refreshToken: connection.refreshToken,
+    customerId: connection.customerId!,
+    loginCustomerId: connection.loginCustomerId,
+  };
+}
 
 export default router;

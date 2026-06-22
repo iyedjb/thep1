@@ -13,6 +13,7 @@ import Reports from "@/pages/reports";
 import Trends from "@/pages/trends";
 import Creator from "@/pages/creator";
 import DrCash from "@/pages/drcash";
+import { GoogleAdsGate } from "@/components/google-ads/google-ads-gate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,7 +28,7 @@ function isAuthenticated(): boolean {
   return !!localStorage.getItem("ads_token");
 }
 
-function ProtectedRoute({ component: Component, ...rest }: any) {
+function ProtectedRoute({ component: Component, requiresGoogleAds = false, ...rest }: any) {
   return (
     <Route {...rest}>
       {() => {
@@ -36,7 +37,11 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
         }
         return (
           <Layout>
-            <Component />
+            {requiresGoogleAds ? (
+              <GoogleAdsGate><Component /></GoogleAdsGate>
+            ) : (
+              <Component />
+            )}
           </Layout>
         );
       }}
@@ -51,10 +56,10 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
       <Route path="/" component={() => <Redirect to="/dashboard" />} />
-      <ProtectedRoute path="/dashboard" component={Dashboard} />
-      <ProtectedRoute path="/campaigns" component={Campaigns} />
-      <ProtectedRoute path="/keywords" component={Keywords} />
-      <ProtectedRoute path="/reports" component={Reports} />
+      <ProtectedRoute path="/dashboard" component={Dashboard} requiresGoogleAds />
+      <ProtectedRoute path="/campaigns" component={Campaigns} requiresGoogleAds />
+      <ProtectedRoute path="/keywords" component={Keywords} requiresGoogleAds />
+      <ProtectedRoute path="/reports" component={Reports} requiresGoogleAds />
       <ProtectedRoute path="/trends" component={Trends} />
       <ProtectedRoute path="/creator" component={Creator} />
       <ProtectedRoute path="/drcash" component={DrCash} />
@@ -63,11 +68,20 @@ function Router() {
   );
 }
 
+import { useEffect } from "react";
+
 function App() {
-  // Ensure light mode is applied
-  if (typeof document !== "undefined") {
-    document.documentElement.classList.remove("dark");
-  }
+  // Ensure theme is applied based on localStorage or default to dark
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      const savedTheme = localStorage.getItem("app_theme") || "dark";
+      if (savedTheme === "light") {
+        document.documentElement.classList.add("light");
+      } else {
+        document.documentElement.classList.remove("light");
+      }
+    }
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

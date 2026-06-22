@@ -382,4 +382,92 @@ Responda APENAS o JSON válido, sem markdown, sem blocos de código (\`\`\`json)
   }
 }
 
+/**
+ * Estimate search volume, competition, CPC, and monthly trends for a single keyword using Gemini AI.
+ */
+export async function getKeywordMetricsWithAI(
+  keyword: string,
+  location: string = "Brasil"
+): Promise<{
+  searchVolume: number;
+  competition: string;
+  cpc: number;
+  trends: Array<{ month: string; volume: number }>;
+}> {
+  const genAI = getGenAI();
+  if (!genAI) {
+    return getFallbackKeywordMetrics(keyword);
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const prompt = `Você é um planejador de palavras-chave do Google Ads.
+Gere métricas realistas para a palavra-chave "${keyword}" na localização "${location}".
+Retorne estimativas realistas para:
+1. searchVolume (volume de pesquisas mensais médio, ex: 1500)
+2. competition (concorrência, exatamente um de: "baixa", "média", "alta")
+3. cpc (custo por clique médio estimado em Reais R$, ex: 2.5)
+4. trends (tendência de busca dos últimos 12 meses, contendo um array de exatamente 12 objetos com "month" (abreviado em português, ex: "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez", "Jan", "Fev", "Mar", "Abr", "Mai") e "volume" (número de pesquisas)).
+
+Responda em formato JSON com exatamente esta estrutura:
+{
+  "searchVolume": 1500,
+  "competition": "média",
+  "cpc": 2.5,
+  "trends": [
+    {"month": "Jun", "volume": 1200},
+    {"month": "Jul", "volume": 1300},
+    {"month": "Ago", "volume": 1400},
+    {"month": "Set", "volume": 1350},
+    {"month": "Out", "volume": 1500},
+    {"month": "Nov", "volume": 1900},
+    {"month": "Dez", "volume": 1700},
+    {"month": "Jan", "volume": 1600},
+    {"month": "Fev", "volume": 1550},
+    {"month": "Mar", "volume": 1500},
+    {"month": "Abr", "volume": 1400},
+    {"month": "Mai", "volume": 1450}
+  ]
+}
+
+Responda APENAS o JSON válido, sem markdown, sem blocos de código (\`\`\`json), sem texto adicional.`;
+
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    const cleanJson = text.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
+    const parsed = JSON.parse(cleanJson);
+    
+    return {
+      searchVolume: Number(parsed.searchVolume || 1000),
+      competition: String(parsed.competition || "média"),
+      cpc: Number(parsed.cpc || 1.5),
+      trends: Array.isArray(parsed.trends) ? parsed.trends : [],
+    };
+  } catch (error: any) {
+    logger.error({ error: error.message }, "Gemini keyword metrics estimation failed, using fallback");
+    return getFallbackKeywordMetrics(keyword);
+  }
+}
+
+function getFallbackKeywordMetrics(keyword: string) {
+  let hash = 0;
+  for (let i = 0; i < keyword.length; i++) {
+    hash = keyword.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  hash = Math.abs(hash);
+  
+  const searchVolume = Math.round(500 + (hash % 15) * 600);
+  const comps = ["baixa", "média", "alta"];
+  const competition = comps[hash % 3];
+  const cpc = Math.round((0.8 + (hash % 8) * 0.4) * 100) / 100;
+  
+  const months = ["Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez", "Jan", "Fev", "Mar", "Abr", "Mai"];
+  const trends = months.map((m, idx) => ({
+    month: m,
+    volume: Math.round(searchVolume * (0.8 + Math.sin(idx + hash) * 0.25))
+  }));
+
+  return { searchVolume, competition, cpc, trends };
+}
+
 

@@ -1,18 +1,18 @@
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useLocation } from "wouter";
+import { ArrowLeft, Check, Eye, EyeOff } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Activity, Sparkles, FileText, MessageSquare, Share2, Shield, TrendingUp, Cpu, Check, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Link } from "wouter";
-import { useState } from "react";
 
 const signupSchema = z.object({
-  name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
-  email: z.string().email("E-mail inválido"),
+  name: z.string().min(2, "Informe seu nome completo"),
+  email: z.string().email("Informe um e-mail válido"),
   password: z.string(),
 });
 
@@ -21,224 +21,97 @@ export default function Signup() {
   const { toast } = useToast();
   const [isPending, setIsPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
   const form = useForm<z.infer<typeof signupSchema>>({
     resolver: zodResolver(signupSchema),
-    defaultValues: {
-      name: "",
-      email: "",
-      password: "",
-    },
+    defaultValues: { name: "", email: "", password: "" },
   });
 
-  const passwordValue = form.watch("password") || "";
-
-  // Password rules checks
-  const hasMinLength = passwordValue.length >= 8;
-  const hasNumber = /\d/.test(passwordValue);
-  const hasUppercase = /[A-Z]/.test(passwordValue);
-  const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(passwordValue);
-
-  const allRulesMet = hasMinLength && hasNumber && hasUppercase && hasSpecial;
+  const password = form.watch("password") || "";
+  const rules = [
+    { label: "8 caracteres", valid: password.length >= 8 },
+    { label: "1 número", valid: /\d/.test(password) },
+    { label: "1 maiúscula", valid: /[A-Z]/.test(password) },
+    { label: "1 caractere especial", valid: /[!@#$%^&*(),.?":{}|<>]/.test(password) },
+  ];
+  const passwordIsValid = rules.every((rule) => rule.valid);
 
   const onSubmit = async (data: z.infer<typeof signupSchema>) => {
-    if (!allRulesMet) {
-      toast({
-        title: "Requisitos de senha",
-        description: "Certifique-se de preencher todos os requisitos da senha.",
-        variant: "destructive",
-      });
-      return;
-    }
-
+    if (!passwordIsValid) return;
     setIsPending(true);
     try {
       const response = await fetch("/api/auth/register", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: data.name,
-          email: data.email,
-          password: data.password,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
       });
-
       const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || "Erro ao realizar cadastro.");
-      }
-
+      if (!response.ok) throw new Error(result.error || "Não foi possível criar sua conta");
       localStorage.setItem("ads_token", result.token);
-      toast({
-        title: "Cadastro realizado!",
-        description: "Sua conta foi criada com sucesso.",
-      });
       setLocation("/dashboard");
-    } catch (err: any) {
-      toast({
-        title: "Erro no cadastro",
-        description: err.message || "Não foi possível criar sua conta. Tente novamente.",
-        variant: "destructive",
-      });
+    } catch (error: any) {
+      toast({ title: "Erro ao criar conta", description: error.message, variant: "destructive" });
     } finally {
       setIsPending(false);
     }
   };
 
   return (
-    <div className="min-h-screen w-full flex bg-background">
-      {/* Left side - Signup Form */}
-      <div className="flex-1 flex flex-col justify-center px-6 lg:px-16 xl:px-24 bg-white bg-dots-grid relative">
-        <div className="mx-auto w-full max-w-sm">
-          <div className="flex flex-col gap-2 mb-6">
-            <Link href="/login" className="flex items-center gap-1.5 text-xs text-primary hover:underline mb-2 w-fit font-semibold">
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Voltar ao login
-            </Link>
-            <div className="flex items-center gap-2 text-primary">
-              <Activity className="h-7 w-7" />
-              <span className="font-bold text-xl text-foreground">Ads Intelligence</span>
-            </div>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight text-foreground">
-              Crie sua conta
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Cadastre-se para começar
-            </p>
+    <AuthShell eyebrow="Comece agora" title="Crie sua conta" description="Organize seus dados de mídia e encontre oportunidades com mais rapidez.">
+      <Link href="/login" className="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-[#4c91e6]">
+        <ArrowLeft className="h-3.5 w-3.5" /> Voltar ao login
+      </Link>
+
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <FormField control={form.control} name="name" render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-xs font-semibold text-[#353548]">Nome completo</FormLabel>
+              <FormControl><Input placeholder="Como podemos chamar você?" autoComplete="name" {...field} className="h-12 rounded-2xl border-slate-200 bg-white px-4 shadow-none focus-visible:border-[#63a9ff] focus-visible:ring-[#63a9ff]/15" /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+          <FormField control={form.control} name="email" render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-xs font-semibold text-[#353548]">E-mail</FormLabel>
+              <FormControl><Input placeholder="voce@empresa.com" autoComplete="email" {...field} className="h-12 rounded-2xl border-slate-200 bg-white px-4 shadow-none focus-visible:border-[#63a9ff] focus-visible:ring-[#63a9ff]/15" /></FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+          <FormField control={form.control} name="password" render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-xs font-semibold text-[#353548]">Senha</FormLabel>
+              <FormControl>
+                <div className="relative">
+                  <Input type={showPassword ? "text" : "password"} placeholder="Crie uma senha segura" autoComplete="new-password" {...field} className="h-12 rounded-2xl border-slate-200 bg-white px-4 pr-12 shadow-none focus-visible:border-[#63a9ff] focus-visible:ring-[#63a9ff]/15" />
+                  <button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-700" aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}>
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
+
+          <div className="grid grid-cols-2 gap-2 rounded-2xl bg-[#f7faff] p-3.5">
+            {rules.map((rule) => (
+              <div key={rule.label} className={`flex items-center gap-1.5 text-[11px] ${rule.valid ? "font-medium text-emerald-600" : "text-slate-400"}`}>
+                <span className={`flex h-4 w-4 items-center justify-center rounded-full ${rule.valid ? "bg-emerald-100" : "bg-slate-200/70"}`}>
+                  {rule.valid && <Check className="h-2.5 w-2.5" />}
+                </span>
+                {rule.label}
+              </div>
+            ))}
           </div>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nome Completo</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Seu nome" {...field} className="rounded-2xl bg-slate-50/50 border-slate-200/80 py-5 focus-visible:ring-sky-500/20 focus-visible:ring-4 focus-visible:border-sky-500 transition-all duration-200" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+          <Button type="submit" disabled={isPending || !passwordIsValid} className="mt-2 h-12 w-full rounded-full bg-[#63a9ff] font-semibold text-white shadow-[0_12px_30px_rgba(99,169,255,0.24)] hover:bg-[#559bea] active:scale-[0.99]">
+            {isPending ? "Criando conta..." : "Criar minha conta"}
+          </Button>
+        </form>
+      </Form>
 
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">E-mail corporativo</FormLabel>
-                    <FormControl>
-                      <Input placeholder="voce@empresa.com.br" {...field} className="rounded-2xl bg-slate-50/50 border-slate-200/80 py-5 focus-visible:ring-sky-500/20 focus-visible:ring-4 focus-visible:border-sky-500 transition-all duration-200" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Senha</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <Input 
-                          type={showPassword ? "text" : "password"} 
-                          placeholder="••••••••" 
-                          {...field} 
-                          className="rounded-2xl bg-slate-50/50 border-slate-200/80 py-5 pr-12 focus-visible:ring-sky-500/20 focus-visible:ring-4 focus-visible:border-sky-500 transition-all duration-200" 
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                        >
-                          {showPassword ? <EyeOff className="w-4.5 h-4.5" /> : <Eye className="w-4.5 h-4.5" />}
-                        </button>
-                      </div>
-                    </FormControl>
-                    
-                    {/* Password Requirements Checklist */}
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 mt-3 px-1 text-[11px] text-muted-foreground transition-all duration-300">
-                      <div className="flex items-center gap-1.5 col-span-2 text-foreground font-semibold text-xs mb-0.5">
-                        Requisitos de segurança:
-                      </div>
-                      <div className={`flex items-center gap-1.5 transition-colors duration-250 ${hasMinLength ? "text-emerald-600" : "text-slate-400"}`}>
-                        {hasMinLength ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        ) : (
-                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300 mx-1.5 shrink-0" />
-                        )}
-                        <span className={hasMinLength ? "font-medium text-emerald-600" : ""}>Mínimo de 8 caracteres</span>
-                      </div>
-                      <div className={`flex items-center gap-1.5 transition-colors duration-250 ${hasNumber ? "text-emerald-600" : "text-slate-400"}`}>
-                        {hasNumber ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        ) : (
-                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300 mx-1.5 shrink-0" />
-                        )}
-                        <span className={hasNumber ? "font-medium text-emerald-600" : ""}>Pelo menos um número</span>
-                      </div>
-                      <div className={`flex items-center gap-1.5 transition-colors duration-250 ${hasUppercase ? "text-emerald-600" : "text-slate-400"}`}>
-                        {hasUppercase ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        ) : (
-                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300 mx-1.5 shrink-0" />
-                        )}
-                        <span className={hasUppercase ? "font-medium text-emerald-600" : ""}>Letra maiúscula</span>
-                      </div>
-                      <div className={`flex items-center gap-1.5 transition-colors duration-250 ${hasSpecial ? "text-emerald-600" : "text-slate-400"}`}>
-                        {hasSpecial ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                        ) : (
-                          <div className="w-1.5 h-1.5 rounded-full bg-slate-300 mx-1.5 shrink-0" />
-                        )}
-                        <span className={hasSpecial ? "font-medium text-emerald-600" : ""}>Caractere especial</span>
-                      </div>
-                    </div>
-
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button 
-                type="submit" 
-                className="w-full rounded-full py-6 font-semibold bg-[#0ea5e9] hover:bg-[#0ea5e9]/90 text-white mt-5 transition-all shadow-md shadow-sky-500/10 hover:shadow-lg hover:shadow-sky-500/20 active:scale-[0.98] cursor-pointer" 
-                disabled={isPending || !allRulesMet}
-              >
-                {isPending ? "Criando conta..." : "Criar minha conta"}
-              </Button>
-            </form>
-          </Form>
-        </div>
-      </div>
-
-      {/* Right side - Presentation Info (Full Image with Text Overlay) */}
-      <div 
-        className="hidden lg:flex w-[55%] bg-cover bg-center items-center justify-center relative border-l border-border/40 overflow-hidden"
-        style={{ backgroundImage: `url('/images/auth_bg.png')` }}
-      >
-        {/* Subtle Dark Overlay to make the text pop */}
-        <div className="absolute inset-0 bg-black/15 mix-blend-multiply" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/10" />
-
-        {/* Text Overlay */}
-        <div className="relative z-10 flex items-center gap-3 bg-white/10 backdrop-blur-md px-6 py-4 rounded-3xl border border-white/20 shadow-2xl select-none max-w-lg mx-6 animate-fade-in hover:bg-white/15 transition-all duration-300">
-          <span className="text-white text-base md:text-lg font-medium tracking-wide">
-            Success starts with
-          </span>
-          <div className="flex items-center gap-2 bg-[#0ea5e9] text-white px-4 py-1.5 rounded-2xl font-bold text-sm shadow-md hover:scale-[1.03] active:scale-[0.98] transition-all">
-            <Activity className="w-4 h-4" />
-            Ads Intelligence
-          </div>
-        </div>
-      </div>
-    </div>
+      <p className="mt-6 text-center text-sm text-slate-500">
+        Já tem uma conta? <Link href="/login" className="font-semibold text-[#4c91e6] hover:underline">Entrar</Link>
+      </p>
+    </AuthShell>
   );
 }

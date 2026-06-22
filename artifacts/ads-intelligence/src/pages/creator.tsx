@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Link as RouterLink } from "wouter";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,19 +14,19 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Sparkles, 
-  Download, 
-  ExternalLink, 
-  Copy, 
-  RefreshCw, 
+import {
+  Sparkles,
+  Download,
+  ExternalLink,
+  Copy,
+  RefreshCw,
   CheckCircle,
+  CheckCircle2,
   ChevronLeft,
   Code,
   ArrowRight,
   ShieldCheck,
   Link,
-  Laptop,
   Loader2,
   Check,
   Trash2,
@@ -35,7 +34,11 @@ import {
   Play,
   Plus,
   RotateCcw,
-  Globe
+  Globe,
+  Search,
+  Zap,
+  Layout,
+  Layers,
 } from "lucide-react";
 
 type Step = "form" | "generating" | "done" | "actions";
@@ -65,193 +68,16 @@ interface SavedWebsite {
   thankYouFileName?: string;
 }
 
-const POPUP_LANGS: Record<string, { headline: string; sub: string; namePlaceholder: string; contactPlaceholder: string; btn: string; close: string; thanks: string; }> = {
-  "pt-BR": {
-    headline: "Gostou do nosso produto?",
-    sub: "Deixe seu contato e nossa equipe entrará em contato com você em breve.",
-    namePlaceholder: "Seu nome",
-    contactPlaceholder: "E-mail ou WhatsApp",
-    btn: "Quero ser contatado!",
-    close: "Não, obrigado",
-    thanks: "Obrigado! Entraremos em contato em breve."
-  },
-  "en": {
-    headline: "Did you like our product?",
-    sub: "Leave your contact and our team will reach out to you shortly.",
-    namePlaceholder: "Your name",
-    contactPlaceholder: "E-mail or Phone",
-    btn: "Contact me!",
-    close: "No, thanks",
-    thanks: "Thank you! We will contact you soon."
-  },
-  "es": {
-    headline: "¿Te gustó nuestro produto?",
-    sub: "Deja tu contacto y nuestro equipo se comunicará contigo pronto.",
-    namePlaceholder: "Tu nombre",
-    contactPlaceholder: "Correo o WhatsApp",
-    btn: "¡Contáctenme!",
-    close: "No, gracias",
-    thanks: "¡Gracias! Nos comunicaremos pronto."
-  }
-};
-
-const LOCALIZED_TEXT: Record<string, {
-  partnerApproved: string;
-  privacy: string;
-  terms: string;
-  contact: string;
-  disclaimer: string;
-  copyright: string;
-  privacyTitle: string;
-  privacyP1: string;
-  privacyP2: string;
-  privacyP3: string;
-  privacyP4: string;
-  termsTitle: string;
-  termsP1: string;
-  termsP2: string;
-  termsP3: string;
-  termsP4: string;
-  contactTitle: string;
-  contactP1: string;
-  contactP2: string;
-  contactP3: string;
-  seoHeaderTitle: string;
-  seoHeaderCategory: string;
-  seoWelcome: string;
-  seoDescriptionDefault: string;
-  seoWhyTitle: string;
-  seoWhyDesc: string;
-  seoLi1Title: string;
-  seoLi1Desc: string;
-  seoLi2Title: string;
-  seoLi2Desc: string;
-  seoLi3Title: string;
-  seoLi3Desc: string;
-  seoDeliveryTitle: string;
-  seoDeliveryDesc: string;
-}> = {
-  "pt-BR": {
-    partnerApproved: "Parceiro Autorizado",
-    privacy: "Política de Privacidade",
-    terms: "Termos de Uso",
-    contact: "Contato",
-    disclaimer: "Aviso Legal: Este site é um canal de redirecionamento informativo e não possui vínculos diretos ou de afiliação de patrocínio com o Google LLC, Google Ads ou Facebook Ads.",
-    copyright: "Todos os direitos reservados.",
-    privacyTitle: "Política de Privacidade",
-    privacyP1: "Sua privacidade é muito importante para nós. Esta Política de Privacidade descreve como suas informações pessoais são tratadas ao usar este site de redirecionamento.",
-    privacyP2: "<strong>Coleta de Informações:</strong> Não coletamos informações de identificação pessoal neste site de redirecionamento, exceto eventuais dados anônimos de tráfego fornecidos por cookies de terceiros (como Google Analytics ou pixels de rastreamento) se ativados pelo proprietário.",
-    privacyP3: "<strong>Links para Terceiros:</strong> Este site contém links redirecionando para sites externos. Não temos controle sobre as políticas de privacidade desses sites de terceiros, por isso recomendamos a leitura das políticas deles ao acessá-los.",
-    privacyP4: "Ao utilizar nosso site de redirecionamento, você concorda com os termos aqui dispostos.",
-    termsTitle: "Termos de Uso",
-    termsP1: "Seja bem-vindo ao nosso site de redirecionamento.",
-    termsP2: "<strong>Aceitação dos Termos:</strong> Ao utilizar este site, você concorda em cumprir e estar vinculado a estes Termos de Uso. Se você não concordar com qualquer parte destes termos, não utilize o site.",
-    termsP3: "<strong>Uso do Site:</strong> Este site tem como objetivo fornecer um canal informativo seguro de redirecionamento para o site oficial do produto. Você concorda em não tentar violar a segurança do site, usar robôs de scraping ou praticar qualquer atividade ilícita aqui.",
-    termsP4: "<strong>Limitação de Responsabilidade:</strong> Não nos responsabilizamos por qualquer compra realizada no site de destino final. Toda a transação comercial é de responsabilidade exclusiva do fornecedor oficial do produto ou serviço acessado.",
-    contactTitle: "Contato",
-    contactP1: "Precisa de suporte ou tem alguma dúvida técnica em relação a este redirecionador?",
-    contactP2: "Entre em contato conosco pelo e-mail oficial abaixo:",
-    contactP3: "Responderemos o mais breve possível.",
-    seoHeaderTitle: "Site Oficial do Distribuidor Autorizado",
-    seoHeaderCategory: "Categoria:",
-    seoWelcome: "Seja bem-vindo à página de distribuição oficial.",
-    seoDescriptionDefault: "Oferecemos produtos de alta qualidade, fabricados sob os mais rigorosos padrões de segurança e controle. Compre com total segurança e garantia de satisfação direta do fabricante.",
-    seoWhyTitle: "Por que Adquirir o",
-    seoWhyDesc: "Ao comprar através do canal oficial, você garante acesso às promoções exclusivas, suporte ao cliente dedicado e produtos com certificações originais de laboratório.",
-    seoLi1Title: "Garantia de Satisfação:",
-    seoLi1Desc: "Proteção total para sua compra direta.",
-    seoLi2Title: "Frete Seguro:",
-    seoLi2Desc: "Entrega rápida acompanhada de código de rastreamento.",
-    seoLi3Title: "Compra Protegida:",
-    seoLi3Desc: "Seus dados financeiros totalmente seguros.",
-    seoDeliveryTitle: "Como Funciona a Entrega?",
-    seoDeliveryDesc: "Nossa logística é otimizada para despachar os pedidos em tempo recorde. Você receberá atualizações constantes sobre o status de envio diretamente no seu e-mail cadastrado ou WhatsApp no momento da compra no site oficial."
-  },
-  "en": {
-    partnerApproved: "Authorized Partner",
-    privacy: "Privacy Policy",
-    terms: "Terms of Use",
-    contact: "Contact Us",
-    disclaimer: "Disclaimer: This website is an informative redirect channel and has no direct links or sponsorship affiliation with Google LLC, Google Ads, or Facebook Ads.",
-    copyright: "All rights reserved.",
-    privacyTitle: "Privacy Policy",
-    privacyP1: "Your privacy is very important to us. This Privacy Policy describes how your personal information is handled when using this redirect site.",
-    privacyP2: "<strong>Information Collection:</strong> We do not collect personally identifiable information on this redirect site, except for any anonymous traffic data provided by third-party cookies (such as Google Analytics or tracking pixels) if enabled by the owner.",
-    privacyP3: "<strong>Links to Third Parties:</strong> This site contains links redirecting to external sites. We have no control over the privacy policies of these third-party sites, so we recommend reading their policies when accessing them.",
-    privacyP4: "By using our redirect site, you agree to the terms set forth herein.",
-    termsTitle: "Terms of Use",
-    termsP1: "Welcome to our redirect site.",
-    termsP2: "<strong>Acceptance of Terms:</strong> By using this site, you agree to comply with and be bound by these Terms of Use. If you do not agree with any part of these terms, do not use the site.",
-    termsP3: "<strong>Use of the Site:</strong> This site aims to provide a secure informative redirect channel to the official product page. You agree not to attempt to violate the security of the site, use scraping robots, or practice any illegal activity here.",
-    termsP4: "<strong>Limitation of Liability:</strong> We are not responsible for any purchases made on the final destination site. All commercial transactions are the sole responsibility of the official supplier of the product or service accessed.",
-    contactTitle: "Contact Us",
-    contactP1: "Need support or have any technical questions regarding this redirector?",
-    contactP2: "Please contact us via the official email address below:",
-    contactP3: "We will reply as soon as possible.",
-    seoHeaderTitle: "Official Authorized Distributor Site",
-    seoHeaderCategory: "Category:",
-    seoWelcome: "Welcome to the official distribution page.",
-    seoDescriptionDefault: "We offer high-quality products, manufactured under the strictest safety and quality standards. Buy with complete safety and direct satisfaction guarantee from the manufacturer.",
-    seoWhyTitle: "Why Buy",
-    seoWhyDesc: "When buying through the official channel, you guarantee access to exclusive promotions, dedicated customer support, and products with original laboratory certifications.",
-    seoLi1Title: "Satisfaction Guarantee:",
-    seoLi1Desc: "Total protection for your direct purchase.",
-    seoLi2Title: "Secure Shipping:",
-    seoLi2Desc: "Fast delivery accompanied by a tracking code.",
-    seoLi3Title: "Protected Purchase:",
-    seoLi3Desc: "Your financial data is completely secure.",
-    seoDeliveryTitle: "How Does Delivery Work?",
-    seoDeliveryDesc: "Our logistics are optimized to dispatch orders in record time. You will receive constant updates on shipping status directly to your registered email or WhatsApp at the time of purchase on the official website."
-  },
-  "es": {
-    partnerApproved: "Socio Autorizado",
-    privacy: "Política de Privacidade",
-    terms: "Términos de Uso",
-    contact: "Contacto",
-    disclaimer: "Aviso Legal: Este sitio es un canal de redirección informativo y no tiene vínculos directos ni de afiliación de patrocinio con Google LLC, Google Ads o Facebook Ads.",
-    copyright: "Todos os direitos reservados.",
-    privacyTitle: "Política de Privacidade",
-    privacyP1: "Su privacidade es muito importante para nosotros. Esta Política de Privacidade de describe cómo se maneja su información personal al utilizar este sitio de redirección.",
-    privacyP2: "<strong>Recopilación de Información:</strong> No recopilamos información de identificación pessoal en este sitio de redirección, excepto eventuales datos de tráfico anónimos proporcionados por cookies de terceros (como Google Analytics o píxeles de seguimiento) si el propietario los habilita.",
-    privacyP3: "<strong>Enlaces a Terceros:</strong> Este sitio contiene enlaces que redireccionan a sitios externos. No tenemos control sobre las políticas de privacidad de estos sitios de terceros, por lo que recomendamos leer sus políticas al acceder a ellos.",
-    privacyP4: "Al utilizar nosso site de redirección, acepta los términos aquí establecidos.",
-    termsTitle: "Términos de Uso",
-    termsP1: "Bienvenido a nuestro sitio de redirección.",
-    termsP2: "<strong>Aceptación de los Términos:</strong> Al utilizar este site, acepta cumplir y estar sujeto a estos Términos de Uso. Si no está de acordo con alguna parte de estos términos, no utilice el sitio.",
-    termsP3: "<strong>Uso del Sitio:</strong> Este site tiene como objetivo proporcionar un canal de redirección informativo seguro a la página oficial del producto. Acepta no intentar violar la seguridad del site, utilizar robots de scraping ni realizar ninguna actividad ilegal aquí.",
-    termsP4: "<strong>Limitation de Responsabilidad:</strong> No nos hacemos responsables de las compras realizadas en el sitio de destino final. Toda transacción comercial es responsabilidad exclusiva del proveedor oficial del producto o servicio accedido.",
-    contactTitle: "Contacto",
-    contactP1: "¿Necesita soporte o tiene alguna duda técnica sobre este redireccionador?",
-    contactP2: "Póngase en contacto con nosotros a través del correo electrónico oficial a continuación:",
-    contactP3: "Responderemos lo antes posible.",
-    seoHeaderTitle: "Sitio Oficial del Distribuidor Autorizado",
-    seoHeaderCategory: "Categoría:",
-    seoWelcome: "Bienvenido a la página oficial de distribución.",
-    seoDescriptionDefault: "Ofrecemos productos de alta calidad, fabricados bajo las más estrictas normas de seguridad y control. Compre con total seguridad y garantía de satisfacción directa del fabricante.",
-    seoWhyTitle: "Por qué comprar",
-    seoWhyDesc: "Al comprar a través del canal oficial, se garantiza el acceso a promociones exclusivas, soporte al cliente dedicado y productos con certificaciones originales de laboratorio.",
-    seoLi1Title: "Garantía de Satisfacción:",
-    seoLi1Desc: "Protección total para su compra directa.",
-    seoLi2Title: "Envío Seguro:",
-    seoLi2Desc: "Entrega rápida acompañada de un código de seguimiento.",
-    seoLi3Title: "Compra Protegida:",
-    seoLi3Desc: "Sus datos financieros están completamente seguros.",
-    seoDeliveryTitle: "¿Cómo funciona la entrega?",
-    seoDeliveryDesc: "Nuestra logística está optimizada para despachar los pedidos en tiempo récord. Recibirá actualizaciones constantes sobre el estado del envío directamente en su correo electrónico registrado o WhatsApp al momento de la compra en el sitio web oficial."
-  }
-};
-
 export default function Creator() {
   const { toast } = useToast();
 
-  // Switcher view state
   const [activeView, setActiveView] = useState<View>("create");
+  const [searchTerm, setSearchTerm] = useState("");
 
-  // Form states
   const [referenceUrl, setReferenceUrl] = useState("");
   const [destinationUrl, setDestinationUrl] = useState("");
   const [scripts, setScripts] = useState<string[]>([""]);
-  const [popupLanguage, setPopupLanguage] = useState("pt-BR");
+  const [popupLanguage] = useState("pt-BR");
   const [productName, setProductName] = useState("");
   const [productHeadline, setProductHeadline] = useState("");
   const [productDescription, setProductDescription] = useState("");
@@ -261,18 +87,13 @@ export default function Creator() {
   const [apiToken, setApiToken] = useState("");
   const [streamCode, setStreamCode] = useState("");
   const [thankYouUrl, setThankYouUrl] = useState("./Obrigado.html");
-  const [generatedMode, setGeneratedMode] = useState<"presell" | "upsell" | "">("");
   const [designSummary, setDesignSummary] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedOption, setSelectedOption] = useState<"a" | "b">("a");
-  const [screenshotUrl, setScreenshotUrl] = useState<string>("");
-  const [isScreenshotLoading, setIsScreenshotLoading] = useState(false);
-  
-  // Step state for creation wizard
+
   const [step, setStep] = useState<Step>("form");
   const [generatingMessage, setGeneratingMessage] = useState("Criando base do redirecionador...");
 
-  // Generated code & publishing states for current wizard run
   const [generatedHtml, setGeneratedHtml] = useState("");
   const [thankYouHtml, setThankYouHtml] = useState("");
   const [thankYouFileName, setThankYouFileName] = useState("");
@@ -280,189 +101,84 @@ export default function Creator() {
   const [publishedUrl, setPublishedUrl] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
 
-  // Saved websites state loaded from localStorage
   const [savedWebsites, setSavedWebsites] = useState<SavedWebsite[]>([]);
 
-  // Load saved websites on mount
   useEffect(() => {
     const list = localStorage.getItem("saved_bridges");
     if (list) {
-      try {
-        setSavedWebsites(JSON.parse(list));
-      } catch (_) {}
+      try { setSavedWebsites(JSON.parse(list)); } catch (_) {}
     }
 
     const drcashLander = localStorage.getItem("drcash_selected_lander");
     if (drcashLander) {
       setReferenceUrl(drcashLander);
       localStorage.removeItem("drcash_selected_lander");
-      toast({
-        title: "Oferta Carregada",
-        description: "A Landing Page do Dr. Cash foi inserida no link de destino.",
-        variant: "default"
-      });
+      toast({ title: "Oferta Carregada ✅", description: "A Landing Page do Dr. Cash foi inserida no link de destino." });
     }
 
-    // Fetch default API token
     const fetchDefaultToken = async () => {
       try {
         const token = localStorage.getItem("ads_token");
         const res = await fetch("/api/drcash/token", {
-          headers: {
-            "Authorization": token ? `Bearer ${token}` : ""
-          }
+          headers: { "Authorization": token ? `Bearer ${token}` : "" }
         });
         if (res.ok) {
           const data = await res.json();
-          if (data.token) {
-            setApiToken(data.token);
-          }
+          if (data.token) setApiToken(data.token);
         }
-      } catch (err) {
-        console.error("Erro ao buscar token Dr. Cash", err);
-      }
+      } catch (err) { console.error("Erro ao buscar token Dr. Cash", err); }
     };
     fetchDefaultToken();
   }, []);
 
-  // Debounced effect to fetch screenshot of referenceUrl
-  useEffect(() => {
-    if (!referenceUrl) {
-      setScreenshotUrl("");
-      return;
-    }
-
-    let target = referenceUrl.trim();
-    if (!/^https?:\/\//i.test(target)) {
-      target = "https://" + target;
-    }
-    try {
-      new URL(target);
-    } catch (_) {
-      setScreenshotUrl("");
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setIsScreenshotLoading(true);
-      const encodedUrl = encodeURIComponent(target);
-      const url = `https://api.microlink.io/?url=${encodedUrl}&screenshot=true&embed=screenshot.url`;
-
-      const img = new Image();
-      img.onload = () => {
-        setScreenshotUrl(url);
-        setIsScreenshotLoading(false);
-      };
-      img.onerror = () => {
-        const thumIoKeyId = import.meta.env.VITE_THUM_IO_KEY_ID || "";
-        const thumIoUrlKey = import.meta.env.VITE_THUM_IO_URL_KEY || "";
-        const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-        const fallbackUrl = `https://image.thum.io/get/${authPrefix}width/1280/crop/800/${target}`;
-        
-        const fallbackImg = new Image();
-        fallbackImg.onload = () => {
-          setScreenshotUrl(fallbackUrl);
-          setIsScreenshotLoading(false);
-        };
-        fallbackImg.onerror = () => {
-          setScreenshotUrl("");
-          setIsScreenshotLoading(false);
-        };
-        fallbackImg.src = fallbackUrl;
-      };
-      img.src = url;
-    }, 1000);
-
-    return () => clearTimeout(timer);
-  }, [referenceUrl]);
-
-  // Save websites helper
   const saveWebsites = (newList: SavedWebsite[]) => {
     setSavedWebsites(newList);
     localStorage.setItem("saved_bridges", JSON.stringify(newList));
   };
 
-  // Compile the clean HTML redirector page
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!referenceUrl.trim()) {
-      toast({
-        title: "Pagina de referencia obrigatoria",
-        description: "Informe a landing page que a IA deve pesquisar para copiar design, idioma e oferta.",
-        variant: "destructive"
-      });
+      toast({ title: "Página de referência obrigatória", description: "Informe a landing page que a IA deve pesquisar para copiar design.", variant: "destructive" });
       return;
     }
-    
     if (!destinationUrl.trim()) {
-      toast({
-        title: "Link de destino obrigatório",
-        description: "Por favor, insira a URL final para onde o tráfego será direcionado.",
-        variant: "destructive"
-      });
+      toast({ title: "Link de destino obrigatório", description: "Por favor, insira a URL final para onde o tráfego será direcionado.", variant: "destructive" });
       return;
     }
 
-    // Ensure URL has protocol
     let targetUrl = destinationUrl.trim();
-    if (!/^https?:\/\//i.test(targetUrl)) {
-      targetUrl = "https://" + targetUrl;
-      setDestinationUrl(targetUrl);
-    }
-
+    if (!/^https?:\/\//i.test(targetUrl)) { targetUrl = "https://" + targetUrl; setDestinationUrl(targetUrl); }
     let sourceUrl = referenceUrl.trim();
-    if (!/^https?:\/\//i.test(sourceUrl)) {
-      sourceUrl = "https://" + sourceUrl;
-      setReferenceUrl(sourceUrl);
-    }
+    if (!/^https?:\/\//i.test(sourceUrl)) { sourceUrl = "https://" + sourceUrl; setReferenceUrl(sourceUrl); }
 
     const token = localStorage.getItem("ads_token");
     const combinedAiTags = scripts.filter(s => s.trim() !== "").join("\n    ");
 
     setStep("generating");
-    setGeneratingMessage("Pesquisando design, imagens e idioma com Exa...");
-    setGeneratedHtml("");
-    setPublishedUrl("");
-    setDesignSummary("");
-    setGeneratedMode("");
+    setGeneratingMessage("🔍 Pesquisando design e idioma com IA...");
+    setGeneratedHtml(""); setPublishedUrl(""); setDesignSummary("");
 
-    setTimeout(() => {
-      setGeneratingMessage("Treinando o contexto com as skills de presell e upsell...");
-    }, 900);
-    setTimeout(() => {
-      setGeneratingMessage("Gerando HTML world-class com Groq GPT-OSS 120B...");
-    }, 1800);
+    setTimeout(() => setGeneratingMessage("🧠 Treinando contexto com skills de presell e upsell..."), 900);
+    setTimeout(() => setGeneratingMessage("⚡ Gerando HTML world-class com Groq GPT-OSS 120B..."), 1800);
 
     try {
       const response = await fetch("/api/generate-bridge-ai", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": token ? `Bearer ${token}` : ""
-        },
+        headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
         body: JSON.stringify({
-          referenceUrl: sourceUrl,
-          affiliateUrl: targetUrl,
-          trackingTags: combinedAiTags,
-          productHint: productName,
-          apiToken,
-          streamCode,
-          thankYouUrl,
-          network: "Dr.Cash",
-          selectedOption,
-          popupLanguage
+          referenceUrl: sourceUrl, affiliateUrl: targetUrl, trackingTags: combinedAiTags,
+          productHint: productName, apiToken, streamCode, thankYouUrl,
+          network: "Dr.Cash", selectedOption, popupLanguage
         })
       });
 
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Erro ao gerar pagina com IA.");
-      }
+      if (!response.ok) throw new Error(data.error || "Erro ao gerar página com IA.");
 
       const html = data.html || "";
       setGeneratedHtml(html);
-      setGeneratedMode(data.mode || "presell");
       setDesignSummary(data.designSummary || "");
 
       const tyHtml = data.thankYouHtml || "";
@@ -474,743 +190,80 @@ export default function Creator() {
       setCurrentWebsiteId(newId);
 
       const newSite: SavedWebsite = {
-        id: newId,
-        referenceUrl: sourceUrl,
-        destinationUrl: targetUrl,
-        scripts: scripts.filter(s => s.trim() !== ""),
-        generatedHtml: html,
-        publishedUrl: "",
-        fileName: "",
-        status: "local",
+        id: newId, referenceUrl: sourceUrl, destinationUrl: targetUrl,
+        scripts: scripts.filter(s => s.trim() !== ""), generatedHtml: html,
+        publishedUrl: "", fileName: "", status: "local",
         createdAt: new Date().toLocaleDateString("pt-BR"),
-        popupLanguage: data.language || popupLanguage,
-        productName: data.productName || productName,
-        productHeadline,
-        productDescription: data.designSummary || productDescription,
-        productCategory,
-        ctaText,
-        supportEmail,
-        apiToken,
-        streamCode,
-        selectedOption,
-        thankYouHtml: tyHtml,
-        thankYouFileName: tyFileName
+        popupLanguage: data.language || popupLanguage, productName: data.productName || productName,
+        productHeadline, productDescription: data.designSummary || productDescription,
+        productCategory, ctaText, supportEmail, apiToken, streamCode, selectedOption,
+        thankYouHtml: tyHtml, thankYouFileName: tyFileName
       };
       saveWebsites([newSite, ...savedWebsites]);
-
-      setGeneratingMessage("Finalizando pagina e salvando no historico...");
+      setGeneratingMessage("✅ Finalizando e salvando no histórico...");
       setStep("done");
-
       setTimeout(() => {
         setStep("actions");
-        toast({
-          title: "Pagina Gerada com IA!",
-          description: "A IA escolheu o melhor modelo e criou o HTML com base na pagina pesquisada.",
-          variant: "default"
-        });
+        toast({ title: "🚀 Página Gerada com IA!", description: "HTML world-class criado com base na página pesquisada." });
       }, 900);
     } catch (err: any) {
       setStep("form");
-      toast({
-        title: "Erro ao gerar com IA",
-        description: err.message,
-        variant: "destructive"
-      });
+      toast({ title: "Erro ao gerar com IA", description: err.message, variant: "destructive" });
     }
-
-    return;
-
-    let domainName = "Carregando...";
-    try {
-      domainName = new URL(targetUrl).hostname.replace("www.", "");
-    } catch (_) {}
-
-    // Extract dynamic clean product name from target URL if product name is empty
-    let cleanProductName = productName.trim();
-    if (!cleanProductName) {
-      try {
-        const parts = domainName.split(".");
-        if (parts.length > 0) {
-          cleanProductName = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-        }
-      } catch (_) {
-        cleanProductName = "Produto Oficial";
-      }
-    }
-
-    // Concatenate non-empty scripts
-    const combinedTags = scripts.filter(s => s.trim() !== "").join("\n    ");
-
-    const t = LOCALIZED_TEXT[popupLanguage] || LOCALIZED_TEXT["pt-BR"];
-
-    const template = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${cleanProductName} - ${t.partnerApproved}</title>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-    ${combinedTags}
-    <style>
-        :root {
-            --primary: #5850ec;
-            --primary-hover: #453ec9;
-            --primary-light: rgba(88, 80, 236, 0.1);
-            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
-            --text-dark: #1f2937;
-            --text-muted: #4b5563;
-            --card-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.08), 0 15px 25px -10px rgba(0, 0, 0, 0.04);
-            --border-glass: rgba(255, 255, 255, 0.6);
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body, html {
-            width: 100%;
-            min-height: 100vh;
-            background: var(--bg-gradient);
-            font-family: 'Outfit', -apple-system, sans-serif;
-            color: var(--text-dark);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-        
-        .main-content {
-            flex-grow: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 40px 20px 100px;
-        }
-
-        .landing-container {
-            display: grid;
-            grid-template-columns: 1.1fr 1fr;
-            gap: 40px;
-            max-width: 1000px;
-            width: 100%;
-            align-items: center;
-        }
-        
-        @media (max-width: 868px) {
-            .landing-container {
-                grid-template-columns: 1fr;
-                gap: 32px;
-                padding-bottom: 40px;
-            }
-        }
-        
-        /* Product Hero */
-        .product-hero {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            text-align: left;
-        }
-        .category-badge {
-            background-color: var(--primary-light);
-            color: var(--primary);
-            padding: 6px 14px;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 16px;
-        }
-        .product-hero h1 {
-            font-size: 2.5rem;
-            font-weight: 800;
-            line-height: 1.25;
-            color: var(--text-dark);
-            margin-bottom: 16px;
-            letter-spacing: -0.02em;
-        }
-        @media (max-width: 600px) {
-            .product-hero h1 {
-                font-size: 1.95rem;
-            }
-        }
-        .product-desc {
-            font-size: 1.05rem;
-            line-height: 1.6;
-            color: var(--text-muted);
-            margin-bottom: 24px;
-        }
-        
-        /* Benefits List */
-        .benefits-list {
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-            width: 100%;
-        }
-        .benefit-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 12px;
-            font-size: 0.95rem;
-            line-height: 1.5;
-            color: var(--text-muted);
-        }
-        .check-icon {
-            width: 20px;
-            height: 20px;
-            fill: #10b981;
-            flex-shrink: 0;
-            margin-top: 1px;
-        }
-        
-        /* Form Card */
-        .form-card {
-            background: #ffffff;
-            border-radius: 20px;
-            padding: 32px;
-            box-shadow: var(--card-shadow);
-            border: 1px solid var(--border-glass);
-            width: 100%;
-            position: relative;
-            overflow: hidden;
-        }
-        @media (max-width: 600px) {
-            .form-card {
-                padding: 24px;
-            }
-        }
-        .form-header {
-            margin-bottom: 24px;
-            text-align: left;
-        }
-        .form-header h3 {
-            font-size: 1.35rem;
-            font-weight: 700;
-            color: var(--text-dark);
-            margin-bottom: 6px;
-        }
-        .form-header p {
-            font-size: 0.85rem;
-            color: var(--text-muted);
-            line-height: 1.4;
-        }
-        
-        /* Form Elements */
-        .input-group {
-            margin-bottom: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            text-align: left;
-        }
-        .input-group label {
-            font-size: 0.72rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-muted);
-        }
-        .input-group input {
-            width: 100%;
-            padding: 11px 14px;
-            border-radius: 10px;
-            border: 1px solid #d1d5db;
-            font-family: inherit;
-            font-size: 0.92rem;
-            color: var(--text-dark);
-            transition: all 0.2s;
-            background-color: #f9fafb;
-        }
-        .input-group input:focus {
-            outline: none;
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(88, 80, 236, 0.15);
-            background-color: #ffffff;
-        }
-        
-        /* Submit Button */
-        .submit-btn {
-            width: 100%;
-            background-color: var(--primary);
-            color: #ffffff;
-            border: none;
-            padding: 13px 20px;
-            border-radius: 10px;
-            font-size: 0.95rem;
-            font-weight: 700;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            transition: all 0.2s;
-            margin-top: 20px;
-            box-shadow: 0 4px 6px -1px rgba(88, 80, 236, 0.15);
-        }
-        .submit-btn:hover {
-            background-color: var(--primary-hover);
-            transform: translateY(-1px);
-            box-shadow: 0 8px 12px -2px rgba(88, 80, 236, 0.25);
-        }
-        .submit-btn:active {
-            transform: translateY(0);
-        }
-        .arrow-icon {
-            width: 18px;
-            height: 18px;
-            fill: currentColor;
-            transition: transform 0.2s;
-        }
-        .submit-btn:hover .arrow-icon {
-            transform: translateX(2px);
-        }
-        
-        /* Alerts & Success State */
-        .alert-box {
-            padding: 10px 14px;
-            border-radius: 8px;
-            font-size: 0.82rem;
-            margin-top: 14px;
-            text-align: left;
-        }
-        .error-alert {
-            background-color: #fef2f2;
-            color: #b91c1c;
-            border: 1px solid #fca5a5;
-        }
-        
-        .success-box {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            text-align: center;
-            padding: 16px 8px;
-            animation: scaleIn 0.3s ease-out forwards;
-        }
-        .success-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 9999px;
-            background-color: #ecfdf5;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #10b981;
-            margin-bottom: 14px;
-            border: 1px solid #a7f3d0;
-        }
-        .success-icon svg {
-            width: 24px;
-            height: 24px;
-            fill: currentColor;
-        }
-        .success-box h4 {
-            font-size: 1.15rem;
-            font-weight: 700;
-            color: #065f46;
-            margin-bottom: 10px;
-        }
-        .success-box p {
-            font-size: 0.88rem;
-            line-height: 1.45;
-            color: var(--text-muted);
-            margin-bottom: 14px;
-        }
-        .success-note {
-            font-size: 0.78rem !important;
-            font-weight: 600;
-            color: var(--primary) !important;
-        }
-        
-        /* Animations */
-        @keyframes scaleIn {
-            from { transform: scale(0.95); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-        }
-        
-        /* Footer/Legal overlay elements */
-        .legal-bar {
-            background-color: rgba(17, 24, 39, 0.95);
-            backdrop-filter: blur(8px);
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            color: #f3f4f6;
-            font-size: 0.72rem;
-            padding: 12px 24px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            z-index: 1000;
-            flex-wrap: wrap;
-            gap: 12px;
-            width: 100%;
-        }
-        .legal-bar .disclaimer-text {
-            color: #9ca3af;
-            font-size: 0.65rem;
-            max-width: 50%;
-            text-align: left;
-        }
-        .legal-bar .links {
-            display: flex;
-            gap: 16px;
-        }
-        .legal-bar .links a {
-            color: #818cf8;
-            text-decoration: none;
-            font-weight: 600;
-        }
-        .legal-bar .links a:hover {
-            text-decoration: underline;
-        }
-        @media (max-width: 768px) {
-            .legal-bar {
-                flex-direction: column;
-                text-align: center;
-                padding: 16px;
-            }
-            .legal-bar .disclaimer-text {
-                max-width: 100%;
-                text-align: center;
-            }
-        }
-        
-        /* Modals style */
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background-color: rgba(17, 24, 39, 0.7);
-            z-index: 2000;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .modal:target {
-            display: flex;
-        }
-        .modal-content {
-            background-color: #ffffff;
-            border-radius: 16px;
-            max-width: 500px;
-            width: 100%;
-            max-height: 80vh;
-            overflow-y: auto;
-            padding: 28px;
-            position: relative;
-            text-align: left;
-            box-shadow: var(--card-shadow);
-            color: #1f2937;
-        }
-        .modal-close {
-            position: absolute;
-            top: 12px; right: 16px;
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #9ca3af;
-            text-decoration: none;
-            cursor: pointer;
-        }
-        .modal-close:hover { color: #111827; }
-        .modal h2 { margin-bottom: 12px; font-size: 1.25rem; font-weight: 700; color: #111827; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
-        .modal p { margin-bottom: 12px; font-size: 0.85rem; color: #4b5563; line-height: 1.6; }
-    </style>
-</head>
-<body>
-    
-    <div class="main-content">
-        <div class="landing-container">
-            <div class="product-hero animate-fade-in">
-                <span class="category-badge">${productCategory}</span>
-                <h1>${productHeadline || t.seoWelcome}</h1>
-                <p class="product-desc">${productDescription || t.seoDescriptionDefault}</p>
-                
-                <div class="benefits-list">
-                    <div class="benefit-item">
-                        <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                        <span><strong>${t.seoLi1Title}</strong> ${t.seoLi1Desc}</span>
-                    </div>
-                    <div class="benefit-item">
-                        <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                        <span><strong>Garantia de Satisfação:</strong> Receba com total segurança e garantia direta de laboratório.</span>
-                    </div>
-                    <div class="benefit-item">
-                        <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                        <span><strong>${t.seoLi3Title}</strong> ${t.seoLi3Desc}</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="form-card animate-fade-in" style="animation-delay: 0.1s;">
-                <div class="form-header">
-                    <h3>Solicitar ${cleanProductName}</h3>
-                    <p>Preencha os dados abaixo para receber o contato do suporte oficial e efetivar seu pedido.</p>
-                </div>
-                
-                <form class="orderForm">
-                    <div class="input-group">
-                        <label for="lead-name">Nome Completo</label>
-                        <input type="text" id="lead-name" name="name" placeholder="Ex: João Silva" required />
-                    </div>
-                    
-                    <div class="input-group">
-                        <label for="lead-phone">Telefone / WhatsApp</label>
-                        <input type="tel" id="lead-phone" name="phone" placeholder="Ex: (11) 99999-9999" required />
-                    </div>
-                    
-                    <button type="submit" class="submit-btn">
-                        <span>${ctaText}</span>
-                        <svg class="arrow-icon" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
-                    </button>
-                </form>
-                
-                <div id="error-container" class="alert-box error-alert" style="display: none;"></div>
-                
-                <div id="success-container" class="success-box" style="display: none;">
-                    <div class="success-icon">
-                        <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                    </div>
-                    <h4>Pedido Registrado com Sucesso!</h4>
-                    <p>Seus dados foram enviados. Um consultor oficial de vendas entrará em contato em breve para confirmar seu endereço de entrega e opções de frete.</p>
-                    <p class="success-note">Por favor, mantenha sua linha telefônica ativa.</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Overlay legal bar that floats on top -->
-    <div class="legal-bar">
-        <span>&copy; 2026 ${cleanProductName}. ${t.copyright}</span>
-        <span class="disclaimer-text">${t.disclaimer}</span>
-        <div class="links">
-            <a href="#privacy">${t.privacy}</a>
-            <a href="#terms">${t.terms}</a>
-            <a href="#contact">${t.contact}</a>
-        </div>
-    </div>
-
-    <!-- Privacy Policy Modal -->
-    <div id="privacy" class="modal">
-        <div class="modal-content">
-            <a href="#" class="modal-close">&times;</a>
-            <h2>${t.privacyTitle}</h2>
-            <p>${t.privacyP1}</p>
-            <p>${t.privacyP2}</p>
-            <p>${t.privacyP3}</p>
-            <p>${t.privacyP4}</p>
-        </div>
-    </div>
-
-    <!-- Terms of Use Modal -->
-    <div id="terms" class="modal">
-        <div class="modal-content">
-            <a href="#" class="modal-close">&times;</a>
-            <h2>${t.termsTitle}</h2>
-            <p>${t.termsP1}</p>
-            <p>${t.termsP2}</p>
-            <p>${t.termsP3}</p>
-            <p>${t.termsP4}</p>
-        </div>
-    </div>
-
-    <!-- Contact Modal -->
-    <div id="contact" class="modal">
-        <div class="modal-content">
-            <a href="#" class="modal-close">&times;</a>
-            <h2>${t.contactTitle}</h2>
-            <p>${t.contactP1}</p>
-            <p>${t.contactP2}</p>
-            <p style="font-weight: 600; color: var(--primary); margin-top: 16px;">
-                ${supportEmail || 'suporte@' + domainName}
-            </p>
-            <p style="font-size: 0.75rem; color: #9ca3af; margin-top: 24px;">${t.contactP3}</p>
-        </div>
-    </div>
-
-    <script src="https://snippet.infothroat.com/dist/api/lead-1.1.0.min.js"></script>
-    <script>
-        drlead.init({
-            params: {
-                token: "${apiToken}",
-                stream_code: "${streamCode}",
-                thanks_page: "#"
-            },
-            callback: function(error, response) {
-                var form = document.querySelector('.orderForm');
-                var successDiv = document.getElementById('success-container');
-                var errorDiv = document.getElementById('error-container');
-                if (error) {
-                    errorDiv.style.display = 'block';
-                    errorDiv.innerText = error.message || 'Ocorreu um erro ao registrar seu pedido. Por favor, tente novamente.';
-                } else {
-                    form.style.display = 'none';
-                    successDiv.style.display = 'block';
-                    if (errorDiv) errorDiv.style.display = 'none';
-                }
-            }
-        });
-    </script>
-</html>`;
-
-    setGeneratedHtml(template);
-    
-    const newId = Date.now().toString();
-    setCurrentWebsiteId(newId);
-
-    // Save into history as a local generated item initially
-    const newSite: SavedWebsite = {
-      id: newId,
-      destinationUrl: targetUrl,
-      scripts: scripts.filter(s => s.trim() !== ""),
-      generatedHtml: template,
-      publishedUrl: "",
-      fileName: "",
-      status: "local",
-      createdAt: new Date().toLocaleDateString("pt-BR"),
-      popupLanguage,
-      productName,
-      productHeadline,
-      productDescription,
-      productCategory,
-      ctaText,
-      supportEmail,
-      apiToken,
-      streamCode,
-      selectedOption
-    };
-    saveWebsites([newSite, ...savedWebsites]);
-
-    // Start step animation flow
-    setStep("generating");
-    setGeneratingMessage("Compilando código HTML...");
-
-    // Timing flow for visual feedback
-    setTimeout(() => {
-      setGeneratingMessage("Injetando scripts e tags do cabeçalho...");
-    }, 700);
-
-    setTimeout(() => {
-      setGeneratingMessage("Finalizando página de redirecionamento...");
-    }, 1400);
-
-    setTimeout(() => {
-      setStep("done");
-    }, 2000);
-
-    setTimeout(() => {
-      setStep("actions");
-      toast({
-        title: "Página Gerada!",
-        description: "Código HTML compilado com sucesso. Selecione uma ação abaixo.",
-        variant: "default"
-      });
-    }, 3000);
   };
 
-  // Handle download of generated HTML file
   const handleDownload = () => {
     try {
       const blob = new Blob([generatedHtml], { type: "text/html" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      
       let domain = "ponte";
-      try {
-        domain = new URL(destinationUrl).hostname.replace("www.", "").split(".")[0];
-      } catch (_) {}
-
+      try { domain = new URL(destinationUrl).hostname.replace("www.", "").split(".")[0]; } catch (_) {}
       a.download = `redirect-${domain}.html`;
       a.click();
       URL.revokeObjectURL(url);
-      
-      toast({
-        title: "Download Iniciado",
-        description: "O arquivo HTML foi baixado com sucesso.",
-        variant: "default"
-      });
+      toast({ title: "Download Iniciado ⬇️", description: "O arquivo HTML foi baixado com sucesso." });
     } catch (err: any) {
-      toast({
-        title: "Erro ao baixar arquivo",
-        description: err.message,
-        variant: "destructive"
-      });
+      toast({ title: "Erro ao baixar arquivo", description: err.message, variant: "destructive" });
     }
   };
 
-  // Publish to Vite client public folder via API
   const handlePublish = async () => {
     setIsPublishing(true);
     setPublishedUrl("");
-
     let domain = "ponte";
-    try {
-      domain = new URL(destinationUrl).hostname.replace("www.", "").split(".")[0];
-    } catch (_) {}
-
+    try { domain = new URL(destinationUrl).hostname.replace("www.", "").split(".")[0]; } catch (_) {}
     const fileName = `redirect-${domain}-${Date.now()}.html`;
     const token = localStorage.getItem("ads_token");
-
     try {
       const response = await fetch("/api/publish-bridge", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": token ? `Bearer ${token}` : ""
-        },
-        body: JSON.stringify({
-          htmlContent: generatedHtml,
-          fileName: fileName,
-          thankYouHtml: thankYouHtml,
-          thankYouFileName: thankYouFileName
-        })
+        headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
+        body: JSON.stringify({ htmlContent: generatedHtml, fileName, thankYouHtml, thankYouFileName })
       });
-
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Erro ao publicar no servidor.");
-      }
-
-      // Update current website in the saved list with publication data
-      const updatedList = savedWebsites.map(site => {
-        if (site.id === currentWebsiteId) {
-          return {
-            ...site,
-            publishedUrl: data.url,
-            fileName: fileName,
-            thankYouFileName: thankYouFileName,
-            status: "active" as const
-          };
-        }
-        return site;
-      });
+      if (!response.ok) throw new Error(data.error || "Erro ao publicar no servidor.");
+      const updatedList = savedWebsites.map(site =>
+        site.id === currentWebsiteId ? { ...site, publishedUrl: data.url, fileName, thankYouFileName, status: "active" as const } : site
+      );
       saveWebsites(updatedList);
-
       setPublishedUrl(data.url);
-      toast({
-        title: "Página Publicada!",
-        description: "Sua página de redirecionamento está online.",
-        variant: "default"
-      });
+      toast({ title: "🎉 Página Publicada!", description: "Sua página de redirecionamento está online." });
     } catch (err: any) {
-      toast({
-        title: "Erro de Publicação",
-        description: err.message,
-        variant: "destructive"
-      });
+      toast({ title: "Erro de Publicação", description: err.message, variant: "destructive" });
     } finally {
       setIsPublishing(false);
     }
   };
 
-  // Actions for saved websites list
   const downloadSavedWebsite = (site: SavedWebsite) => {
     const blob = new Blob([site.generatedHtml], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     let domain = "ponte";
-    try {
-      domain = new URL(site.destinationUrl).hostname.replace("www.", "").split(".")[0];
-    } catch (_) {}
+    try { domain = new URL(site.destinationUrl).hostname.replace("www.", "").split(".")[0]; } catch (_) {}
     a.download = `redirect-${domain}.html`;
     a.click();
     URL.revokeObjectURL(url);
@@ -1219,983 +272,691 @@ export default function Creator() {
 
   const copyPublishedLink = (url: string) => {
     navigator.clipboard.writeText(`${window.location.origin}${url}`);
-    toast({ title: "Link Copiado!", description: "Copiado para a área de transferência." });
+    toast({ title: "Link Copiado! 📋", description: "Copiado para a área de transferência." });
   };
 
-  // Toggles pause / play state by overwriting server file content
   const toggleWebsiteStatus = async (site: SavedWebsite) => {
     const isCurrentlyActive = site.status === "active";
     const newStatus = isCurrentlyActive ? "paused" : "active";
-    
-    const pausedTemplate = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Página Pausada</title>
-    <style>
-        body {
-            background-color: #0f172a;
-            color: #f8fafc;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-        }
-        .container {
-            text-align: center;
-            padding: 24px;
-            border-radius: 16px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            max-width: 400px;
-        }
-        h1 { font-size: 20px; font-weight: 700; margin: 0 0 8px 0; }
-        p { font-size: 13px; color: #94a3b8; margin: 0; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Página Pausada</h1>
-        <p>Este redirecionamento está temporariamente inativo.</p>
-    </div>
-</body>
-</html>`;
-
+    const pausedTemplate = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Página Pausada</title><style>body{background:#0f172a;color:#f8fafc;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}.c{text-align:center;padding:24px;border-radius:16px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);max-width:400px}h1{font-size:20px;font-weight:700;margin:0 0 8px}p{font-size:13px;color:#94a3b8;margin:0}</style></head><body><div class="c"><h1>Página Pausada</h1><p>Este redirecionamento está temporariamente inativo.</p></div></body></html>`;
     const targetHtml = isCurrentlyActive ? pausedTemplate : site.generatedHtml;
     const token = localStorage.getItem("ads_token");
-
     try {
       const response = await fetch("/api/publish-bridge", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": token ? `Bearer ${token}` : ""
-        },
-        body: JSON.stringify({
-          htmlContent: targetHtml,
-          fileName: site.fileName
-        })
+        headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
+        body: JSON.stringify({ htmlContent: targetHtml, fileName: site.fileName })
       });
-
       if (!response.ok) throw new Error("Erro ao atualizar status no servidor.");
-
-      const updatedList = savedWebsites.map(s => {
-        if (s.id === site.id) {
-          return { ...s, status: newStatus as "active" | "paused" };
-        }
-        return s;
-      });
+      const updatedList = savedWebsites.map(s =>
+        s.id === site.id ? { ...s, status: newStatus as "active" | "paused" } : s
+      );
       saveWebsites(updatedList);
-      toast({
-        title: isCurrentlyActive ? "Página Pausada!" : "Página Ativada!",
-        description: isCurrentlyActive 
-          ? "O redirecionador foi desativado temporariamente no servidor."
-          : "O redirecionador está ativo novamente.",
-        variant: "default"
-      });
+      toast({ title: isCurrentlyActive ? "Página Pausada ⏸️" : "Página Ativada ▶️" });
     } catch (err: any) {
       toast({ title: "Erro ao alterar status", description: err.message, variant: "destructive" });
     }
   };
 
-  // Exclude page locally and delete from server
   const deleteWebsite = async (site: SavedWebsite) => {
     if (site.status === "active" || site.status === "paused") {
       const token = localStorage.getItem("ads_token");
       try {
         await fetch("/api/delete-bridge", {
           method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": token ? `Bearer ${token}` : ""
-          },
-          body: JSON.stringify({ 
-            fileName: site.fileName,
-            thankYouFileName: site.thankYouFileName
-          })
+          headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
+          body: JSON.stringify({ fileName: site.fileName, thankYouFileName: site.thankYouFileName })
         });
       } catch (_) {}
     }
-
-    const updatedList = savedWebsites.filter(s => s.id !== site.id);
-    saveWebsites(updatedList);
-    toast({ title: "Página Excluída", description: "O redirecionador foi excluído com sucesso." });
+    saveWebsites(savedWebsites.filter(s => s.id !== site.id));
+    toast({ title: "Ponte Excluída 🗑️", description: "O redirecionador foi excluído com sucesso." });
   };
 
-  // Helper to count how many head tags were injected
-  const getTagCount = () => {
-    return scripts.filter(s => s.trim() !== "").length;
-  };
+  const getTagCount = () => scripts.filter(s => s.trim() !== "").length;
+  const handleBackToEdit = () => { setStep("form"); setPublishedUrl(""); };
 
-  const handleBackToEdit = () => {
-    setStep("form");
-    setPublishedUrl("");
-  };
+  const filteredWebsites = savedWebsites.filter((site) => {
+    const term = searchTerm.toLowerCase();
+    return site.destinationUrl.toLowerCase().includes(term) ||
+      (site.referenceUrl || "").toLowerCase().includes(term) ||
+      (site.productName || "").toLowerCase().includes(term);
+  });
 
   return (
-    <div className="relative min-h-[calc(100vh-80px)] p-4 md:p-8 flex flex-col items-stretch justify-start bg-slate-50 pt-10">
-      
-      {/* Decorative clean background mesh */}
-      <div className="hidden absolute top-0 left-0 w-full h-full bg-dots-grid pointer-events-none -z-10 opacity-70" />
-      <div className="hidden absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full bg-primary/5 blur-[120px] pointer-events-none -z-10" />
-      
-      <div className={`w-full ${activeView === "create" ? "max-w-xl mx-auto" : "max-w-full"} space-y-6 z-10`}>
-        
-        {/* Header Block (Hidden when generating/done) */}
+    <div className="min-h-[calc(100vh-80px)] bg-background">
+      {/* Ambient background glows */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute -top-40 -left-20 w-[500px] h-[500px] rounded-full bg-primary/5 blur-[120px]" />
+        <div className="absolute top-1/2 -right-20 w-[400px] h-[400px] rounded-full bg-violet-500/4 blur-[100px]" />
+        <div className="absolute -bottom-20 left-1/3 w-[350px] h-[350px] rounded-full bg-primary/4 blur-[80px]" />
+      </div>
+
+      <div className="relative z-10 max-w-[1440px] mx-auto px-4 md:px-8 py-8 space-y-8">
+
+        {/* ── Hero Header ─────────────────────────────────────── */}
         {step !== "generating" && step !== "done" && (
-          <div className="text-center space-y-2 animate-in fade-in duration-300">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 flex items-center justify-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" /> Criador de Pontes IA
-            </h1>
-            <p className="text-slate-500 text-xs md:text-sm max-w-md mx-auto leading-relaxed">
-              Gere uma ponte com pesquisa visual, idioma automatico e HTML final criado por IA.
-            </p>
+          <div className="animate-slide-up">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 mb-1">
+                  <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-primary">AI Bridge Creator</span>
+                </div>
+                <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground flex items-center gap-3">
+                  <span className="gradient-text">Criador de Pontes</span>
+                  <Sparkles className="h-7 w-7 text-primary animate-pulse shrink-0" />
+                </h1>
+                <p className="text-muted-foreground text-sm leading-relaxed max-w-lg">
+                  Gere páginas de redirecionamento inteligentes com pesquisa de design por IA, detecção automática de idioma e código limpo e otimizado.
+                </p>
+              </div>
+
+              {/* Mobile tab switcher */}
+              <div className="flex bg-card border border-border p-1 rounded-xl gap-1 w-full md:w-auto md:min-w-[260px] lg:hidden shadow-xs">
+                {(["create", "websites"] as const).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => { setActiveView(v); if (v === "create") setStep("form"); }}
+                    className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all duration-200 ${
+                      activeView === v
+                        ? "bg-primary text-primary-foreground shadow-xs"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {v === "create" ? "⚡ Nova Ponte" : `🗂️ Histórico (${savedWebsites.length})`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Stats row */}
+            <div className="grid grid-cols-3 gap-3 mt-6">
+              {[
+                { icon: Layers, label: "Pontes Criadas", value: savedWebsites.length, color: "text-primary" },
+                { icon: Globe, label: "Ativas Online", value: savedWebsites.filter(s => s.status === "active").length, color: "text-emerald-500" },
+                { icon: Zap, label: "Pixels Injetados", value: savedWebsites.reduce((acc, s) => acc + s.scripts.length, 0), color: "text-amber-500" },
+              ].map(({ icon: Icon, label, value, color }) => (
+                <div key={label} className="glass-card rounded-xl p-3 md:p-4 flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-lg bg-card flex items-center justify-center border border-border shrink-0 ${color}`}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xl md:text-2xl font-black text-foreground">{value}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{label}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* VIEW SELECTOR SWITCHER (Only shown when not loading/done) */}
-        {step !== "generating" && step !== "done" && (
-          <div className="flex bg-white p-0.5 rounded-lg border border-slate-200 max-w-[240px] mx-auto animate-in fade-in duration-300 shadow-xs">
-            <button
-              onClick={() => {
-                setActiveView("create");
-                setStep("form"); // reset step
-              }}
-              className={`flex-1 py-1.5 text-[10px] font-bold rounded transition-all ${
-                activeView === "create"
-                  ? "bg-white text-slate-800 shadow-sm"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              Configurar Ponte
-            </button>
-            <button
-              onClick={() => setActiveView("websites")}
-              className={`flex-1 py-1.5 text-[10px] font-bold rounded transition-all ${
-                activeView === "websites"
-                  ? "bg-white text-slate-800 shadow-sm"
-                  : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              Minhas Pontes
-            </button>
-          </div>
-        )}
+        {/* ── Main 2-col Layout ───────────────────────────────── */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
-        {/* VIEW 1: CREATE PORTAL */}
-        {activeView === "create" && (
-          <>
-            {/* STEP 1: Input Form */}
+          {/* ── LEFT: Form / Wizard ──────────────────────────── */}
+          <div className={`w-full lg:col-span-5 space-y-5 ${activeView === "create" ? "block" : "hidden lg:block"}`}>
+
+            {/* STEP: Form */}
             {step === "form" && (
-              <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-300">
-                <Card className="border border-slate-200 bg-white shadow-sm rounded-xl">
-                  <CardContent className="p-5 md:p-7 space-y-5">
-                    <div className="space-y-1 pb-1">
-                      <h2 className="text-base font-bold text-slate-900">Nova Ponte</h2>
-                      <p className="text-xs text-slate-500">A IA pesquisa a pagina original e gera o HTML final.</p>
+              <div className="animate-slide-up">
+                <Card className="border border-border bg-card shadow-md rounded-2xl overflow-hidden">
+                  {/* Card gradient top accent */}
+                  <div className="h-1 w-full bg-gradient-to-r from-primary via-violet-500 to-primary" />
+                  <CardContent className="p-6 space-y-6">
+                    <div className="space-y-1">
+                      <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                        <Layout className="h-4 w-4 text-primary" />
+                        Nova Ponte de Redirecionamento
+                      </h2>
+                      <p className="text-xs text-muted-foreground">A IA pesquisa a página original e gera a estrutura otimizada automaticamente.</p>
                     </div>
 
                     <form onSubmit={handleGenerate} className="space-y-5" autoComplete="off">
-                      <div className="hidden rounded-xl border border-primary/15 bg-primary/5 p-4">
-                        <div className="flex items-start gap-3">
-                          <div className="mt-0.5 rounded-lg bg-white p-2 text-primary shadow-sm">
-                            <Sparkles className="h-4 w-4" />
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-sm font-bold text-slate-800">Geracao treinada com as 2 skills</p>
-                            <p className="text-xs text-slate-500 leading-relaxed">
-                              Exa pesquisa design, imagens, idioma e oferta. Groq GPT-OSS 120B monta a pagina final sem perguntar o modelo.
-                            </p>
-                          </div>
-                        </div>
-                      </div>
 
-                      <div className="space-y-1.5">
-                        <Label htmlFor="reference-url" className="text-xs font-semibold text-slate-700">
-                          Pagina original
-                        </Label>
-                        <Input
-                          id="reference-url"
-                          type="text"
-                          name="reference_url_field"
-                          autoComplete="new-password"
-                          placeholder="https://produto-original.com/landing-page"
-                          value={referenceUrl}
-                          onChange={(e) => setReferenceUrl(e.target.value)}
-                          className="rounded-lg h-11 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 focus-visible:border-primary shadow-xs"
-                          required
-                        />
-                      </div>
-
-                      {/* Interactive Option Cards */}
+                      {/* Reference URL */}
                       <div className="space-y-2">
-                        <Label className="text-xs font-semibold text-slate-700 block">
-                          Modelo da Página de Destino
+                        <Label htmlFor="reference-url" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/15 text-primary text-[9px] font-black">1</span>
+                          Página de Referência (Landing Page Original)
                         </Label>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          
-                          {/* Option A Card */}
-                          <div
-                            onClick={() => setSelectedOption("a")}
-                            className={`relative overflow-hidden rounded-xl border-2 p-4 cursor-pointer transition-all duration-300 bg-white hover:shadow-md ${
-                              selectedOption === "a"
-                                ? "border-primary ring-2 ring-primary/10 shadow-sm"
-                                : "border-slate-200 hover:border-slate-300"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-3">
-                              <span className="text-[11px] font-bold text-slate-900">Opção A: Página de Cookies</span>
-                              <span className={`h-4 w-4 rounded-full border flex items-center justify-center ${
-                                selectedOption === "a"
-                                  ? "bg-primary border-primary text-white"
-                                  : "border-slate-300"
-                              }`}>
-                                {selectedOption === "a" && <Check className="h-2.5 w-2.5 stroke-[3]" />}
-                              </span>
-                            </div>
-                            
-                            {/* Browser Mockup A */}
-                            <div className="relative aspect-video w-full rounded-lg border border-slate-200 bg-slate-50 overflow-hidden shadow-xs mb-3">
-                              {/* Browser Header */}
-                              <div className="bg-slate-100 border-b border-slate-200 px-2 py-1.5 flex items-center gap-1">
-                                <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-                                <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-                                <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-                                <div className="bg-white rounded-md text-[7px] text-slate-400 px-2 py-0.5 w-24 truncate font-mono ml-2">
-                                  {referenceUrl ? (() => { try { return new URL(referenceUrl.startsWith("http") ? referenceUrl : `https://${referenceUrl}`).hostname; } catch { return referenceUrl; } })() : "ponte.html"}
-                                </div>
-                              </div>
-                              
-                              {/* Browser Body / Screenshot or Fallback */}
-                              <div className="relative w-full h-[calc(100%-25px)] bg-white flex flex-col items-center justify-center">
-                                {isScreenshotLoading ? (
-                                  <div className="absolute inset-0 flex items-center justify-center bg-slate-50">
-                                    <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-                                  </div>
-                                ) : screenshotUrl ? (
-                                  <img
-                                    src={screenshotUrl}
-                                    alt="Screenshot of original"
-                                    className="w-full h-full object-cover object-top opacity-60 filter blur-[0.5px]"
-                                  />
-                                ) : (
-                                  <div className="absolute inset-0 bg-slate-50/50 flex flex-col items-center justify-center gap-1">
-                                    <Globe className="h-5 w-5 text-slate-300" />
-                                    <span className="text-[9px] text-slate-400 font-medium">Original Page Mockup</span>
-                                  </div>
-                                )}
-                                
-                                {/* Simulated Cookie Consent Overlay */}
-                                <div className="absolute inset-0 bg-black/30 backdrop-blur-[1px] flex items-center justify-center p-2 animate-in fade-in duration-300">
-                                  <div className="bg-white rounded-md shadow-lg border border-slate-100 p-2.5 w-[85%] text-left space-y-1 scale-[0.85] transform origin-center">
-                                    <div className="flex items-center gap-1">
-                                      <span className="text-[8px] font-bold text-slate-800">🍪 Política de Cookies</span>
-                                    </div>
-                                    <p className="text-[6px] text-slate-500 leading-tight">
-                                      Utilizamos cookies para personalizar sua experiência. Ao continuar, você concorda com nossos termos.
-                                    </p>
-                                    <div className="flex justify-end gap-1 pt-1">
-                                      <div className="bg-slate-100 text-slate-600 text-[5px] font-bold px-1.5 py-0.5 rounded cursor-default">Recusar</div>
-                                      <div className="bg-primary text-white text-[5px] font-bold px-1.5 py-0.5 rounded cursor-default shadow-xs flex items-center gap-0.5">
-                                        Aceitar <ArrowRight className="h-1 w-1" />
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <p className="text-[10px] text-slate-500 leading-normal">
-                              Gera uma página de cookies intermediária com aviso de consentimento. Excelente para evitar bloqueios no Google Ads.
-                            </p>
-                          </div>
-                          
-                          {/* Option B Card */}
-                          <div
-                            onClick={() => setSelectedOption("b")}
-                            className={`relative overflow-hidden rounded-xl border-2 p-4 cursor-pointer transition-all duration-300 bg-white hover:shadow-md ${
-                              selectedOption === "b"
-                                ? "border-primary ring-2 ring-primary/10 shadow-sm"
-                                : "border-slate-200 hover:border-slate-300"
-                            }`}
-                          >
-                            <div className="flex items-center justify-between mb-3">
-                              <span className="text-[11px] font-bold text-slate-900">Opção B: Clone Limpo</span>
-                              <span className={`h-4 w-4 rounded-full border flex items-center justify-center ${
-                                selectedOption === "b"
-                                  ? "bg-primary border-primary text-white"
-                                  : "border-slate-300"
-                              }`}>
-                                {selectedOption === "b" && <Check className="h-2.5 w-2.5 stroke-[3]" />}
-                              </span>
-                            </div>
-                            
-                            {/* Browser Mockup B */}
-                            <div className="relative aspect-video w-full rounded-lg border border-slate-200 bg-slate-50 overflow-hidden shadow-xs mb-3">
-                              {/* Browser Header */}
-                              <div className="bg-slate-100 border-b border-slate-200 px-2 py-1.5 flex items-center gap-1">
-                                <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-                                <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-                                <div className="h-1.5 w-1.5 rounded-full bg-slate-300" />
-                                <div className="bg-white rounded-md text-[7px] text-slate-400 px-2 py-0.5 w-24 truncate font-mono ml-2">
-                                  {referenceUrl ? (() => { try { return new URL(referenceUrl.startsWith("http") ? referenceUrl : `https://${referenceUrl}`).hostname; } catch { return referenceUrl; } })() : "ponte.html"}
-                                </div>
-                              </div>
-                              
-                              {/* Browser Body / Screenshot or Fallback */}
-                              <div className="relative w-full h-[calc(100%-25px)] bg-white flex items-center justify-center">
-                                {isScreenshotLoading ? (
-                                  <div className="absolute inset-0 flex items-center justify-center bg-slate-50">
-                                    <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-                                  </div>
-                                ) : screenshotUrl ? (
-                                  <img
-                                    src={screenshotUrl}
-                                    alt="Screenshot of original"
-                                    className="w-full h-full object-cover object-top"
-                                    onError={() => {
-                                      setScreenshotUrl("");
-                                    }}
-                                  />
-                                ) : (
-                                  <div className="absolute inset-0 bg-slate-50/50 flex flex-col items-center justify-center gap-1">
-                                    <Globe className="h-5 w-5 text-slate-300" />
-                                    <span className="text-[9px] text-slate-400 font-medium">Original Page Mockup</span>
-                                  </div>
-                                )}
-                                
-                                {/* Clean Badge */}
-                                <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[6px] font-bold px-1.5 py-0.5 rounded shadow-sm flex items-center gap-0.5">
-                                  <ShieldCheck className="h-1.5 w-1.5" /> Clone Limpo
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <p className="text-[10px] text-slate-500 leading-normal">
-                              Cria uma cópia idêntica da página de referência sem nenhum banner ou popup de cookies, com links de compra direcionando ao afiliado.
-                            </p>
-                          </div>
-
+                        <div className="relative">
+                          <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            id="reference-url"
+                            type="text"
+                            name="reference_url_field"
+                            autoComplete="new-password"
+                            placeholder="https://produto-original.com/landing-page"
+                            value={referenceUrl}
+                            onChange={(e) => setReferenceUrl(e.target.value)}
+                            className="pl-9 rounded-xl h-11 bg-muted/40 border-border focus-visible:ring-primary text-xs font-mono placeholder:text-muted-foreground/60"
+                            required
+                          />
                         </div>
                       </div>
 
-                      {/* Destination Link */}
-                      <div className="space-y-1.5">
-                        <Label htmlFor="dest-url" className="text-xs font-semibold text-slate-700">
-                          Link final / afiliado
+                      {/* Template selection */}
+                      <div className="space-y-2">
+                        <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/15 text-primary text-[9px] font-black">2</span>
+                          Modelo da Página
                         </Label>
-                        <Input 
-                          id="dest-url" 
-                          type="text"
-                          name="random_url_field"
-                          autoComplete="new-password"
-                          placeholder="https://drcash.link/xxxxx ou link de afiliado"
-                          value={destinationUrl} 
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setDestinationUrl(val);
-                            // Auto-extract stream code if detected (e.g. numeric segment)
-                            try {
-                              const match = val.match(/[\/|=]([0-9]+)(?:\?|$|\/|&)/) || val.match(/^([0-9]+)$/);
-                              if (match && match[1]) {
-                                setStreamCode(match[1]);
-                              }
-                            } catch (_) {}
-                          }}
-                          className="rounded-lg h-11 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 focus-visible:border-primary shadow-xs"
-                          required
-                        />
+                        <div className="grid grid-cols-2 gap-3">
+                          {[
+                            {
+                              key: "a" as const,
+                              icon: ShieldCheck,
+                              title: "Opção A: Cookies",
+                              badge: "Google Ads ✓",
+                              badgeColor: "text-emerald-400",
+                              iconBg: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+                              desc: "Página com consentimento de cookies e aviso legal. Proteção extra para campanhas frias.",
+                              features: ["Aviso legal incluso", "Ideal p/ campanhas frias"],
+                            },
+                            {
+                              key: "b" as const,
+                              icon: Zap,
+                              title: "Opção B: Clone",
+                              badge: "Alta Conversão",
+                              badgeColor: "text-sky-400",
+                              iconBg: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+                              desc: "Clona a página fielmente, remove popups e insere seu link de afiliado.",
+                              features: ["Links substituídos", "Scripts limpos"],
+                            },
+                          ].map(({ key, icon: Icon, title, badge, badgeColor, iconBg, desc, features }) => (
+                            <div
+                              key={key}
+                              onClick={() => setSelectedOption(key)}
+                              className={`group relative rounded-xl border-2 p-4 cursor-pointer transition-all duration-200 ${
+                                selectedOption === key
+                                  ? "border-primary bg-primary/5 shadow-md shadow-primary/10"
+                                  : "border-border bg-muted/20 hover:border-border/80 hover:bg-muted/40"
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-2 mb-3">
+                                <div className={`flex h-8 w-8 items-center justify-center rounded-lg border ${iconBg}`}>
+                                  <Icon className="h-3.5 w-3.5" />
+                                </div>
+                                <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${
+                                  selectedOption === key ? "bg-primary border-primary" : "border-muted-foreground/30"
+                                }`}>
+                                  {selectedOption === key && <Check className="h-2.5 w-2.5 text-primary-foreground stroke-[3]" />}
+                                </div>
+                              </div>
+                              <div>
+                                <p className="text-[11px] font-bold text-foreground">{title}</p>
+                                <p className={`text-[9px] font-bold uppercase tracking-wider ${badgeColor} mb-2`}>{badge}</p>
+                                <p className="text-[10px] text-muted-foreground leading-relaxed">{desc}</p>
+                                <div className="mt-3 space-y-1 pt-2.5 border-t border-border/50">
+                                  {features.map(f => (
+                                    <div key={f} className="flex items-center gap-1 text-[9px] font-semibold text-muted-foreground">
+                                      <Check className="h-2.5 w-2.5 text-emerald-500 shrink-0" />
+                                      <span>{f}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
 
+                      {/* Destination URL */}
+                      <div className="space-y-2">
+                        <Label htmlFor="dest-url" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/15 text-primary text-[9px] font-black">3</span>
+                          Link Final de Destino / Afiliado
+                        </Label>
+                        <div className="relative">
+                          <ArrowRight className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            id="dest-url"
+                            type="text"
+                            name="random_url_field"
+                            autoComplete="new-password"
+                            placeholder="https://drcash.link/xxxxx ou link de afiliado"
+                            value={destinationUrl}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setDestinationUrl(val);
+                              try {
+                                const match = val.match(/[\/|=]([0-9]+)(?:\?|$|\/|&)/) || val.match(/^([0-9]+)$/);
+                                if (match && match[1]) setStreamCode(match[1]);
+                              } catch (_) {}
+                            }}
+                            className="pl-9 rounded-xl h-11 bg-muted/40 border-border focus-visible:ring-primary text-xs font-mono placeholder:text-muted-foreground/60"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      {/* Advanced settings toggle */}
                       <button
                         type="button"
                         onClick={() => setShowAdvanced(!showAdvanced)}
-                        className="flex w-full items-center justify-between border-y border-slate-100 py-3 text-left text-xs font-semibold text-slate-600 transition-colors hover:text-slate-900"
+                        className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-4 py-3 text-left transition-colors hover:bg-muted/40"
                       >
-                        <span>Opcoes avancadas</span>
-                        <span className="text-[10px] font-medium text-slate-400">
-                          {showAdvanced ? "Ocultar" : "Dr.Cash, tags e pixels"}
+                        <span className="text-xs font-semibold text-foreground flex items-center gap-2">
+                          <Code className="h-3.5 w-3.5 text-primary" />
+                          Opções Avançadas
+                        </span>
+                        <span className={`text-[10px] font-bold transition-colors ${showAdvanced ? "text-primary" : "text-muted-foreground"}`}>
+                          {showAdvanced ? "▲ Ocultar" : "▼ Dr.Cash & Tags"}
                         </span>
                       </button>
 
-                      {/* Dr.Cash API Credentials Section */}
-                      <div className={`${showAdvanced ? "grid" : "hidden"} grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100`}>
-                        <div className="col-span-2 -mb-1">
-                          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Opcional para upsell / order form</p>
+                      {/* Advanced fields */}
+                      {showAdvanced && (
+                        <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-4 animate-slide-up">
+                          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Parâmetros Opcionais</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1.5">
+                              <Label htmlFor="api-token" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                                <ShieldCheck className="h-3 w-3 text-primary" /> API Token Dr.Cash
+                              </Label>
+                              <Input id="api-token" type="text" placeholder="Seu API Token" value={apiToken}
+                                onChange={(e) => setApiToken(e.target.value)}
+                                className="rounded-lg h-9 bg-muted/30 border-border text-xs font-mono" />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="stream-code" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                                <Link className="h-3 w-3 text-primary" /> stream_code
+                              </Label>
+                              <Input id="stream-code" type="text" placeholder="Ex: 12345" value={streamCode}
+                                onChange={(e) => setStreamCode(e.target.value)}
+                                className="rounded-lg h-9 bg-muted/30 border-border text-xs font-mono" />
+                            </div>
+                            <div className="space-y-1.5 col-span-2">
+                              <Label htmlFor="thank-you-url" className="text-[11px] font-semibold text-muted-foreground">Página de Obrigado</Label>
+                              <Input id="thank-you-url" type="text" placeholder="./Obrigado.html" value={thankYouUrl}
+                                onChange={(e) => setThankYouUrl(e.target.value)}
+                                className="rounded-lg h-9 bg-muted/30 border-border text-xs font-mono" />
+                            </div>
+                          </div>
                         </div>
-                        <div className="space-y-1.5 col-span-2 md:col-span-1">
-                          <Label htmlFor="api-token" className="text-xs font-semibold text-slate-700 flex items-center gap-1">
-                            <ShieldCheck className="h-3.5 w-3.5 text-primary" /> API Token Dr.Cash
-                          </Label>
-                          <Input 
-                            id="api-token" 
-                            type="text"
-                            placeholder="Seu API Token"
-                            value={apiToken} 
-                            onChange={(e) => setApiToken(e.target.value)}
-                            className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm text-xs font-mono"
-                          />
-                        </div>
+                      )}
 
-                        <div className="space-y-1.5 col-span-2 md:col-span-1">
-                          <Label htmlFor="stream-code" className="text-xs font-semibold text-slate-700 flex items-center gap-1">
-                            <Link className="h-3.5 w-3.5 text-primary" /> Código da Campanha (stream_code)
+                      {/* Scripts section */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                            <Code className="h-3.5 w-3.5 text-primary" />
+                            Scripts & Pixels
+                            {getTagCount() > 0 && (
+                              <Badge className="ml-1 bg-primary/15 text-primary border-0 text-[9px] px-1.5 py-0.5">
+                                {getTagCount()} injetado{getTagCount() > 1 ? "s" : ""}
+                              </Badge>
+                            )}
                           </Label>
-                          <Input 
-                            id="stream-code" 
-                            type="text"
-                            placeholder="Confirmar stream_code (ex: 12345)"
-                            value={streamCode} 
-                            onChange={(e) => setStreamCode(e.target.value)}
-                            className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm text-xs font-mono"
-                          />
-                        </div>
-                        <div className="space-y-1.5 col-span-2">
-                          <Label htmlFor="thank-you-url" className="text-xs font-semibold text-slate-700">
-                            Pagina de obrigado
-                          </Label>
-                          <Input
-                            id="thank-you-url"
-                            type="text"
-                            placeholder="./Obrigado.html"
-                            value={thankYouUrl}
-                            onChange={(e) => setThankYouUrl(e.target.value)}
-                            className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm text-xs font-mono"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Product Name & Product Category */}
-                      <div className="hidden grid-cols-2 gap-4">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="product-name" className="text-xs font-semibold text-slate-700">
-                            Nome do Produto
-                          </Label>
-                          <Input 
-                            id="product-name" 
-                            type="text"
-                            placeholder="Ex: Cardiol"
-                            value={productName} 
-                            onChange={(e) => setProductName(e.target.value)}
-                            className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label htmlFor="product-category" className="text-xs font-semibold text-slate-700">
-                            Categoria do Produto
-                          </Label>
-                          <select
-                            id="product-category"
-                            value={productCategory}
-                            onChange={(e) => setProductCategory(e.target.value)}
-                            className="w-full rounded-xl h-10 border border-slate-200 bg-white text-sm text-slate-600 px-3 focus:outline-none focus:ring-2 focus:ring-primary shadow-sm cursor-pointer"
-                          >
-                            <option value="Saúde & Bem-estar">Saúde & Bem-estar</option>
-                            <option value="Beleza & Cuidados">Beleza & Cuidados</option>
-                            <option value="Finanças & Investimentos">Finanças & Investimentos</option>
-                            <option value="Cursos & Educação">Cursos & Educação</option>
-                            <option value="E-commerce & Geral">E-commerce & Geral</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Product Headline */}
-                      <div className="hidden space-y-1.5">
-                        <Label htmlFor="product-headline" className="text-xs font-semibold text-slate-700">
-                          Título Principal (Headline)
-                        </Label>
-                        <Input 
-                          id="product-headline" 
-                          type="text"
-                          placeholder="Ex: Você está convidado a conhecer a página oficial"
-                          value={productHeadline} 
-                          onChange={(e) => setProductHeadline(e.target.value)}
-                          className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm"
-                        />
-                      </div>
-
-                      {/* Product Description */}
-                      <div className="hidden space-y-1.5">
-                        <Label htmlFor="product-description" className="text-xs font-semibold text-slate-700">
-                          Descrição Curta da Oferta
-                        </Label>
-                        <Textarea 
-                          id="product-description"
-                          placeholder="Ex: Clique abaixo para ser redirecionado com segurança para o site oficial do distribuidor autorizado e garantir sua oferta exclusiva..."
-                          value={productDescription} 
-                          onChange={(e) => setProductDescription(e.target.value)}
-                          className="rounded-xl border-slate-200 min-h-[60px] resize-y bg-white text-xs focus-visible:ring-primary focus-visible:ring-2"
-                        />
-                      </div>
-
-                      {/* CTA Button Text, Support Email & Language */}
-                      <div className="hidden grid-cols-3 gap-4">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="cta-text" className="text-xs font-semibold text-slate-700">
-                            Texto do Botão (CTA)
-                          </Label>
-                          <Input 
-                            id="cta-text" 
-                            type="text"
-                            placeholder="Ex: Ir para o Site Oficial"
-                            value={ctaText} 
-                            onChange={(e) => setCtaText(e.target.value)}
-                            className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label htmlFor="support-email" className="text-xs font-semibold text-slate-700">
-                            E-mail de Suporte
-                          </Label>
-                          <Input 
-                            id="support-email" 
-                            type="email"
-                            placeholder="suporte@seudominio.com"
-                            value={supportEmail} 
-                            onChange={(e) => setSupportEmail(e.target.value)}
-                            className="rounded-xl h-10 border-slate-200 bg-white focus-visible:ring-primary focus-visible:ring-2 shadow-sm"
-                          />
-                        </div>
-
-                        <div className="space-y-1.5">
-                          <Label htmlFor="page-lang" className="text-xs font-semibold text-slate-700">
-                            Idioma do Rodapé
-                          </Label>
-                          <select
-                            id="page-lang"
-                            value={popupLanguage}
-                            onChange={(e) => setPopupLanguage(e.target.value)}
-                            className="w-full rounded-xl h-10 border border-slate-200 bg-white text-sm text-slate-600 px-3 focus:outline-none focus:ring-2 focus:ring-primary shadow-sm cursor-pointer"
-                          >
-                            <option value="pt-BR">Português (pt-BR)</option>
-                            <option value="en">English (en)</option>
-                            <option value="es">Español (es)</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Custom Head/Header Tags (Dynamic Numbered List 1, 2, 3...) */}
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-1">
-                          <Label className="text-xs font-semibold text-slate-700 flex items-center gap-1">
-                            <Code className="h-3.5 w-3.5 text-primary" /> Scripts do Cabeçalho
-                          </Label>
-                          <span className="text-[9px] text-slate-400">Google tag, pixels, verification...</span>
+                          <span className="text-[9px] text-muted-foreground">GTM, Meta Pixel, GA4...</span>
                         </div>
 
                         {scripts.map((script, index) => (
-                          <div key={index} className="space-y-1.5 animate-in fade-in duration-200">
+                          <div key={index} className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-bold text-slate-500">Script {index + 1}</span>
+                              <span className="text-[10px] font-bold text-muted-foreground">Script #{index + 1}</span>
                               {scripts.length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const updated = scripts.filter((_, i) => i !== index);
-                                    setScripts(updated);
-                                  }}
-                                  className="text-[9px] text-rose-500 hover:underline font-bold"
-                                >
-                                  Remover
-                                </button>
+                                <button type="button"
+                                  onClick={() => setScripts(scripts.filter((_, i) => i !== index))}
+                                  className="text-[9px] text-destructive hover:text-destructive/80 font-bold transition-colors"
+                                >Remover</button>
                               )}
                             </div>
-                            <Textarea 
+                            <Textarea
                               name={`script_field_${index}`}
                               autoComplete="new-password"
-                              placeholder={`Cole o script/meta tag ${index + 1} aqui...`}
+                              placeholder="Cole o código do pixel completo (<script>...</script>)"
                               value={script}
                               onChange={(e) => {
                                 const updated = [...scripts];
                                 updated[index] = e.target.value;
                                 setScripts(updated);
                               }}
-                              className="rounded-xl border-slate-200 min-h-[90px] resize-y bg-white font-mono text-xs focus-visible:ring-primary focus-visible:ring-2"
+                              className="rounded-xl border-border min-h-[80px] resize-y bg-muted/30 font-mono text-[11px] focus-visible:ring-primary"
                             />
                           </div>
                         ))}
 
-                        {/* Add script button */}
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="w-full border-dashed border-slate-300 text-slate-500 hover:text-slate-700 hover:border-slate-400 rounded-xl text-[10px] h-9 font-bold"
+                        <Button type="button" variant="outline" size="sm"
+                          className="w-full border-dashed border-border text-muted-foreground hover:text-foreground hover:border-primary/40 rounded-xl text-[10px] h-9 font-bold"
                           onClick={() => setScripts([...scripts, ""])}
                         >
-                          <Plus className="h-3 w-3 mr-1" /> Adicionar Novo Script
+                          <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar Script / Pixel
                         </Button>
                       </div>
 
-                      {/* Generate Button */}
-                      <Button 
-                        type="submit" 
-                        size="lg" 
-                        className="w-full rounded-xl h-11 text-xs font-bold bg-primary hover:bg-primary/90 text-white shadow-sm transition-all duration-200"
+                      {/* Generate button */}
+                      <Button
+                        type="submit"
+                        size="lg"
+                        className="w-full rounded-xl h-13 text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5"
                       >
+                        <Sparkles className="mr-2 h-4 w-4" />
                         Gerar Ponte com IA
+                        <ArrowRight className="ml-2 h-4 w-4" />
                       </Button>
-
                     </form>
                   </CardContent>
                 </Card>
               </div>
             )}
 
-            {/* STEP 2: Clean Generating Animation */}
+            {/* STEP: Generating */}
             {step === "generating" && (
-              <div className="w-full text-center py-12 space-y-6 animate-in fade-in zoom-in-95 duration-300">
-                <div className="relative mx-auto w-16 h-16 flex items-center justify-center">
-                  <div className="absolute inset-0 rounded-full border-4 border-slate-100 border-t-primary animate-spin" />
-                  <Code className="h-6 w-6 text-primary animate-pulse" />
-                </div>
-                <div className="space-y-2">
-                  <h3 className="text-base font-bold text-slate-800 animate-pulse">{generatingMessage}</h3>
-                  <p className="text-xs text-slate-400">Pesquisando referencia e aplicando o melhor skill automaticamente...</p>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 3: Clean Done Animation */}
-            {step === "done" && (
-              <div className="w-full text-center py-12 space-y-4 animate-in fade-in zoom-in-95 duration-300">
-                <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 animate-in zoom-in spin-in-12 duration-500">
-                  <Check className="h-8 w-8" strokeWidth={3} />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="text-lg font-bold text-slate-800">Concluído!</h3>
-                  <p className="text-xs text-slate-400">Página compilada com sucesso.</p>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 4: Actions Card */}
-            {step === "actions" && (
-              <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-                <Card className="border border-slate-200 bg-white shadow-md rounded-2xl">
-                  <CardContent className="p-6 md:p-8 space-y-6">
-                    
-                    <div className="text-center space-y-1 pb-3 border-b border-slate-100">
-                      <div className="mx-auto w-10 h-10 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500 mb-2">
-                        <CheckCircle className="h-5 w-5" />
-                      </div>
-                      <h3 className="font-bold text-lg text-slate-800">Página Criada com Sucesso</h3>
-                      <p className="text-xs text-slate-500 leading-relaxed">
-                        Sua ponte foi criada com pesquisa de referencia, skill automatico e HTML pronto para publicar.
+              <div className="animate-slide-up">
+                <Card className="border border-border bg-card rounded-2xl overflow-hidden">
+                  <div className="h-1 w-full bg-gradient-to-r from-primary via-violet-500 to-primary animate-pulse" />
+                  <CardContent className="p-10 text-center space-y-6">
+                    <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
+                      <div className="absolute inset-0 rounded-full bg-primary/10 animate-ping" />
+                      <div className="absolute inset-0 rounded-full border-4 border-border border-t-primary animate-spin" />
+                      <Sparkles className="h-8 w-8 text-primary" />
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-base font-bold text-foreground">{generatingMessage}</h3>
+                      <p className="text-xs text-muted-foreground leading-relaxed max-w-xs mx-auto">
+                        Aguarde enquanto a IA processa o design da página original e constrói código premium.
                       </p>
                     </div>
+                    <div className="flex justify-center gap-1.5">
+                      {[0, 1, 2].map(i => (
+                        <div key={i} className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
 
-                    {/* Settings Details Display */}
-                    <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-2 text-xs">
-                      <div className="flex justify-between py-1 border-b border-slate-200/50">
-                        <span className="font-semibold text-slate-400">Modelo:</span>
-                        <span className="font-mono text-slate-700 uppercase">{generatedMode || "auto"}</span>
+            {/* STEP: Done */}
+            {step === "done" && (
+              <div className="animate-slide-up">
+                <Card className="border border-emerald-500/30 bg-emerald-500/5 rounded-2xl overflow-hidden">
+                  <CardContent className="p-10 text-center space-y-4">
+                    <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/15 border-2 border-emerald-500/30 flex items-center justify-center">
+                      <Check className="h-8 w-8 text-emerald-500" strokeWidth={3} />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-foreground">Concluído! 🎉</h3>
+                      <p className="text-xs text-muted-foreground mt-1">Estrutura compilada com sucesso.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* STEP: Actions */}
+            {step === "actions" && (
+              <div className="space-y-4 animate-slide-up">
+                <Card className="border border-border bg-card rounded-2xl overflow-hidden">
+                  <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-primary to-violet-500" />
+                  <CardContent className="p-6 space-y-5">
+                    <div className="text-center space-y-2">
+                      <div className="mx-auto w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+                        <CheckCircle className="h-6 w-6 text-emerald-500" />
                       </div>
-                      <div className="flex justify-between py-1 border-b border-slate-200/50">
-                        <span className="font-semibold text-slate-400">Referencia:</span>
-                        <span className="truncate max-w-[200px] font-mono text-slate-700 font-medium" title={referenceUrl}>{referenceUrl}</span>
-                      </div>
-                      <div className="flex justify-between py-1 border-b border-slate-200/50">
-                        <span className="font-semibold text-slate-400">Destino:</span>
-                        <span className="truncate max-w-[200px] font-mono text-primary font-medium" title={destinationUrl}>{destinationUrl}</span>
-                      </div>
-                      {designSummary && (
-                        <div className="py-1 border-b border-slate-200/50">
-                          <span className="font-semibold text-slate-400 block mb-1">Leitura da IA:</span>
-                          <p className="text-slate-600 leading-relaxed">{designSummary}</p>
-                        </div>
-                      )}
-                      <div className="flex justify-between py-1">
-                        <span className="font-semibold text-slate-400">Scripts:</span>
-                        <span className="font-mono text-slate-700">
-                          {getTagCount() > 0 ? `Sim (${getTagCount()} tags)` : "Nenhum"}
-                        </span>
+                      <div>
+                        <h3 className="font-bold text-lg text-foreground">Página Criada! 🚀</h3>
+                        <p className="text-xs text-muted-foreground">Pronta para download ou publicação instantânea.</p>
                       </div>
                     </div>
 
-                    {/* Primary Action Buttons */}
-                    <div className="space-y-3 pt-2">
-                      
-                      {/* Download HTML Button */}
-                      <Button 
-                        variant="outline" 
-                        size="lg" 
-                        className="w-full rounded-xl h-11 text-xs font-bold border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-700 flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01]" 
+                    {/* Summary */}
+                    <div className="bg-muted/30 border border-border/60 rounded-xl p-4 space-y-2 text-xs">
+                      {[
+                        { label: "Modelo", value: selectedOption === "b" ? "Clone Limpo 🎯" : "Cookies ✅" },
+                        { label: "Referência", value: referenceUrl, mono: true },
+                        { label: "Destino", value: destinationUrl, mono: true, highlight: true },
+                      ].map(({ label, value, mono, highlight }) => (
+                        <div key={label} className="flex justify-between items-start gap-3 py-1 border-b border-border/40 last:border-0">
+                          <span className="font-semibold text-muted-foreground shrink-0">{label}:</span>
+                          <span className={`truncate max-w-[180px] text-right font-medium ${mono ? "font-mono" : ""} ${highlight ? "text-primary" : "text-foreground"}`} title={value}>{value}</span>
+                        </div>
+                      ))}
+                      {designSummary && (
+                        <div className="pt-2">
+                          <span className="font-semibold text-muted-foreground block mb-1.5">Status IA:</span>
+                          <p className="text-muted-foreground leading-relaxed text-[10px] bg-card border border-border/50 p-2.5 rounded-lg">{designSummary}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="space-y-2.5">
+                      <Button variant="outline" size="lg"
+                        className="w-full rounded-xl h-11 text-xs font-bold border-border hover:border-primary/40 hover:bg-primary/5 text-foreground flex items-center justify-center gap-2 transition-all"
                         onClick={handleDownload}
                       >
-                        <Download className="h-4 w-4 text-primary" /> Baixar HTML
+                        <Download className="h-4 w-4 text-primary" /> Baixar Código HTML
                       </Button>
-                      
-                      {/* Publish Button */}
-                      <Button 
-                        size="lg" 
-                        className="w-full rounded-xl h-11 text-xs font-bold bg-primary hover:bg-primary/95 text-white flex items-center justify-center gap-1.5 transition-all hover:scale-[1.01]" 
-                        onClick={handlePublish} 
-                        disabled={isPublishing}
+
+                      <Button size="lg"
+                        className="w-full rounded-xl h-11 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all"
+                        onClick={handlePublish} disabled={isPublishing}
                       >
                         {isPublishing ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" /> Publicando...
-                          </>
+                          <><Loader2 className="h-4 w-4 animate-spin mr-1.5" /> Publicando...</>
                         ) : (
-                          <>
-                            <RefreshCw className="h-4 w-4" /> Publicar no Servidor
-                          </>
+                          <><RefreshCw className="h-4 w-4 mr-1.5" /> Publicar no Servidor</>
                         )}
                       </Button>
 
-                      {/* Edit/Back Button */}
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="w-full rounded-lg h-8 text-xs text-slate-400 hover:text-slate-600" 
+                      <Button variant="ghost" size="sm"
+                        className="w-full rounded-xl h-9 text-xs text-muted-foreground hover:text-foreground"
                         onClick={handleBackToEdit}
                       >
-                        <ChevronLeft className="mr-1 h-3.5 w-3.5" /> Editar Configurações
+                        <ChevronLeft className="mr-1 h-4 w-4" /> Configurar Outra Página
                       </Button>
-
                     </div>
-
                   </CardContent>
                 </Card>
 
-                {/* Published URL Success Banner */}
+                {/* Published URL banner */}
                 {publishedUrl && (
-                  <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 text-left shadow-xs animate-in fade-in slide-in-from-bottom-2 duration-200">
+                  <div className="glass-card rounded-xl p-4 border border-emerald-500/25 bg-emerald-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-slide-up">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-xs">
-                        <CheckCircle className="h-4 w-4 text-emerald-500" /> Link de Redirecionamento Online!
+                      <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-xs">
+                        <CheckCircle2 className="h-4 w-4" /> Link Ativo Online!
                       </div>
-                      <span className="text-xs font-mono text-slate-500 select-all block mt-0.5 truncate max-w-[280px] md:max-w-[340px]">
+                      <span className="text-[11px] font-mono text-muted-foreground select-all block truncate max-w-[260px]">
                         {window.location.origin}{publishedUrl}
                       </span>
                     </div>
-                    
-                    <div className="flex gap-2 w-full md:w-auto shrink-0 justify-end">
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="h-9 rounded-lg text-xs font-semibold border-slate-200 hover:bg-slate-50 text-slate-700" 
-                        onClick={() => {
-                          navigator.clipboard.writeText(`${window.location.origin}${publishedUrl}`);
-                          toast({ title: "Link copiado!", description: "Copiado para a área de transferência." });
-                        }}
+                    <div className="flex gap-2 shrink-0">
+                      <Button variant="outline" size="sm" className="h-8 rounded-lg text-[11px] font-semibold border-border"
+                        onClick={() => { navigator.clipboard.writeText(`${window.location.origin}${publishedUrl}`); toast({ title: "Link copiado! 📋" }); }}
                       >
                         <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar
                       </Button>
-                      <Button 
-                        asChild 
-                        size="sm" 
-                        className="h-9 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
-                      >
+                      <Button asChild size="sm" className="h-8 rounded-lg text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white">
                         <a href={publishedUrl} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Acessar
+                          <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Abrir
                         </a>
                       </Button>
                     </div>
                   </div>
                 )}
-
-              </div>
-            )}
-          </>
-        )}
-
-        {/* VIEW 2: WEBSITES MANAGEMENT LIST */}
-        {activeView === "websites" && (
-          <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-            {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200 pb-4">
-              <div>
-                <h3 className="font-bold text-xl text-slate-800">Minhas Pontes</h3>
-                <p className="text-xs text-slate-500">Gerencie, baixe ou edite seus redirecionadores salvos localmente</p>
-              </div>
-              <div className="text-xs text-slate-400 font-semibold bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200/40 w-fit">
-                Total: {savedWebsites.length} {savedWebsites.length === 1 ? "ponte" : "pontes"}
-              </div>
-            </div>
-
-            {/* List of Websites as a Table */}
-            {savedWebsites.length === 0 ? (
-              <div className="text-center py-16 space-y-3 border border-dashed border-slate-200 rounded-2xl bg-white shadow-xs">
-                <Globe className="mx-auto h-8 w-8 text-slate-300" />
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold text-slate-500">Nenhuma ponte criada ainda</p>
-                  <p className="text-[10px] text-slate-400">Configure uma ponte na aba ao lado para salvá-la aqui.</p>
-                </div>
-              </div>
-            ) : (
-              <div className="overflow-x-auto w-full border border-slate-200/60 rounded-xl bg-white shadow-xs">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent bg-slate-50/50">
-                      <TableHead className="w-[35%] py-3">Ponte / Destino</TableHead>
-                      <TableHead className="w-[15%] py-3">Status</TableHead>
-                      <TableHead className="w-[15%] py-3">Scripts</TableHead>
-                      <TableHead className="w-[15%] py-3">Criado Em</TableHead>
-                      <TableHead className="text-right w-[20%] py-3 pr-4">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {savedWebsites.map((site) => {
-                      let displayDomain = site.destinationUrl;
-                      try {
-                        displayDomain = new URL(site.destinationUrl).hostname.replace("www.", "");
-                      } catch (_) {}
-
-                      return (
-                        <TableRow key={site.id} className="hover:bg-slate-50/50 transition-colors">
-                          <TableCell className="align-middle py-3">
-                            <div className="flex flex-col min-w-0 max-w-[280px] md:max-w-xs xl:max-w-md">
-                              <span className="font-semibold text-slate-900 truncate" title={site.destinationUrl}>
-                                {displayDomain}
-                              </span>
-                              <span className="text-[10px] text-slate-400 font-mono truncate mt-0.5" title={site.destinationUrl}>
-                                {site.destinationUrl}
-                              </span>
-                              {site.publishedUrl && (
-                                <a 
-                                  href={site.publishedUrl} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer" 
-                                  className="text-[10px] text-primary hover:underline flex items-center gap-1 mt-1 font-mono w-fit"
-                                >
-                                  <ExternalLink className="h-2.5 w-2.5" /> Ver online
-                                </a>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell className="align-middle py-3">
-                            <div className="flex flex-col gap-1">
-                              {site.status === "active" && (
-                                <Badge className="bg-emerald-500/10 hover:bg-emerald-500/15 text-emerald-700 border-emerald-500/20 py-0.5 px-2 rounded font-bold text-[9px] uppercase tracking-wider w-fit">
-                                  Ativo
-                                </Badge>
-                              )}
-                              {site.status === "paused" && (
-                                <Badge className="bg-amber-500/10 hover:bg-amber-500/15 text-amber-700 border-amber-500/20 py-0.5 px-2 rounded font-bold text-[9px] uppercase tracking-wider w-fit">
-                                  Pausado
-                                </Badge>
-                              )}
-                              {site.status === "local" && (
-                                <Badge className="bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 py-0.5 px-2 rounded font-bold text-[9px] uppercase tracking-wider w-fit">
-                                  Local
-                                </Badge>
-                              )}
-                              <Badge variant="outline" className={`py-0.5 px-2 rounded font-semibold text-[9px] uppercase tracking-wider w-fit hover:bg-transparent ${
-                                site.selectedOption === "b"
-                                  ? "bg-sky-50 text-sky-700 border-sky-200 hover:bg-sky-50"
-                                  : "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-50"
-                              }`}>
-                                {site.selectedOption === "b" ? "Clone Limpo" : "Cookies"}
-                              </Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell className="align-middle py-3">
-                            <span className="text-xs text-slate-600 font-medium">
-                              {site.scripts.length} {site.scripts.length === 1 ? "script" : "scripts"}
-                            </span>
-                          </TableCell>
-                          <TableCell className="align-middle py-3 font-mono text-[11px] text-slate-500">
-                            {site.createdAt}
-                          </TableCell>
-                          <TableCell className="text-right align-middle py-3 pr-4">
-                            <div className="flex items-center justify-end gap-1">
-                              {/* Download */}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-                                onClick={() => downloadSavedWebsite(site)}
-                                title="Baixar HTML"
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-
-                              {/* Pause/Play status toggle */}
-                              {(site.status === "active" || site.status === "paused") && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-                                  onClick={() => toggleWebsiteStatus(site)}
-                                  title={site.status === "active" ? "Pausar Redirecionamento" : "Ativar Redirecionamento"}
-                                >
-                                  {site.status === "active" ? (
-                                    <Pause className="h-4 w-4" />
-                                  ) : (
-                                    <Play className="h-4 w-4 text-emerald-500" />
-                                  )}
-                                </Button>
-                              )}
-
-                              {/* Copy Link */}
-                              {(site.status === "active" || site.status === "paused") && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-                                  onClick={() => copyPublishedLink(site.publishedUrl)}
-                                  title="Copiar Link Online"
-                                >
-                                  <Copy className="h-4 w-4" />
-                                </Button>
-                              )}
-
-                              {/* Load back/duplicate */}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-50"
-                                onClick={() => {
-                                  setDestinationUrl(site.destinationUrl);
-                                  setReferenceUrl(site.referenceUrl || "");
-                                  setScripts(site.scripts.length > 0 ? site.scripts : [""]);
-                                  setProductName(site.productName || "");
-                                  setProductHeadline(site.productHeadline || "");
-                                  setProductDescription(site.productDescription || "");
-                                  setProductCategory(site.productCategory || "Saúde & Bem-estar");
-                                  setCtaText(site.ctaText || "Ir para o Site Oficial");
-                                  setSupportEmail(site.supportEmail || "");
-                                  setApiToken(site.apiToken || "");
-                                  setStreamCode(site.streamCode || "");
-                                  setSelectedOption(site.selectedOption || "a");
-                                  setActiveView("create");
-                                  setStep("form");
-                                  toast({ title: "Dados carregados!", description: "Dados da ponte carregados no formulário de criação." });
-                                }}
-                                title="Editar/Duplicar"
-                              >
-                                <RotateCcw className="h-4 w-4" />
-                              </Button>
-
-                              {/* Delete */}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50"
-                                onClick={() => deleteWebsite(site)}
-                                title="Excluir"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
               </div>
             )}
           </div>
-        )}
 
+          {/* ── RIGHT: Bridge History Table ──────────────────── */}
+          <div className={`w-full lg:col-span-7 ${activeView === "websites" ? "block" : "hidden lg:block"}`}>
+            <Card className="border border-border bg-card shadow-md rounded-2xl overflow-hidden h-full">
+              <div className="h-1 w-full bg-gradient-to-r from-violet-500 via-primary to-violet-500" />
+              <CardContent className="p-6 space-y-5">
+                {/* Table header */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+                      <Layers className="h-4 w-4 text-primary" />
+                      Minhas Pontes
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">{savedWebsites.length} links configurados no sistema</p>
+                  </div>
+                  <div className="relative w-full sm:w-60 shrink-0">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      placeholder="Buscar ponte ou destino..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-9 rounded-xl h-9 text-xs border-border bg-muted/30 focus-visible:ring-primary"
+                    />
+                  </div>
+                </div>
+
+                {/* Empty state */}
+                {filteredWebsites.length === 0 ? (
+                  <div className="text-center py-16 space-y-4 border border-dashed border-border/60 rounded-xl bg-muted/10">
+                    <div className="mx-auto w-14 h-14 rounded-xl bg-muted/40 border border-border/60 flex items-center justify-center">
+                      <Globe className="h-6 w-6 text-muted-foreground/50" />
+                    </div>
+                    <div className="space-y-1 max-w-xs mx-auto">
+                      <p className="text-sm font-semibold text-foreground">
+                        {searchTerm ? "Nenhum resultado" : "Nenhuma ponte criada ainda"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {searchTerm ? "Tente alterar os termos da busca." : "Preencha o formulário ao lado e clique em Gerar."}
+                      </p>
+                    </div>
+                    {!searchTerm && (
+                      <button
+                        onClick={() => { setActiveView("create"); setStep("form"); }}
+                        className="text-xs text-primary font-semibold hover:underline lg:hidden"
+                      >
+                        Criar primeira ponte →
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border border-border/60">
+                    <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="hover:bg-transparent bg-muted/30 border-b border-border/60">
+                            <TableHead className="py-3 text-[11px] font-bold text-muted-foreground">Ponte / Destino</TableHead>
+                            <TableHead className="py-3 text-[11px] font-bold text-muted-foreground">Status</TableHead>
+                            <TableHead className="py-3 text-[11px] font-bold text-muted-foreground text-center">Tags</TableHead>
+                            <TableHead className="py-3 text-[11px] font-bold text-muted-foreground text-right pr-4">Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredWebsites.map((site) => {
+                            let displayDomain = site.destinationUrl;
+                            try { displayDomain = new URL(site.destinationUrl).hostname.replace("www.", ""); } catch (_) {}
+
+                            return (
+                              <TableRow key={site.id} className="hover:bg-muted/20 transition-colors border-b border-border/40">
+                                <TableCell className="py-3">
+                                  <div className="flex flex-col min-w-0">
+                                    <span className="font-semibold text-xs text-foreground truncate max-w-[160px] md:max-w-[220px]" title={site.destinationUrl}>
+                                      {displayDomain}
+                                    </span>
+                                    <span className="text-[9.5px] text-muted-foreground font-mono truncate mt-0.5 max-w-[160px] md:max-w-[220px]" title={site.destinationUrl}>
+                                      {site.destinationUrl}
+                                    </span>
+                                    {site.publishedUrl && (
+                                      <a
+                                        href={site.publishedUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[9px] text-primary hover:underline flex items-center gap-1 mt-1 font-semibold w-fit"
+                                      >
+                                        <ExternalLink className="h-2.5 w-2.5" /> Ver Online
+                                      </a>
+                                    )}
+                                  </div>
+                                </TableCell>
+
+                                <TableCell className="py-3">
+                                  <div className="flex flex-col gap-1">
+                                    {site.status === "active" && (
+                                      <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10 text-[9px] font-bold uppercase tracking-wider w-fit">
+                                        ● Ativo
+                                      </Badge>
+                                    )}
+                                    {site.status === "paused" && (
+                                      <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/10 text-[9px] font-bold uppercase tracking-wider w-fit">
+                                        ⏸ Pausado
+                                      </Badge>
+                                    )}
+                                    {site.status === "local" && (
+                                      <Badge className="bg-muted text-muted-foreground border-border hover:bg-muted text-[9px] font-bold uppercase tracking-wider w-fit">
+                                        ⬇ Local
+                                      </Badge>
+                                    )}
+                                    <Badge variant="outline" className={`text-[8px] font-bold uppercase tracking-wider w-fit ${
+                                      site.selectedOption === "b"
+                                        ? "bg-sky-500/10 text-sky-400 border-sky-500/20"
+                                        : "bg-violet-500/10 text-violet-400 border-violet-500/20"
+                                    }`}>
+                                      {site.selectedOption === "b" ? "Clone" : "Cookies"}
+                                    </Badge>
+                                  </div>
+                                </TableCell>
+
+                                <TableCell className="py-3 text-center">
+                                  <span className="text-[11px] text-muted-foreground font-mono font-medium">
+                                    {site.scripts.length}
+                                  </span>
+                                </TableCell>
+
+                                <TableCell className="py-3 text-right pr-4">
+                                  <div className="flex items-center justify-end gap-0.5">
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60" onClick={() => downloadSavedWebsite(site)} title="Baixar HTML">
+                                      <Download className="h-3.5 w-3.5" />
+                                    </Button>
+                                    {(site.status === "active" || site.status === "paused") && (
+                                      <>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60" onClick={() => toggleWebsiteStatus(site)} title={site.status === "active" ? "Pausar" : "Ativar"}>
+                                          {site.status === "active" ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 text-emerald-500" />}
+                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60" onClick={() => copyPublishedLink(site.publishedUrl)} title="Copiar Link">
+                                          <Copy className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </>
+                                    )}
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                                      onClick={() => {
+                                        setDestinationUrl(site.destinationUrl);
+                                        setReferenceUrl(site.referenceUrl || "");
+                                        setScripts(site.scripts.length > 0 ? site.scripts : [""]);
+                                        setProductName(site.productName || "");
+                                        setProductHeadline(site.productHeadline || "");
+                                        setProductDescription(site.productDescription || "");
+                                        setProductCategory(site.productCategory || "Saúde & Bem-estar");
+                                        setCtaText(site.ctaText || "Ir para o Site Oficial");
+                                        setSupportEmail(site.supportEmail || "");
+                                        setApiToken(site.apiToken || "");
+                                        setStreamCode(site.streamCode || "");
+                                        setSelectedOption(site.selectedOption || "a");
+                                        setActiveView("create");
+                                        setStep("form");
+                                        toast({ title: "Configuração carregada!", description: "Campos preenchidos com os parâmetros da ponte." });
+                                      }}
+                                      title="Reutilizar / Editar"
+                                    >
+                                      <RotateCcw className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-destructive/60 hover:text-destructive hover:bg-destructive/10" onClick={() => deleteWebsite(site)} title="Excluir">
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </div>
       </div>
     </div>
   );

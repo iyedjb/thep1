@@ -16,5 +16,7 @@ export interface Keyword {
   period: string;
   /** @nullable */
   analysis?: string | null;
+  /** @nullable */
+  intent?: string | null;
   createdAt: string;
 }

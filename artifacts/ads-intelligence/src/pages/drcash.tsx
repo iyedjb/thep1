@@ -2074,38 +2074,38 @@ export default function DrCash() {
       <div className="space-y-6 animate-in fade-in duration-300 text-left">
         {/* Balances section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex items-center justify-between">
+          <Card className="rounded-2xl border border-border/40 bg-card p-5 shadow-xs flex items-center justify-between">
             <div className="space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Saldo Total (USD)</span>
-              <p className="text-2xl font-black text-slate-800">${usdBalance.toFixed(2)}</p>
-              <span className="text-[10px] text-slate-400 font-medium">Sincronizado da API Dr. Cash</span>
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Saldo Total (USD)</span>
+              <p className="text-2xl font-black text-foreground">${usdBalance.toFixed(2)}</p>
+              <span className="text-[10px] text-muted-foreground font-medium">Sincronizado da API Dr. Cash</span>
             </div>
-            <div className="h-11 w-11 rounded-xl border border-emerald-100 bg-emerald-50 text-emerald-500 flex items-center justify-center shrink-0">
+            <div className="h-11 w-11 rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-500 flex items-center justify-center shrink-0">
               <DollarSign className="h-5 w-5" />
             </div>
           </Card>
 
           {balanceItems.filter(b => b.currency !== "USD").map((bal, i) => (
-            <Card key={i} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs flex items-center justify-between">
+            <Card key={i} className="rounded-2xl border border-border/40 bg-card p-5 shadow-xs flex items-center justify-between">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Saldo ({bal.currency})</span>
-                <p className="text-2xl font-black text-slate-800">{bal.sum.toFixed(2)} {bal.currency}</p>
-                <span className="text-[10px] text-slate-400 font-medium">Sincronizado</span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Saldo ({bal.currency})</span>
+                <p className="text-2xl font-black text-foreground">{bal.sum.toFixed(2)} {bal.currency}</p>
+                <span className="text-[10px] text-muted-foreground font-medium">Sincronizado</span>
               </div>
-              <div className="h-11 w-11 rounded-xl border border-blue-100 bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
+              <div className="h-11 w-11 rounded-xl border border-blue-500/20 bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
                 <Wallet className="h-5 w-5" />
               </div>
             </Card>
           ))}
 
           {balanceItems.length <= 1 && (
-            <Card className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 shadow-xs flex items-center justify-between border-dashed border-slate-350">
+            <Card className="rounded-2xl border border-dashed border-border/60 bg-muted/20 p-5 shadow-xs flex items-center justify-between">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Outras Moedas</span>
-                <p className="text-sm font-semibold text-slate-405 text-slate-500">Sem mais saldos de outras moedas</p>
-                <span className="text-[10px] text-slate-400 font-medium">Configure carteiras adicionais no painel principal</span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Outras Moedas</span>
+                <p className="text-sm font-semibold text-muted-foreground/80">Sem mais saldos de outras moedas</p>
+                <span className="text-[10px] text-muted-foreground font-medium">Configure carteiras adicionais no painel principal</span>
               </div>
-              <div className="h-11 w-11 rounded-xl border border-slate-200 bg-slate-100 text-slate-400 flex items-center justify-center shrink-0">
+              <div className="h-11 w-11 rounded-xl border border-border/40 bg-muted/40 text-muted-foreground flex items-center justify-center shrink-0">
                 <Plus className="h-5 w-5" />
               </div>
             </Card>
@@ -2114,18 +2114,18 @@ export default function DrCash() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Request payout form */}
-          <Card className="lg:col-span-5 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs space-y-4">
-            <h3 className="font-extrabold text-sm text-slate-800 border-b border-slate-100 pb-2">Solicitar Retirada</h3>
+          <Card className="lg:col-span-5 rounded-2xl border border-border/40 bg-card p-5 shadow-xs space-y-4">
+            <h3 className="font-extrabold text-sm text-foreground border-b border-border/40 pb-2">Solicitar Retirada</h3>
             
             <form onSubmit={handleRequestPayout} className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="wallet-select" className="text-xs font-semibold text-slate-600">Carteira de Destino</Label>
+                <Label htmlFor="wallet-select" className="text-xs font-semibold text-muted-foreground">Carteira de Destino</Label>
                 {isLoadingWallets ? (
-                  <div className="h-10 w-full rounded-xl border border-slate-200 flex items-center justify-center text-xs text-slate-400">
+                  <div className="h-10 w-full rounded-xl border border-border/40 flex items-center justify-center text-xs text-muted-foreground bg-muted/20">
                     <Loader2 className="h-4 w-4 text-emerald-500 animate-spin mr-2" /> Carregando carteiras...
                   </div>
                 ) : wallets.length === 0 ? (
-                  <div className="h-10 w-full rounded-xl border border-slate-200 flex items-center justify-center text-xs text-slate-400 bg-slate-50">
+                  <div className="h-10 w-full rounded-xl border border-border/40 flex items-center justify-center text-xs text-muted-foreground bg-muted/20">
                     Nenhuma carteira cadastrada
                   </div>
                 ) : (
@@ -2133,7 +2133,7 @@ export default function DrCash() {
                     id="wallet-select"
                     value={selectedWalletId}
                     onChange={(e) => setSelectedWalletId(Number(e.target.value))}
-                    className="w-full rounded-xl h-10 border border-slate-200 bg-white text-xs text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-2xs text-left"
+                    className="w-full rounded-xl h-10 border border-border/60 bg-background text-xs text-foreground px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-2xs text-left"
                     required
                   >
                     {wallets.map(w => (
@@ -2147,13 +2147,13 @@ export default function DrCash() {
 
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center">
-                  <Label htmlFor="payout-amount" className="text-xs font-semibold text-slate-600">Valor a Sacar</Label>
-                  <span className="text-[10px] text-slate-400 font-semibold">
+                  <Label htmlFor="payout-amount" className="text-xs font-semibold text-muted-foreground">Valor a Sacar</Label>
+                  <span className="text-[10px] text-muted-foreground font-semibold">
                     Disponível: {targetBalance.toFixed(2)} {selectedWallet?.currency || "USD"}
                   </span>
                 </div>
                 <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">
+                  <span className="absolute left-3 top-2.5 text-xs text-muted-foreground font-bold">
                     {selectedWallet?.currency === "USD" ? "$" : (selectedWallet?.currency || "")}
                   </span>
                   <Input
@@ -2165,7 +2165,7 @@ export default function DrCash() {
                     placeholder="0.00"
                     value={payoutAmount}
                     onChange={(e) => setPayoutAmount(e.target.value)}
-                    className="pl-8 rounded-xl border-slate-200 text-xs shadow-2xs h-10 font-bold text-slate-800 focus-visible:ring-emerald-500"
+                    className="pl-8 rounded-xl border-border/60 bg-muted/10 text-xs shadow-2xs h-10 font-bold text-foreground focus-visible:ring-emerald-500"
                     required
                     disabled={wallets.length === 0}
                   />
@@ -2175,7 +2175,7 @@ export default function DrCash() {
               <Button
                 type="submit"
                 disabled={isSubmittingPayout || wallets.length === 0 || targetBalance <= 0}
-                className="w-full rounded-xl h-11 text-xs font-bold text-white shadow-xs bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full rounded-xl h-11 text-xs font-bold text-white shadow-xs bg-emerald-600 hover:bg-emerald-700 disabled:bg-muted/40 disabled:text-muted-foreground/50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {isSubmittingPayout ? (
                   <>
@@ -2191,9 +2191,9 @@ export default function DrCash() {
           </Card>
 
           {/* List of active wallets */}
-          <Card className="lg:col-span-7 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h3 className="font-extrabold text-sm text-slate-800 flex items-center gap-2">
+          <Card className="lg:col-span-7 rounded-2xl border border-border/40 bg-card p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-border/40 pb-2">
+              <h3 className="font-extrabold text-sm text-foreground flex items-center gap-2">
                 <Wallet className="h-4 w-4 text-emerald-500" /> Minhas Carteiras no Dr. Cash
               </h3>
               <Button
@@ -2201,7 +2201,7 @@ export default function DrCash() {
                 variant="outline"
                 size="sm"
                 onClick={() => setIsAddWalletOpen(true)}
-                className="h-7 px-2 text-[10px] font-bold text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50/50 border-emerald-200/50 rounded-lg flex items-center gap-1 shadow-2xs"
+                className="h-7 px-2 text-[10px] font-bold text-emerald-500 hover:bg-emerald-500/10 border-emerald-500/20 rounded-lg flex items-center gap-1 shadow-2xs"
               >
                 <Plus className="h-3 w-3" /> Adicionar Carteira
               </Button>
@@ -2210,40 +2210,40 @@ export default function DrCash() {
             {isLoadingWallets ? (
               <div className="flex flex-col items-center justify-center py-12 gap-2">
                 <Loader2 className="h-6 w-6 text-emerald-500 animate-spin" />
-                <p className="text-[10px] text-slate-400 font-medium">Buscando carteiras cadastradas...</p>
+                <p className="text-[10px] text-muted-foreground font-medium">Buscando carteiras cadastradas...</p>
               </div>
             ) : wallets.length === 0 ? (
               <div className="text-center py-8">
-                <Wallet className="mx-auto h-8 w-8 text-slate-350" />
-                <p className="text-xs font-bold text-slate-500 mt-2">Nenhuma carteira vinculada</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Vincule suas carteiras no painel oficial do Dr. Cash.</p>
+                <Wallet className="mx-auto h-8 w-8 text-muted-foreground/60" />
+                <p className="text-xs font-bold text-muted-foreground mt-2">Nenhuma carteira vinculada</p>
+                <p className="text-[10px] text-muted-foreground/80 mt-0.5">Vincule suas carteiras no painel oficial do Dr. Cash.</p>
               </div>
             ) : (
               <div className="space-y-2">
                 {wallets.map(w => (
-                  <div key={w.id} className="flex items-center justify-between p-3 bg-slate-50/50 border border-slate-100 rounded-xl">
+                  <div key={w.id} className="flex items-center justify-between p-3 bg-muted/20 border border-border/40 rounded-xl">
                     <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center font-bold text-xs shrink-0">
+                      <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 flex items-center justify-center font-bold text-xs shrink-0">
                         {formatWalletSystemName(w.payment_system_name).charAt(0).toUpperCase()}
                       </div>
                       <div className="text-left">
-                        <p className="text-xs font-bold text-slate-800">{formatWalletSystemName(w.payment_system_name)}</p>
-                        <p className="text-[10px] text-slate-400 font-mono">Conta: {w.account_number || "—"}</p>
+                        <p className="text-xs font-bold text-foreground">{formatWalletSystemName(w.payment_system_name)}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono">Conta: {w.account_number || "—"}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-right">
-                        <span className="text-[9px] bg-emerald-100 text-emerald-700 font-bold px-2 py-0.5 rounded-md uppercase">
+                        <span className="text-[9px] bg-emerald-500/10 text-emerald-500 border border-emerald-500/25 font-bold px-2 py-0.5 rounded-md uppercase">
                           {w.currency}
                         </span>
-                        <p className="text-[8px] text-slate-400 mt-1">ID: {w.id}</p>
+                        <p className="text-[8px] text-muted-foreground mt-1">ID: {w.id}</p>
                       </div>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDeleteWallet(w.id)}
-                        className="h-8 w-8 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg shrink-0"
+                        className="h-8 w-8 text-rose-500 hover:text-rose-450 hover:bg-rose-500/10 rounded-lg shrink-0"
                         title="Excluir carteira"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -2257,40 +2257,40 @@ export default function DrCash() {
         </div>
 
         {/* Withdrawal history list */}
-        <Card className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs space-y-4">
-          <h3 className="font-extrabold text-sm text-slate-800 border-b border-slate-100 pb-2">Histórico de Retiradas</h3>
+        <Card className="rounded-2xl border border-border/40 bg-card p-5 shadow-xs space-y-4">
+          <h3 className="font-extrabold text-sm text-foreground border-b border-border/40 pb-2">Histórico de Retiradas</h3>
           {payoutHistory.length === 0 ? (
-            <p className="text-xs text-slate-400 text-center py-6">Nenhuma retirada solicitada ainda.</p>
+            <p className="text-xs text-muted-foreground text-center py-6">Nenhuma retirada solicitada ainda.</p>
           ) : (
             <div className="overflow-x-auto w-full">
               <Table>
                 <TableHeader>
-                  <TableRow className="hover:bg-transparent border-b border-slate-100">
-                    <TableHead className="py-2 text-[10px] font-bold uppercase text-slate-400">ID Transação</TableHead>
-                    <TableHead className="py-2 text-[10px] font-bold uppercase text-slate-400">Data / Hora</TableHead>
-                    <TableHead className="py-2 text-[10px] font-bold uppercase text-slate-400">Método</TableHead>
-                    <TableHead className="py-2 text-[10px] font-bold uppercase text-slate-400">Conta</TableHead>
-                    <TableHead className="py-2 text-[10px] font-bold uppercase text-slate-400">Valor</TableHead>
-                    <TableHead className="py-2 text-[10px] font-bold uppercase text-slate-400 text-right pr-2">Status</TableHead>
+                  <TableRow className="hover:bg-transparent border-b border-border/40">
+                    <TableHead className="py-2 text-[10px] font-bold uppercase text-muted-foreground">ID Transação</TableHead>
+                    <TableHead className="py-2 text-[10px] font-bold uppercase text-muted-foreground">Data / Hora</TableHead>
+                    <TableHead className="py-2 text-[10px] font-bold uppercase text-muted-foreground">Método</TableHead>
+                    <TableHead className="py-2 text-[10px] font-bold uppercase text-muted-foreground">Conta</TableHead>
+                    <TableHead className="py-2 text-[10px] font-bold uppercase text-muted-foreground">Valor</TableHead>
+                    <TableHead className="py-2 text-[10px] font-bold uppercase text-muted-foreground text-right pr-2">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {payoutHistory.map((h) => (
-                    <TableRow key={h.id} className="hover:bg-slate-50/40 border-b border-slate-100">
-                      <TableCell className="py-2.5 font-mono text-xs text-slate-500">{h.id}</TableCell>
-                      <TableCell className="py-2.5 text-xs text-slate-650 text-slate-650">{h.date}</TableCell>
-                      <TableCell className="py-2.5 text-xs font-bold text-slate-700">{h.walletName}</TableCell>
-                      <TableCell className="py-2.5 text-xs font-mono text-slate-500">{h.accountNumber || "—"}</TableCell>
-                      <TableCell className="py-2.5 text-xs font-black text-slate-800">
+                    <TableRow key={h.id} className="hover:bg-muted/40 border-b border-border/40">
+                      <TableCell className="py-2.5 font-mono text-xs text-muted-foreground">{h.id}</TableCell>
+                      <TableCell className="py-2.5 text-xs text-muted-foreground/90">{h.date}</TableCell>
+                      <TableCell className="py-2.5 text-xs font-bold text-foreground">{h.walletName}</TableCell>
+                      <TableCell className="py-2.5 text-xs font-mono text-muted-foreground">{h.accountNumber || "—"}</TableCell>
+                      <TableCell className="py-2.5 text-xs font-black text-foreground">
                         {h.currency === "USD" ? "$" : ""}{h.amount.toFixed(2)} {h.currency !== "USD" ? h.currency : ""}
                       </TableCell>
                       <TableCell className="py-2.5 text-right pr-2">
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
                           h.status === "Pendente" 
-                            ? "bg-amber-55 bg-amber-50 text-amber-600 border-amber-100" 
+                            ? "bg-amber-500/10 text-amber-500 border-amber-500/20" 
                             : h.status === "Processado" 
-                            ? "bg-emerald-55 bg-emerald-50 text-emerald-600 border-emerald-100" 
-                            : "bg-red-55 bg-red-50 text-red-600 border-red-100"
+                            ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" 
+                            : "bg-rose-500/10 text-rose-500 border-rose-500/20"
                         }`}>
                           {h.status}
                         </span>
@@ -2311,12 +2311,12 @@ export default function DrCash() {
   const renderSimulatedView = (section: string) => {
     if (section === "leads") {
       return (
-        <Card className="rounded-2xl border border-slate-200 bg-white shadow-xs p-6 animate-in fade-in duration-300">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-            <h3 className="font-extrabold text-slate-800 text-base flex items-center gap-2">
+        <Card className="rounded-2xl border border-border/40 bg-card shadow-xs p-6 animate-in fade-in duration-300">
+          <div className="flex items-center justify-between border-b border-border/40 pb-3 mb-4">
+            <h3 className="font-extrabold text-foreground text-base flex items-center gap-2">
               <UserCheck className="h-5 w-5 text-emerald-500" /> Registro de Leads Recentes
             </h3>
-            <span className="text-xs bg-slate-100 text-slate-500 font-bold px-2.5 py-1 rounded-full uppercase">Sincronizado</span>
+            <span className="text-xs bg-muted text-muted-foreground font-bold px-2.5 py-1 rounded-full uppercase">Sincronizado</span>
           </div>
           <div className="overflow-x-auto w-full">
             <Table>
@@ -2332,21 +2332,21 @@ export default function DrCash() {
               </TableHeader>
               <TableBody>
                 {[
-                  { id: "1098234", date: "13/06/2026 15:42", name: "Big Hunter", geo: "IN", status: "Aprovado", comm: 5.50, color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
-                  { id: "1098221", date: "13/06/2026 14:15", name: "Hammer of Thor 2", geo: "EG", status: "Pendente", comm: 13.00, color: "text-amber-600 bg-amber-50 border-amber-100" },
-                  { id: "1098199", date: "13/06/2026 11:04", name: "Nutrilaben", geo: "PL", status: "Rejeitado", comm: 23.00, color: "text-rose-600 bg-rose-50 border-rose-100" },
-                  { id: "1098055", date: "12/06/2026 23:51", name: "Mellow Zen", geo: "AT", status: "Aprovado", comm: 24.00, color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
-                  { id: "1097891", date: "12/06/2026 18:22", name: "Collagen Complex", geo: "PL", status: "Aprovado", comm: 19.00, color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
+                  { id: "1098234", date: "13/06/2026 15:42", name: "Big Hunter", geo: "IN", status: "Aprovado", comm: 5.50, color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20" },
+                  { id: "1098221", date: "13/06/2026 14:15", name: "Hammer of Thor 2", geo: "EG", status: "Pendente", comm: 13.00, color: "text-amber-500 bg-amber-500/10 border-amber-500/20" },
+                  { id: "1098199", date: "13/06/2026 11:04", name: "Nutrilaben", geo: "PL", status: "Rejeitado", comm: 23.00, color: "text-rose-500 bg-rose-500/10 border-rose-500/20" },
+                  { id: "1098055", date: "12/06/2026 23:51", name: "Mellow Zen", geo: "AT", status: "Aprovado", comm: 24.00, color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20" },
+                  { id: "1097891", date: "12/06/2026 18:22", name: "Collagen Complex", geo: "PL", status: "Aprovado", comm: 19.00, color: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20" },
                 ].map((lead) => (
-                  <TableRow key={lead.id} className="hover:bg-slate-50/50">
-                    <TableCell className="py-3 font-mono text-[11px] text-slate-500">{lead.id}</TableCell>
-                    <TableCell className="py-3 text-xs text-slate-600">{lead.date}</TableCell>
-                    <TableCell className="py-3 text-xs font-bold text-slate-800">{lead.name}</TableCell>
-                    <TableCell className="py-3 text-xs text-slate-600">{lead.geo}</TableCell>
+                  <TableRow key={lead.id} className="hover:bg-muted/40 border-b border-border/40">
+                    <TableCell className="py-3 font-mono text-[11px] text-muted-foreground">{lead.id}</TableCell>
+                    <TableCell className="py-3 text-xs text-muted-foreground/95">{lead.date}</TableCell>
+                    <TableCell className="py-3 text-xs font-bold text-foreground">{lead.name}</TableCell>
+                    <TableCell className="py-3 text-xs text-muted-foreground/90">{lead.geo}</TableCell>
                     <TableCell className="py-3">
                       <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${lead.color}`}>{lead.status}</span>
                     </TableCell>
-                    <TableCell className="py-3 text-xs text-right font-extrabold text-slate-800">${lead.comm.toFixed(2)}</TableCell>
+                    <TableCell className="py-3 text-xs text-right font-extrabold text-foreground">${lead.comm.toFixed(2)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -2357,19 +2357,19 @@ export default function DrCash() {
     }
 
     return (
-      <Card className="rounded-2xl border border-slate-200 bg-white shadow-xs p-8 text-center animate-in fade-in duration-300">
+      <Card className="rounded-2xl border border-border/40 bg-card shadow-xs p-8 text-center animate-in fade-in duration-300">
         <div className="max-w-md mx-auto space-y-4">
-          <div className="h-14 w-14 rounded-full bg-emerald-50 border border-emerald-100 text-emerald-500 flex items-center justify-center mx-auto shadow-2xs">
+          <div className="h-14 w-14 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-500 flex items-center justify-center mx-auto shadow-2xs">
             <Sliders className="h-6 w-6" />
           </div>
           <div className="space-y-1">
-            <h4 className="font-extrabold text-base text-slate-800 capitalize">{section}</h4>
-            <p className="text-xs text-slate-400">Esta seção simula a visualização direta da sua conta Dr. Cash integrada.</p>
+            <h4 className="font-extrabold text-base text-foreground capitalize">{section}</h4>
+            <p className="text-xs text-muted-foreground">Esta seção simula a visualização direta da sua conta Dr. Cash integrada.</p>
           </div>
-          <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-left space-y-2 text-slate-500">
+          <div className="bg-muted/20 border border-border/40 rounded-xl p-4 text-xs text-left space-y-2 text-muted-foreground">
             <div className="flex justify-between">
               <span>Status da Integração:</span>
-              <span className="font-bold text-emerald-600 flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Ativa</span>
+              <span className="font-bold text-emerald-500 flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> Ativa</span>
             </div>
             <div className="flex justify-between">
               <span>Token de Acesso:</span>
@@ -2390,36 +2390,36 @@ export default function DrCash() {
 
   if (isLoadingToken) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white">
-        <span className="text-xs font-medium text-slate-400">Verificando status de integração...</span>
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <span className="text-xs font-medium text-muted-foreground">Verificando status de integração...</span>
       </div>
     );
   }
 
   if (!apiToken) {
     return (
-      <div className="p-6 bg-[#fafafa] min-h-screen flex items-center justify-center">
-        <Card className="w-full max-w-md rounded-2xl border border-slate-200/60 bg-white p-8 shadow-xs">
+      <div className="p-6 bg-background min-h-screen flex items-center justify-center">
+        <Card className="w-full max-w-md rounded-2xl border border-border/40 bg-card p-8 shadow-xs">
           <CardContent className="space-y-6 p-0 text-left">
             <div className="space-y-2">
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight">
-                Integração Dr. Cash
+              <h2 className="text-xl font-bold text-foreground tracking-tight flex items-center gap-1.5">
+                Integração Dr. Cash 🏦
               </h2>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                Conecte sua conta informando seu token de acesso de API para sincronizar suas ofertas, campanhas e finanças.
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Conecte sua conta informando seu token de acesso de API para sincronizar suas ofertas, campanhas e finanças de forma mágica! ✨
               </p>
             </div>
 
             <form onSubmit={handleSaveToken} className="space-y-4 pt-2">
               <div className="space-y-1.5">
-                <Label htmlFor="api-token" className="text-[11px] font-semibold text-slate-600">Token de API</Label>
+                <Label htmlFor="api-token" className="text-[11px] font-semibold text-muted-foreground">Token de API</Label>
                 <Input
                   id="api-token"
                   type="password"
                   placeholder="Cole seu token de acesso de API"
                   value={inputToken}
                   onChange={(e) => setInputToken(e.target.value)}
-                  className="rounded-lg border-slate-200 focus-visible:ring-black focus-visible:border-black shadow-none h-10 text-xs bg-white"
+                  className="rounded-lg border-border/60 bg-muted/20 text-foreground focus-visible:ring-emerald-500 focus-visible:border-emerald-500 h-10 text-xs"
                   required
                 />
               </div>
@@ -2427,16 +2427,16 @@ export default function DrCash() {
               <Button
                 type="submit"
                 disabled={isVerifyingToken}
-                className="w-full rounded-lg h-10 text-xs font-bold text-white bg-black hover:bg-zinc-800 transition-colors flex items-center justify-center border-none shadow-none cursor-pointer"
+                className="w-full rounded-lg h-10 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors flex items-center justify-center border-none shadow-none cursor-pointer"
               >
                 {isVerifyingToken ? "Sincronizando..." : "Conectar Conta"}
               </Button>
             </form>
 
-            <div className="border-t border-slate-100 pt-4 space-y-2 text-slate-500 text-[11px]">
-              <span className="font-semibold text-slate-800">Como obter o seu token:</span>
-              <ol className="list-decimal list-inside space-y-1.5 leading-relaxed text-slate-500">
-                <li>Acesse o painel do <a href="https://affiliate.dr.cash" target="_blank" rel="noopener noreferrer" className="text-slate-800 font-semibold hover:underline">affiliate.dr.cash</a></li>
+            <div className="border-t border-border/40 pt-4 space-y-2 text-muted-foreground text-[11px]">
+              <span className="font-semibold text-foreground">Como obter o seu token:</span>
+              <ol className="list-decimal list-inside space-y-1.5 leading-relaxed text-muted-foreground">
+                <li>Acesse o painel do <a href="https://affiliate.dr.cash" target="_blank" rel="noopener noreferrer" className="text-foreground font-semibold hover:underline hover:text-emerald-500">affiliate.dr.cash</a></li>
                 <li>Clique no seu nome no canto superior direito e selecione Perfil (Profile)</li>
                 <li>Copie o campo Access Token no topo da página</li>
                 <li>Cole no campo acima para estabelecer a sincronização</li>
@@ -2449,7 +2449,7 @@ export default function DrCash() {
   }
 
   return (
-    <div className="p-6 space-y-6 animate-in fade-in duration-300 bg-[#f8fafc] min-h-screen">
+    <div className="p-6 space-y-6 animate-in fade-in duration-300 bg-background min-h-screen">
 
       {/* Top Black Bar */}
       <div className="bg-[#0a0a0a] text-white px-6 py-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
@@ -2494,16 +2494,16 @@ export default function DrCash() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-start">
         {/* Left sidebar nav */}
-        <Card className="rounded-2xl border border-slate-200/80 bg-white p-2 shadow-xs">
+        <Card className="rounded-2xl border border-border/40 bg-card p-2 shadow-xs">
           <div className="flex flex-col space-y-1">
             {[
-              { id: "leads", label: "Leads", icon: UserCheck },
-              { id: "campanhas", label: "Campanhas", icon: Target },
-              { id: "estatisticas", label: "Estatísticas", icon: Activity },
-              { id: "instrumentos", label: "Instrumentos", icon: Sliders },
-              { id: "ofertas", label: "Ofertas", icon: Tag },
-              { id: "financas", label: "Finanças", icon: Wallet },
-              { id: "definicoes", label: "Definições", icon: Settings },
+              { id: "leads", label: "Leads 👥", icon: UserCheck },
+              { id: "campanhas", label: "Campanhas 🎯", icon: Target },
+              { id: "estatisticas", label: "Estatísticas 📊", icon: Activity },
+              { id: "instrumentos", label: "Instrumentos 🛠️", icon: Sliders },
+              { id: "ofertas", label: "Ofertas 🛍️", icon: Tag },
+              { id: "financas", label: "Finanças 💰", icon: Wallet },
+              { id: "definicoes", label: "Definições ⚙️", icon: Settings },
             ].map((item) => {
               const Icon = item.icon;
               const isActive = activeSection === item.id;
@@ -2514,11 +2514,11 @@ export default function DrCash() {
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left ${
                     isActive
                       ? "bg-emerald-500/10 text-emerald-600 shadow-2xs border border-emerald-500/10"
-                      : "text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-transparent"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground border border-transparent"
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Icon className={`h-4 w-4 ${isActive ? "text-emerald-500" : "text-slate-400"}`} />
+                    <Icon className={`h-4 w-4 ${isActive ? "text-emerald-500" : "text-muted-foreground"}`} />
                     <span>{item.label}</span>
                   </div>
                   {isActive && <div className="h-1.5 w-1.5 bg-emerald-500 rounded-full" />}
@@ -2540,20 +2540,20 @@ export default function DrCash() {
 
       {/* Offer Quick-View Modal */}
       {selectedOfferForLander && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <Card className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white shadow-xl animate-in zoom-in-95 duration-200">
-            <CardHeader className="border-b border-slate-100 pb-4 flex flex-row justify-between items-start text-left">
+        <div className="fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-lg rounded-2xl border border-border/40 bg-card shadow-xl animate-in zoom-in-95 duration-200">
+            <CardHeader className="border-b border-border/40 pb-4 flex flex-row justify-between items-start text-left">
               <div>
-                <CardTitle className="text-base font-bold text-slate-800">
+                <CardTitle className="text-base font-bold text-foreground">
                   {selectedOfferForLander.name}
                 </CardTitle>
-                <CardDescription className="text-xs">
+                <CardDescription className="text-xs text-muted-foreground">
                   {getCategoryLabel(selectedOfferForLander.category)} · {(selectedOfferForLander.geo || []).join(", ")} · {selectedOfferForLander.model}
                 </CardDescription>
               </div>
               <button
                 onClick={() => setSelectedOfferForLander(null)}
-                className="text-slate-400 hover:text-slate-600 text-sm font-bold bg-slate-100 hover:bg-slate-200 rounded-full w-7 h-7 flex items-center justify-center"
+                className="text-muted-foreground hover:text-foreground text-sm font-bold bg-muted hover:bg-muted/80 rounded-full w-7 h-7 flex items-center justify-center"
               >
                 ✕
               </button>
@@ -2565,49 +2565,49 @@ export default function DrCash() {
                   <img
                     src={selectedOfferForLander.imageUrl}
                     alt={selectedOfferForLander.name}
-                    className="h-24 object-contain rounded-xl border border-slate-100 bg-slate-50 p-2"
+                    className="h-24 object-contain rounded-xl border border-border/40 bg-muted/40 p-2"
                   />
                 </div>
               )}
 
               {/* Stats row */}
-              <div className="grid grid-cols-4 gap-2 text-center bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs">
+              <div className="grid grid-cols-4 gap-2 text-center bg-muted/30 p-3 rounded-xl border border-border/40 text-xs">
                 <div>
-                  <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Pagamento</p>
-                  <p className="font-extrabold text-emerald-600 mt-0.5">
+                  <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider">Pagamento</p>
+                  <p className="font-extrabold text-emerald-500 mt-0.5">
                     {selectedOfferForLander.payout > 0 ? `$${selectedOfferForLander.payout.toFixed(2)}` : "—"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Preço</p>
-                  <p className="font-extrabold text-slate-700 mt-0.5">
+                  <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider">Preço</p>
+                  <p className="font-extrabold text-foreground mt-0.5">
                     {selectedOfferForLander.price ? `${selectedOfferForLander.price} ${selectedOfferForLander.priceCurrency}` : "—"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Aprovação</p>
-                  <p className="font-extrabold text-indigo-600 mt-0.5">
+                  <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider">Aprovação</p>
+                  <p className="font-extrabold text-indigo-500 mt-0.5">
                     {selectedOfferForLander.approvalRate > 0 ? `${selectedOfferForLander.approvalRate.toFixed(1)}%` : "n/a"}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[9px] text-slate-400 font-semibold uppercase tracking-wider">Rank</p>
-                  <p className="font-extrabold text-slate-700 mt-0.5">{selectedOfferForLander.rank || "—"}</p>
+                  <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider">Rank</p>
+                  <p className="font-extrabold text-foreground mt-0.5">{selectedOfferForLander.rank || "—"}</p>
                 </div>
               </div>
 
               {/* Description */}
               {selectedOfferForLander.description && (
-                <p className="text-xs text-slate-500">{selectedOfferForLander.description}</p>
+                <p className="text-xs text-muted-foreground">{selectedOfferForLander.description}</p>
               )}
 
               {/* Link */}
               {selectedOfferForLander.link && (
                 <div className="space-y-3">
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 bg-slate-50 border border-slate-200/60 rounded-xl">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 p-3 bg-muted/20 border border-border/40 rounded-xl">
                     <div className="text-left">
-                      <p className="text-xs font-bold text-slate-700">Link de afiliado direto</p>
-                      <p className="text-[10px] text-slate-400 font-mono truncate max-w-[280px] mt-0.5">{selectedOfferForLander.link}</p>
+                      <p className="text-xs font-bold text-foreground">Link de afiliado direto</p>
+                      <p className="text-[10px] text-muted-foreground font-mono truncate max-w-[280px] mt-0.5">{selectedOfferForLander.link}</p>
                     </div>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm" asChild className="h-8 rounded-lg text-xs font-semibold">
@@ -2643,10 +2643,10 @@ export default function DrCash() {
 
               {/* Materials link */}
               {selectedOfferForLander.materialLink && selectedOfferForLander.materialLink !== selectedOfferForLander.link && (
-                <div className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-100 rounded-xl">
+                <div className="flex items-center justify-between p-2.5 bg-muted/20 border border-border/40 rounded-xl">
                   <div>
-                    <p className="text-xs font-bold text-slate-700">Materiais criativos</p>
-                    <p className="text-[10px] text-slate-400 font-mono truncate max-w-[260px] mt-0.5">{selectedOfferForLander.materialLink}</p>
+                    <p className="text-xs font-bold text-foreground">Materiais criativos</p>
+                    <p className="text-[10px] text-muted-foreground font-mono truncate max-w-[260px] mt-0.5">{selectedOfferForLander.materialLink}</p>
                   </div>
                   <Button variant="outline" size="sm" asChild className="h-8 rounded-lg text-xs">
                     <a href={selectedOfferForLander.materialLink} target="_blank" rel="noopener noreferrer">
@@ -2662,20 +2662,20 @@ export default function DrCash() {
 
       {/* Add Wallet Modal */}
       {isAddWalletOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <Card className="w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-xl animate-in zoom-in-95 duration-200 text-left">
-            <CardHeader className="border-b border-slate-100 pb-4 flex flex-row justify-between items-start">
+        <div className="fixed inset-0 bg-black/65 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md rounded-2xl border border-border/40 bg-card shadow-xl animate-in zoom-in-95 duration-200 text-left">
+            <CardHeader className="border-b border-border/40 pb-4 flex flex-row justify-between items-start">
               <div>
-                <CardTitle className="text-base font-bold text-slate-800">
+                <CardTitle className="text-base font-bold text-foreground">
                   Adicionar Carteira de Pagamento
                 </CardTitle>
-                <CardDescription className="text-xs">
+                <CardDescription className="text-xs text-muted-foreground">
                   Insira os detalhes da sua carteira ou conta para receber seus pagamentos do Dr. Cash.
                 </CardDescription>
               </div>
               <button
                 onClick={() => setIsAddWalletOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-sm font-bold bg-slate-100 hover:bg-slate-200 rounded-full w-7 h-7 flex items-center justify-center"
+                className="text-muted-foreground hover:text-foreground text-sm font-bold bg-muted hover:bg-muted/80 rounded-full w-7 h-7 flex items-center justify-center"
               >
                 ✕
               </button>
@@ -2683,7 +2683,7 @@ export default function DrCash() {
             <form onSubmit={handleAddWallet}>
               <CardContent className="p-6 space-y-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="new-wallet-system" className="text-xs font-semibold text-slate-600">Método de Pagamento</Label>
+                  <Label htmlFor="new-wallet-system" className="text-xs font-semibold text-muted-foreground">Método de Pagamento</Label>
                   <select
                     id="new-wallet-system"
                     value={newWalletSystem}
@@ -2691,7 +2691,7 @@ export default function DrCash() {
                       setNewWalletSystem(e.target.value);
                       setNewWalletCurrency("USD");
                     }}
-                    className="w-full rounded-xl h-10 border border-slate-200 bg-white text-xs text-slate-700 px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-2xs"
+                    className="w-full rounded-xl h-10 border border-border/60 bg-background text-xs text-foreground px-3 focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer shadow-2xs"
                   >
                     <option value="Capitalist">Capitalist</option>
                     <option value="WebMoney">WebMoney (WMZ)</option>
@@ -2702,20 +2702,20 @@ export default function DrCash() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="new-wallet-currency" className="text-xs font-semibold text-slate-600">Moeda</Label>
+                  <Label htmlFor="new-wallet-currency" className="text-xs font-semibold text-muted-foreground">Moeda</Label>
                   <select
                     id="new-wallet-currency"
                     value={newWalletCurrency}
                     onChange={(e) => setNewWalletCurrency(e.target.value)}
                     disabled
-                    className="w-full rounded-xl h-10 border border-slate-200 bg-slate-50 text-xs text-slate-700 px-3 focus:outline-none cursor-not-allowed shadow-2xs"
+                    className="w-full rounded-xl h-10 border border-border/40 bg-muted/40 text-xs text-muted-foreground/60 px-3 focus:outline-none cursor-not-allowed shadow-2xs"
                   >
                     <option value="USD">USD ($)</option>
                   </select>
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="new-wallet-account" className="text-xs font-semibold text-slate-600">Número da Conta / Endereço da Carteira</Label>
+                  <Label htmlFor="new-wallet-account" className="text-xs font-semibold text-muted-foreground">Número da Conta / Endereço da Carteira</Label>
                   <Input
                     id="new-wallet-account"
                     placeholder={
@@ -2731,17 +2731,17 @@ export default function DrCash() {
                     }
                     value={newWalletAccount}
                     onChange={(e) => setNewWalletAccount(e.target.value)}
-                    className="rounded-xl border-slate-200 text-xs shadow-2xs h-10"
+                    className="rounded-xl border-border/60 bg-muted/10 text-foreground text-xs shadow-2xs h-10 focus-visible:ring-emerald-500"
                     required
                   />
                 </div>
 
-                <div className="pt-4 border-t border-slate-100 flex justify-end gap-2">
+                <div className="pt-4 border-t border-border/40 flex justify-end gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setIsAddWalletOpen(false)}
-                    className="rounded-xl h-10 px-4 text-xs font-bold border-slate-200 text-slate-500 hover:bg-slate-50"
+                    className="rounded-xl h-10 px-4 text-xs font-bold border-border/60 text-muted-foreground hover:bg-muted"
                   >
                     Cancelar
                   </Button>
@@ -2764,8 +2764,6 @@ export default function DrCash() {
           </Card>
         </div>
       )}
-
-      {/* Offer Quick-View Modal */}
 
     </div>
   );

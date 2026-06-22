@@ -147,6 +147,22 @@ export default function Keywords() {
     }
   };
 
+  const getIntentBadge = (intent: string | null | undefined) => {
+    if (!intent) return null;
+    switch (intent.toLowerCase()) {
+      case "transacional":
+        return <Badge className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 border-emerald-500/20 text-[10px] py-0.5">Transacional 🛍️</Badge>;
+      case "comercial":
+        return <Badge className="bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 border-blue-500/20 text-[10px] py-0.5">Comercial ⚖️</Badge>;
+      case "informacional":
+        return <Badge className="bg-purple-500/10 text-purple-500 hover:bg-purple-500/20 border-purple-500/20 text-[10px] py-0.5">Informacional 🔍</Badge>;
+      case "navegacional":
+        return <Badge className="bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 border-amber-500/20 text-[10px] py-0.5">Navegacional 🧭</Badge>;
+      default:
+        return <Badge variant="outline" className="text-[10px] py-0.5">{intent}</Badge>;
+    }
+  };
+
   const INTENT_COLORS = {
     "Transacional": "hsl(var(--chart-1))",
     "Comercial": "hsl(var(--chart-2))",
@@ -158,8 +174,8 @@ export default function Keywords() {
     <div className="p-8 space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Palavras-chave</h1>
-          <p className="text-muted-foreground mt-1">Pesquisa e análise de intenção de busca com IA</p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Palavras-chave 🔑</h1>
+          <p className="text-muted-foreground mt-1">Descubra e analise palavras de forma divertida com inteligência artificial! ✨</p>
         </div>
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
@@ -329,8 +345,11 @@ export default function Keywords() {
                     {keywords?.map((kw) => (
                       <TableRow key={kw.id} className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => setSelectedKeyword(kw.keyword)}>
                         <TableCell className="font-medium">
-                          <div className="flex flex-col">
-                            <span>{kw.keyword}</span>
+                          <div className="flex flex-col gap-1.5">
+                            <span className="flex items-center gap-2">
+                              {kw.keyword}
+                              {getIntentBadge(kw.intent)}
+                            </span>
                             <span className="text-xs text-muted-foreground">{kw.location || "Global"}</span>
                           </div>
                         </TableCell>
