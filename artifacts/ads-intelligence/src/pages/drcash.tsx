@@ -701,7 +701,7 @@ export default function DrCash() {
   const handleGenerateBridge = (url: string) => {
     localStorage.setItem("drcash_selected_lander", url);
     setLocation("/creator");
-    toast({ title: "Link Carregado!", description: "A URL de destino da oferta foi carregada no Criador de Pontes.", variant: "default" });
+    toast({ title: "Link Carregado!", description: "A URL de destino da oferta foi carregada no Presell com IA.", variant: "default" });
   };
 
   const copyToClipboardFallback = (text: string) => {
@@ -1243,7 +1243,7 @@ export default function DrCash() {
                               ? "bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600"
                               : "text-slate-400 hover:text-slate-700 hover:bg-slate-100"
                           }`}
-                          title="Ver oferta / Gerar Ponte"
+                          title="Ver oferta / Gerar Presell"
                         >
                           <ShoppingBag className="h-4 w-4" />
                         </Button>
@@ -2634,7 +2634,7 @@ export default function DrCash() {
                         }}
                         className="h-8 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
                       >
-                        Gerar Ponte
+                        Gerar Presell
                       </Button>
                     </div>
                   </div>

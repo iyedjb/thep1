@@ -15,7 +15,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/keywords": "Palavras-chave",
   "/reports": "Relatórios",
   "/trends": "Google Trends",
-  "/creator": "Criador de Pontes",
+  "/creator": "Presell com IA",
   "/drcash": "Dr. Cash",
 };
 

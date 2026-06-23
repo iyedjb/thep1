@@ -30,7 +30,7 @@ type GoogleAdsStatus = {
 const navItems = [
   { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { path: "/campaigns", label: "Campanhas", icon: Target },
-  { path: "/creator", label: "Criador de Pontes", icon: Sparkles },
+  { path: "/creator", label: "Presell com IA", icon: Sparkles },
   { path: "/drcash", label: "Dr. Cash", icon: Globe },
   { path: "/trends", label: "Google Trends", icon: TrendingUp },
   { path: "/reports", label: "Relatórios", icon: FileText },

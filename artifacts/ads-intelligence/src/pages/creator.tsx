@@ -218,7 +218,7 @@ export default function Creator() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      let domain = "ponte";
+      let domain = "presell";
       try { domain = new URL(destinationUrl).hostname.replace("www.", "").split(".")[0]; } catch (_) {}
       a.download = `redirect-${domain}.html`;
       a.click();
@@ -232,9 +232,9 @@ export default function Creator() {
   const handlePublish = async () => {
     setIsPublishing(true);
     setPublishedUrl("");
-    let domain = "ponte";
+    let domain = "presell";
     try { domain = new URL(destinationUrl).hostname.replace("www.", "").split(".")[0]; } catch (_) {}
-    const fileName = `redirect-${domain}-${Date.now()}.html`;
+    const fileName = `presell-${domain}-${Date.now()}.html`;
     const token = localStorage.getItem("ads_token");
     try {
       const response = await fetch("/api/publish-bridge", {
@@ -262,7 +262,7 @@ export default function Creator() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    let domain = "ponte";
+    let domain = "presell";
     try { domain = new URL(site.destinationUrl).hostname.replace("www.", "").split(".")[0]; } catch (_) {}
     a.download = `redirect-${domain}.html`;
     a.click();
@@ -310,7 +310,7 @@ export default function Creator() {
       } catch (_) {}
     }
     saveWebsites(savedWebsites.filter(s => s.id !== site.id));
-    toast({ title: "Ponte Excluída 🗑️", description: "O redirecionador foi excluído com sucesso." });
+    toast({ title: "Presell Excluída 🗑️", description: "O redirecionador foi excluído com sucesso." });
   };
 
   const getTagCount = () => scripts.filter(s => s.trim() !== "").length;
@@ -341,10 +341,10 @@ export default function Creator() {
               <div className="space-y-2">
                 <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 mb-1">
                   <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                  <span className="text-[11px] font-bold uppercase tracking-widest text-primary">AI Bridge Creator</span>
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-primary">AI Presell Creator</span>
                 </div>
                 <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-foreground flex items-center gap-3">
-                  <span className="gradient-text">Criador de Pontes</span>
+                  <span className="gradient-text">Presell com IA</span>
                   <Sparkles className="h-7 w-7 text-primary animate-pulse shrink-0" />
                 </h1>
                 <p className="text-muted-foreground text-sm leading-relaxed max-w-lg">
@@ -364,7 +364,7 @@ export default function Creator() {
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {v === "create" ? "⚡ Nova Ponte" : `🗂️ Histórico (${savedWebsites.length})`}
+                    {v === "create" ? "⚡ Nova Presell" : `🗂️ Histórico (${savedWebsites.length})`}
                   </button>
                 ))}
               </div>
@@ -373,7 +373,7 @@ export default function Creator() {
             {/* Stats row */}
             <div className="grid grid-cols-3 gap-3 mt-6">
               {[
-                { icon: Layers, label: "Pontes Criadas", value: savedWebsites.length, color: "text-primary" },
+                { icon: Layers, label: "Presells Criadas", value: savedWebsites.length, color: "text-primary" },
                 { icon: Globe, label: "Ativas Online", value: savedWebsites.filter(s => s.status === "active").length, color: "text-emerald-500" },
                 { icon: Zap, label: "Pixels Injetados", value: savedWebsites.reduce((acc, s) => acc + s.scripts.length, 0), color: "text-amber-500" },
               ].map(({ icon: Icon, label, value, color }) => (
@@ -407,7 +407,7 @@ export default function Creator() {
                     <div className="space-y-1">
                       <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
                         <Layout className="h-4 w-4 text-primary" />
-                        Nova Ponte de Redirecionamento
+                        Nova Presell de Redirecionamento
                       </h2>
                       <p className="text-xs text-muted-foreground">A IA pesquisa a página original e gera a estrutura otimizada automaticamente.</p>
                     </div>
@@ -657,7 +657,7 @@ export default function Creator() {
                         className="w-full rounded-xl h-13 text-sm font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 transition-all duration-200 hover:shadow-xl hover:shadow-primary/30 hover:-translate-y-0.5"
                       >
                         <Sparkles className="mr-2 h-4 w-4" />
-                        Gerar Ponte com IA
+                        Gerar Presell com IA
                         <ArrowRight className="ml-2 h-4 w-4" />
                       </Button>
                     </form>
@@ -815,7 +815,7 @@ export default function Creator() {
                   <div>
                     <h3 className="font-bold text-base text-foreground flex items-center gap-2">
                       <Layers className="h-4 w-4 text-primary" />
-                      Minhas Pontes
+                      Minhas Presells
                     </h3>
                     <p className="text-[11px] text-muted-foreground mt-0.5">{savedWebsites.length} links configurados no sistema</p>
                   </div>
@@ -823,7 +823,7 @@ export default function Creator() {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                     <Input
                       type="text"
-                      placeholder="Buscar ponte ou destino..."
+                      placeholder="Buscar presell ou destino..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-9 rounded-xl h-9 text-xs border-border bg-muted/30 focus-visible:ring-primary"
@@ -839,7 +839,7 @@ export default function Creator() {
                     </div>
                     <div className="space-y-1 max-w-xs mx-auto">
                       <p className="text-sm font-semibold text-foreground">
-                        {searchTerm ? "Nenhum resultado" : "Nenhuma ponte criada ainda"}
+                        {searchTerm ? "Nenhum resultado" : "Nenhuma presell criada ainda"}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {searchTerm ? "Tente alterar os termos da busca." : "Preencha o formulário ao lado e clique em Gerar."}
@@ -850,7 +850,7 @@ export default function Creator() {
                         onClick={() => { setActiveView("create"); setStep("form"); }}
                         className="text-xs text-primary font-semibold hover:underline lg:hidden"
                       >
-                        Criar primeira ponte →
+                        Criar primeira presell →
                       </button>
                     )}
                   </div>
@@ -860,7 +860,7 @@ export default function Creator() {
                       <Table>
                         <TableHeader>
                           <TableRow className="hover:bg-transparent bg-muted/30 border-b border-border/60">
-                            <TableHead className="py-3 text-[11px] font-bold text-muted-foreground">Ponte / Destino</TableHead>
+                            <TableHead className="py-3 text-[11px] font-bold text-muted-foreground">Presell / Destino</TableHead>
                             <TableHead className="py-3 text-[11px] font-bold text-muted-foreground">Status</TableHead>
                             <TableHead className="py-3 text-[11px] font-bold text-muted-foreground text-center">Tags</TableHead>
                             <TableHead className="py-3 text-[11px] font-bold text-muted-foreground text-right pr-4">Ações</TableHead>
@@ -958,7 +958,7 @@ export default function Creator() {
                                         setSelectedOption(site.selectedOption || "a");
                                         setActiveView("create");
                                         setStep("form");
-                                        toast({ title: "Configuração carregada!", description: "Campos preenchidos com os parâmetros da ponte." });
+                                        toast({ title: "Configuração carregada!", description: "Campos preenchidos com os parâmetros da presell." });
                                       }}
                                       title="Reutilizar / Editar"
                                     >

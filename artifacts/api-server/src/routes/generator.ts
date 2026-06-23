@@ -340,7 +340,7 @@ function extractDomainName(urlStr: string): string {
     const parts = hostname.split(".");
     return parts[0];
   } catch {
-    return "ponte";
+    return "presell";
   }
 }
 
@@ -2265,7 +2265,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
 
     const meta = extractPageMetadata(rawHtml, normalizedReference);
     const resolvedProductName = productHint || meta.productName || extractProductName(normalizedReference);
-    const domain = extractDomainName(normalizedAffiliate) || "ponte";
+    const domain = extractDomainName(normalizedAffiliate) || "presell";
     const timestamp = Date.now();
 
     let finalThankYouUrl = thankYouUrl;
