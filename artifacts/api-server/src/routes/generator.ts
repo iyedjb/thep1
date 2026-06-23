@@ -161,6 +161,14 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
           }
 
           html = html.replaceAll(fullTag, `<style>\n${cssText}\n</style>`);
+        } else {
+          // Defer loading of non-inlined CSS to prevent render-blocking
+          if (!/media=/i.test(attrs) && !/onload=/i.test(attrs)) {
+            const newTag = fullTag
+              .replace(/rel=["']stylesheet["']/i, 'rel="stylesheet" media="print" onload="this.media=\'all\'"')
+              .replace(/rel='stylesheet'/i, 'rel=\'stylesheet\' media=\'print\' onload="this.media=\'all\'"');
+            html = html.replaceAll(fullTag, newTag);
+          }
         }
       }
     }
@@ -171,10 +179,19 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
   const scriptMatches = Array.from(html.matchAll(scriptRegex));
   for (const match of scriptMatches) {
     const fullTag = match[0];
+    const attrs1 = match[1];
     const relSrc = match[2];
+    const attrs2 = match[3];
     
     // Ignore external vendor libraries
     if (/jquery|google|analytics|gtm|facebook|pixel/i.test(relSrc) || relSrc.startsWith("http") || relSrc.startsWith("data:")) {
+      // Add 'defer' to this external script if not already present, to avoid render blocking
+      if (!/defer|async/i.test(attrs1 + attrs2)) {
+        const newTag = fullTag
+          .replace(`src="${relSrc}"`, `src="${relSrc}" defer`)
+          .replace(`src='${relSrc}'`, `src='${relSrc}' defer`);
+        html = html.replaceAll(fullTag, newTag);
+      }
       continue;
     }
     
@@ -183,28 +200,54 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
     if (asset) {
       const jsText = asset.buffer.toString("utf8");
       html = html.replaceAll(fullTag, `<script>\n${jsText}\n</script>`);
+    } else {
+      // Defer execution of relative script that failed to inline
+      if (!/defer|async/i.test(attrs1 + attrs2)) {
+        const newTag = fullTag
+          .replace(`src="${relSrc}"`, `src="${relSrc}" defer`)
+          .replace(`src='${relSrc}'`, `src='${relSrc}' defer`);
+        html = html.replaceAll(fullTag, newTag);
+      }
     }
   }
 
-  // 3. Process and inline HTML Images
-  const imgRegex = /<img\s+([^>]*?)src=["']([^"']+)["']([^>]*?)>/gi;
-  const imgMatches = Array.from(html.matchAll(imgRegex));
+  // 3. Process and inline HTML Images (including lazy-loaded image sources)
+  const imgMatches = Array.from(html.matchAll(/<img\s+([^>]+)>/gi));
   for (const match of imgMatches) {
     const fullTag = match[0];
-    const relSrc = match[2];
+    const attrs = match[1];
     
-    if (relSrc.startsWith("data:")) continue;
+    // Scan all image source attributes including standard 'src' and common lazyload attributes
+    const srcRegex = /(?:src|data-src|data-lazy-src|data-original)=["']([^"']+)["']/gi;
+    let srcMatch;
+    let newTag = fullTag;
+    let hasInlined = false;
     
-    const absSrc = getAbsoluteUrl(relSrc);
-    const asset = await fetchAsset(absSrc);
-    if (asset) {
-      const base64 = asset.buffer.toString("base64");
-      const mime = asset.contentType || "image/png";
-      const dataUri = `data:${mime};base64,${base64}`;
-      const newTag = fullTag.replace(`src="${relSrc}"`, `src="${dataUri}"`).replace(`src='${relSrc}'`, `src='${dataUri}'`);
-      html = html.replaceAll(fullTag, newTag);
-    } else {
-      const newTag = fullTag.replace(`src="${relSrc}"`, `src="${absSrc}"`).replace(`src='${relSrc}'`, `src='${absSrc}'`);
+    while ((srcMatch = srcRegex.exec(attrs)) !== null) {
+      const relSrc = srcMatch[1];
+      if (!relSrc || relSrc.startsWith("data:")) continue;
+      
+      const absSrc = getAbsoluteUrl(relSrc);
+      const asset = await fetchAsset(absSrc);
+      if (asset) {
+        const base64 = asset.buffer.toString("base64");
+        const mime = asset.contentType || "image/png";
+        const dataUri = `data:${mime};base64,${base64}`;
+        
+        // Inline the asset into standard 'src'
+        newTag = newTag.replace(srcMatch[0], `src="${dataUri}"`);
+        hasInlined = true;
+      } else {
+        newTag = newTag.replace(srcMatch[0], `src="${absSrc}"`);
+      }
+    }
+    
+    // Clean up lazy load attributes to avoid double loading or JS validation issues
+    if (hasInlined) {
+      newTag = newTag.replace(/\s+data-(?:src|lazy-src|original)=["']([^"']+)["']/gi, "");
+    }
+    
+    if (newTag !== fullTag) {
       html = html.replaceAll(fullTag, newTag);
     }
   }
