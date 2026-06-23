@@ -3,7 +3,7 @@ REM Start the Ads Intelligence platform
 REM Finds tsx from the pnpm virtual store and runs the server orchestrator
 
 REM Port 3001 is already used by another local project on this machine.
-IF NOT DEFINED ADS_PORT SET ADS_PORT=3011
+IF NOT DEFINED ADS_PORT SET ADS_PORT=3001
 
 SET TSX="%~dp0node_modules\.pnpm\node_modules\.bin\tsx.CMD"
 

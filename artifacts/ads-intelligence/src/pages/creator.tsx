@@ -77,7 +77,7 @@ export default function Creator() {
   const [referenceUrl, setReferenceUrl] = useState("");
   const [destinationUrl, setDestinationUrl] = useState("");
   const [scripts, setScripts] = useState<string[]>([""]);
-  const [popupLanguage] = useState("pt-BR");
+  const [popupLanguage, setPopupLanguage] = useState("auto");
   const [productName, setProductName] = useState("");
   const [productHeadline, setProductHeadline] = useState("");
   const [productDescription, setProductDescription] = useState("");
@@ -502,10 +502,34 @@ export default function Creator() {
                         </div>
                       </div>
 
+                      {/* Language Selection */}
+                      <div className="space-y-2">
+                        <Label htmlFor="popup-language" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/15 text-primary text-[9px] font-black">3</span>
+                          Idioma do Pop-up de Cookies
+                        </Label>
+                        <select
+                          id="popup-language"
+                          value={popupLanguage}
+                          onChange={(e) => setPopupLanguage(e.target.value)}
+                          className="w-full rounded-xl h-11 border border-border bg-card text-xs text-foreground px-3 focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer shadow-2xs"
+                        >
+                          <option value="auto">Detectar do idioma do site (Recomendado)</option>
+                          <option value="pt-BR">Português (pt-BR)</option>
+                          <option value="es">Espanhol (es)</option>
+                          <option value="en">Inglês (en)</option>
+                          <option value="it">Italiano (it)</option>
+                          <option value="fr">Francês (fr)</option>
+                          <option value="de">Alemão (de)</option>
+                          <option value="ro">Romeno (ro)</option>
+                          <option value="pl">Polonês (pl)</option>
+                        </select>
+                      </div>
+
                       {/* Destination URL */}
                       <div className="space-y-2">
                         <Label htmlFor="dest-url" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/15 text-primary text-[9px] font-black">3</span>
+                          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/15 text-primary text-[9px] font-black">4</span>
                           Link Final de Destino / Afiliado
                         </Label>
                         <div className="relative">

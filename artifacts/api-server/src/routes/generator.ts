@@ -36,21 +36,180 @@ function extractJsonObject(raw: string) {
   }
 }
 
-async function fetchReferenceHtml(referenceUrl: string) {
+export async function fetchReferenceHtml(referenceUrl: string): Promise<{ html: string; cookies: string }> {
   try {
     const response = await fetch(referenceUrl, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; AdsIntelligenceBridgeBot/1.0)",
-        Accept: "text/html,application/xhtml+xml",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
       },
     });
-    if (!response.ok) return "";
+    if (!response.ok) return { html: "", cookies: "" };
     const html = await response.text();
-    return html.slice(0, 90000);
+    const cookies = response.headers.get("set-cookie") || "";
+    return { html: html.slice(0, 150000), cookies };
   } catch (err: any) {
     logger.warn({ err: err.message, referenceUrl }, "Direct reference fetch failed");
-    return "";
+    return { html: "", cookies: "" };
   }
+}
+
+export async function inlinePageAssets(rawHtml: string, referenceUrl: string, cookies: string): Promise<string> {
+  let html = rawHtml;
+  
+  // Parse reference URL to get base paths
+  const urlObj = new URL(referenceUrl);
+  const origin = urlObj.origin;
+  let basePath = origin;
+  if (urlObj.pathname.includes('/')) {
+    basePath = origin + urlObj.pathname.substring(0, urlObj.pathname.lastIndexOf('/') + 1);
+  } else {
+    basePath = origin + '/';
+  }
+
+  const getAbsoluteUrl = (relPath: string, cssContextUrl: string | null = null): string => {
+    const trimmed = relPath.trim();
+    if (/^(https?:|data:|#|javascript:)/i.test(trimmed)) {
+      return trimmed;
+    }
+    try {
+      const contextUrl = cssContextUrl || referenceUrl;
+      return new URL(trimmed, contextUrl).href;
+    } catch (_) {
+      if (trimmed.startsWith("//")) {
+        return urlObj.protocol + trimmed;
+      } else if (trimmed.startsWith("/")) {
+        return origin + trimmed;
+      } else {
+        return basePath + trimmed;
+      }
+    }
+  };
+
+  const fetchAsset = async (url: string): Promise<{ buffer: Buffer; contentType: string } | null> => {
+    try {
+      const headers: Record<string, string> = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": referenceUrl
+      };
+      if (cookies) {
+        headers["Cookie"] = cookies;
+      }
+      const res = await fetch(url, { headers });
+      if (res.status === 200) {
+        const buffer = await res.arrayBuffer();
+        const contentType = res.headers.get("content-type") || "";
+        return { buffer: Buffer.from(buffer), contentType };
+      }
+      logger.warn({ url, status: res.status }, "Failed to fetch asset during inlining");
+      return null;
+    } catch (err: any) {
+      logger.warn({ url, err: err.message }, "Error fetching asset during inlining");
+      return null;
+    }
+  };
+
+  // 1. Process and inline CSS files
+  const linkMatches = Array.from(html.matchAll(/<link\s+([^>]+)>/gi));
+  for (const match of linkMatches) {
+    const fullTag = match[0];
+    const attrs = match[1];
+    if (/rel=["']stylesheet["']/i.test(attrs)) {
+      const hrefMatch = attrs.match(/href=["']([^"']+)["']/i);
+      if (hrefMatch) {
+        const relHref = hrefMatch[1];
+        const absHref = getAbsoluteUrl(relHref);
+        const asset = await fetchAsset(absHref);
+        if (asset) {
+          let cssText = asset.buffer.toString("utf8");
+          
+          // Inline relative url(...) inside CSS
+          const urlRegex = /url\((['"]?)([^'")\s?#]+)(.*?)\1\)/gi;
+          let urlMatch;
+          const cssUrlsToReplace: Array<{ matchStr: string; absUrl: string }> = [];
+          
+          while ((urlMatch = urlRegex.exec(cssText)) !== null) {
+            const relUrl = urlMatch[2];
+            const queryAndAnchor = urlMatch[3] || "";
+            const absUrl = getAbsoluteUrl(relUrl, absHref);
+            
+            // Check if it's an image
+            const ext = path.extname(relUrl.split('?')[0]).toLowerCase();
+            const isImage = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'].includes(ext);
+            
+            if (isImage) {
+              cssUrlsToReplace.push({ matchStr: urlMatch[0], absUrl });
+            } else {
+              // For fonts/other, resolve to absolute URL
+              const resolvedUrl = `url("${absUrl}${queryAndAnchor}")`;
+              cssText = cssText.replaceAll(urlMatch[0], resolvedUrl);
+            }
+          }
+          
+          // Fetch and base64-encode images in CSS
+          for (const item of cssUrlsToReplace) {
+            const imgAsset = await fetchAsset(item.absUrl);
+            if (imgAsset) {
+              const base64 = imgAsset.buffer.toString("base64");
+              const mime = imgAsset.contentType || "image/png";
+              const dataUri = `url("data:${mime};base64,${base64}")`;
+              cssText = cssText.replaceAll(item.matchStr, dataUri);
+            } else {
+              // Fallback to absolute URL if fetch fails
+              cssText = cssText.replaceAll(item.matchStr, `url("${item.absUrl}")`);
+            }
+          }
+
+          html = html.replaceAll(fullTag, `<style>\n${cssText}\n</style>`);
+        }
+      }
+    }
+  }
+
+  // 2. Process and inline JS files
+  const scriptRegex = /<script\s+([^>]*?)src=["']([^"']+)["']([^>]*?)>([\s\S]*?)<\/script>/gi;
+  const scriptMatches = Array.from(html.matchAll(scriptRegex));
+  for (const match of scriptMatches) {
+    const fullTag = match[0];
+    const relSrc = match[2];
+    
+    // Ignore external vendor libraries
+    if (/jquery|google|analytics|gtm|facebook|pixel/i.test(relSrc) || relSrc.startsWith("http") || relSrc.startsWith("data:")) {
+      continue;
+    }
+    
+    const absSrc = getAbsoluteUrl(relSrc);
+    const asset = await fetchAsset(absSrc);
+    if (asset) {
+      const jsText = asset.buffer.toString("utf8");
+      html = html.replaceAll(fullTag, `<script>\n${jsText}\n</script>`);
+    }
+  }
+
+  // 3. Process and inline HTML Images
+  const imgRegex = /<img\s+([^>]*?)src=["']([^"']+)["']([^>]*?)>/gi;
+  const imgMatches = Array.from(html.matchAll(imgRegex));
+  for (const match of imgMatches) {
+    const fullTag = match[0];
+    const relSrc = match[2];
+    
+    if (relSrc.startsWith("data:")) continue;
+    
+    const absSrc = getAbsoluteUrl(relSrc);
+    const asset = await fetchAsset(absSrc);
+    if (asset) {
+      const base64 = asset.buffer.toString("base64");
+      const mime = asset.contentType || "image/png";
+      const dataUri = `data:${mime};base64,${base64}`;
+      const newTag = fullTag.replace(`src="${relSrc}"`, `src="${dataUri}"`).replace(`src='${relSrc}'`, `src='${dataUri}'`);
+      html = html.replaceAll(fullTag, newTag);
+    } else {
+      const newTag = fullTag.replace(`src="${relSrc}"`, `src="${absSrc}"`).replace(`src='${relSrc}'`, `src='${absSrc}'`);
+      html = html.replaceAll(fullTag, newTag);
+    }
+  }
+
+  return html;
 }
 
 async function researchWithExa(referenceUrl: string) {
@@ -1034,15 +1193,90 @@ const COOKIE_LOCALIZATION: Record<string, { title: string; desc: string; accept:
     title: "🍪 Política de Cookies",
     desc: "Utilizamos cookies para personalizar su experiencia. Al continuar, usted acepta nuestros términos.",
     accept: "Aceptar",
-    decline: "Recusar"
+    decline: "Rechazar"
   },
   "en": {
     title: "🍪 Cookie Policy",
     desc: "We use cookies to personalize your experience. By continuing, you agree to our terms.",
     accept: "Accept",
     decline: "Decline"
+  },
+  "it": {
+    title: "🍪 Informativa sui Cookie",
+    desc: "Utilizziamo i cookie per personalizzare la tua esperienza. Continuando, acconsenti ai nostri termini.",
+    accept: "Accetta",
+    decline: "Rifiuta"
+  },
+  "fr": {
+    title: "🍪 Politique relative aux cookies",
+    desc: "Nous utilisons des cookies pour personnaliser votre expérience. En continuant, vous acceptez nos conditions.",
+    accept: "Accepter",
+    decline: "Refuser"
+  },
+  "de": {
+    title: "🍪 Cookie-Richtlinie",
+    desc: "Wir verwenden Cookies, um Ihre Erfahrung zu personalisieren. Durch die Fortsetzung stimmen Sie unseren Bedingungen zu.",
+    accept: "Akzeptieren",
+    decline: "Ablehnen"
+  },
+  "ro": {
+    title: "🍪 Politica de Cookie-uri",
+    desc: "Folosim cookie-uri pentru a vă personaliza experiența. Continuând, sunteți de acord cu termenii noștri.",
+    accept: "Acceptă",
+    decline: "Refuză"
+  },
+  "pl": {
+    title: "🍪 Polityka Cookies",
+    desc: "Używamy plików cookie, aby spersonalizować Twoje doświadczenie. Kontynuując, zgadzasz się na nasze warunki.",
+    accept: "Akceptuję",
+    decline: "Odrzucam"
   }
 };
+
+function detectLandingPageLanguage(html: string | null, referenceUrl: string, chosenLanguage: string = "auto"): string {
+  let lang = chosenLanguage || "auto";
+  if (lang !== "auto") {
+    return lang;
+  }
+
+  // 1. Try to detect from HTML tag if available
+  if (html) {
+    const htmlLangMatch = html.match(/<html\s+[^>]*lang=['"]([a-zA-Z-]{2,5})['"]/i);
+    if (htmlLangMatch) {
+      const rawLang = htmlLangMatch[1].toLowerCase();
+      if (rawLang.startsWith("es")) return "es";
+      if (rawLang.startsWith("pt")) return "pt-BR";
+      if (rawLang.startsWith("en")) return "en";
+      if (rawLang.startsWith("it")) return "it";
+      if (rawLang.startsWith("fr")) return "fr";
+      if (rawLang.startsWith("de")) return "de";
+      if (rawLang.startsWith("ro")) return "ro";
+      if (rawLang.startsWith("pl")) return "pl";
+    }
+  }
+
+  // 2. Try to detect from reference URL
+  if (referenceUrl) {
+    const urlLower = referenceUrl.toLowerCase();
+    if (urlLower.endsWith(".br") || urlLower.includes(".com.br")) {
+      return "pt-BR";
+    } else if (urlLower.endsWith(".es") || urlLower.includes(".com.es") || urlLower.includes("/es/")) {
+      return "es";
+    } else if (urlLower.endsWith(".it") || urlLower.includes("/it/")) {
+      return "it";
+    } else if (urlLower.endsWith(".fr") || urlLower.includes("/fr/")) {
+      return "fr";
+    } else if (urlLower.endsWith(".de") || urlLower.includes("/de/")) {
+      return "de";
+    } else if (urlLower.endsWith(".ro") || urlLower.includes("/ro/")) {
+      return "ro";
+    } else if (urlLower.endsWith(".pl") || urlLower.includes("/pl/")) {
+      return "pl";
+    }
+  }
+
+  return "en"; // default fallback
+}
 
 function generateScreenshotBridgeHtml(input: {
   referenceUrl: string;
@@ -1052,8 +1286,9 @@ function generateScreenshotBridgeHtml(input: {
   popupLanguage?: string;
 }) {
   const product = input.productHint || "Oferta Oficial";
-  const lang = input.popupLanguage || "pt-BR";
-  const localization = COOKIE_LOCALIZATION[lang] || COOKIE_LOCALIZATION["pt-BR"];
+  const lang = detectLandingPageLanguage(null, input.referenceUrl, input.popupLanguage);
+  
+  const localization = COOKIE_LOCALIZATION[lang] || COOKIE_LOCALIZATION["en"];
 
   const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
   const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
@@ -1262,9 +1497,12 @@ function fallbackBridgeHtml(input: {
   trackingTags: string;
   productHint: string;
   selectedOption?: string;
+  popupLanguage?: string;
 }) {
   const product = input.productHint || "Oferta Oficial";
   const isOptionA = input.selectedOption === "a";
+  const lang = detectLandingPageLanguage(null, input.referenceUrl, input.popupLanguage);
+  const localization = COOKIE_LOCALIZATION[lang] || COOKIE_LOCALIZATION["en"];
 
   let faviconUrl = "";
   try {
@@ -1276,13 +1514,13 @@ function fallbackBridgeHtml(input: {
   <!-- Cookie Consent Overlay Modal -->
   <div class="cookie-overlay" id="cookieOverlay" onclick="window.location.href='${input.affiliateUrl}'">
     <div class="cookie-box" onclick="event.stopPropagation()">
-      <div class="cookie-title">🍪 Política de Cookies</div>
+      <div class="cookie-title">${localization.title}</div>
       <p class="cookie-desc">
-        Utilizamos cookies para personalizar sua experiência. Ao continuar, você concorda com nossos termos.
+        ${localization.desc}
       </p>
       <div class="cookie-buttons">
-        <a href="${input.affiliateUrl}" class="cookie-btn cookie-btn-secondary">Recusar</a>
-        <a href="${input.affiliateUrl}" class="cookie-btn cookie-btn-primary">Aceitar</a>
+        <a href="${input.affiliateUrl}" class="cookie-btn cookie-btn-secondary">${localization.decline}</a>
+        <a href="${input.affiliateUrl}" class="cookie-btn cookie-btn-primary">${localization.accept}</a>
       </div>
     </div>
   </div>
@@ -1370,7 +1608,7 @@ function fallbackBridgeHtml(input: {
   ` : "";
 
   return `<!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="${lang}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -1802,23 +2040,12 @@ function removeStudyStatSections(html: string): string {
 function injectCookieConsentOverlay(
   html: string,
   affiliateUrl: string,
+  referenceUrl: string,
   lang: string = "pt-BR"
 ): string {
-  // Auto-detect language from html tag if available
-  let detectedLang = lang;
-  const htmlLangMatch = html.match(/<html\s+[^>]*lang=['"]([a-zA-Z-]{2,5})['"]/i);
-  if (htmlLangMatch) {
-    const rawLang = htmlLangMatch[1].toLowerCase();
-    if (rawLang.startsWith("es")) {
-      detectedLang = "es";
-    } else if (rawLang.startsWith("pt")) {
-      detectedLang = "pt-BR";
-    } else if (rawLang.startsWith("en")) {
-      detectedLang = "en";
-    }
-  }
+  const detectedLang = detectLandingPageLanguage(html, referenceUrl, lang);
 
-  const localization = COOKIE_LOCALIZATION[detectedLang] || COOKIE_LOCALIZATION["pt-BR"];
+  const localization = COOKIE_LOCALIZATION[detectedLang] || COOKIE_LOCALIZATION["en"];
   const titleClean = localization.title.replace(/^\u{1F36A}\s?/u, "");
 
   const overlay = `
@@ -1879,8 +2106,8 @@ function injectCookieConsentOverlay(
   .ads-btn:active { transform: scale(0.96); }
   #ads-accept  { background: #16a34a; color: #fff; }
   #ads-accept:hover  { filter: brightness(0.9); }
-  #ads-decline { background: #f1f5f9; color: #475569; }
-  #ads-decline:hover { background: #e2e8f0; }
+  #ads-decline { background: #dc2626; color: #ffffff; }
+  #ads-decline:hover { filter: brightness(0.9); }
   @media (max-width: 480px) {
     #ads-card  { padding: 28px 18px 22px; border-radius: 16px; }
     #ads-title { font-size: 16px; }
@@ -1913,7 +2140,7 @@ function injectCookieConsentOverlay(
   setTimeout(function(){
     var ov = document.getElementById('ads-overlay');
     if(ov) ov.classList.add('ads-show');
-  }, 2000);
+  }, 500);
   function bind(){
     var a = document.getElementById('ads-accept');
     var d = document.getElementById('ads-decline');
@@ -1958,7 +2185,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
   // OPTION A: Clone real HTML (same as Option B) — scroll locked, cookie popup appears after 2 seconds
   if (selectedOption === "a") {
     try {
-      const rawHtml = await fetchReferenceHtml(normalizedReference);
+      const { html: rawHtml, cookies } = await fetchReferenceHtml(normalizedReference);
 
       if (!rawHtml) {
         throw new Error("Could not fetch the reference page HTML.");
@@ -1984,7 +2211,14 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       finalHtml = await rewriteClaimsForCompliance(finalHtml);
 
       // Lock scroll + show cookie popup after 2 seconds
-      finalHtml = injectCookieConsentOverlay(finalHtml, normalizedAffiliate, popupLanguage);
+      finalHtml = injectCookieConsentOverlay(finalHtml, normalizedAffiliate, normalizedReference, popupLanguage);
+
+      // Inline assets using the captured cookies
+      try {
+        finalHtml = await inlinePageAssets(finalHtml, normalizedReference, cookies);
+      } catch (inlineErr: any) {
+        logger.warn({ err: inlineErr.message }, "Option A: Asset inlining failed, keeping raw URLs");
+      }
 
       res.json({
         html: finalHtml,
@@ -2023,7 +2257,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
 
   // OPTION B: Direct HTML clone — fetch raw HTML (like DevTools Copy Element) and inject affiliate redirect
   try {
-    const rawHtml = await fetchReferenceHtml(normalizedReference);
+    const { html: rawHtml, cookies } = await fetchReferenceHtml(normalizedReference);
 
     if (!rawHtml) {
       throw new Error("Could not fetch the reference page HTML. The site may block bots or require authentication.");
@@ -2077,6 +2311,13 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
     // Remaining violating copy (hero headlines, CTAs, bullets) is rewritten with compliant alternatives
     finalHtml = await rewriteClaimsForCompliance(finalHtml);
 
+    // Inline assets using the captured cookies
+    try {
+      finalHtml = await inlinePageAssets(finalHtml, normalizedReference, cookies);
+    } catch (inlineErr: any) {
+      logger.warn({ err: inlineErr.message }, "Option B: Asset inlining failed, keeping raw URLs");
+    }
+
     res.json({
       html: finalHtml,
       mode: "presell" as BridgeMode,
@@ -2096,13 +2337,14 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       affiliateUrl: normalizedAffiliate,
       trackingTags,
       productHint,
-      selectedOption
+      selectedOption,
+      popupLanguage
     });
     res.json({
       html,
       mode: "presell" as BridgeMode,
       productName: productHint || "Oferta Oficial",
-      language: "pt-BR",
+      language: popupLanguage || "pt-BR",
       designSummary: `Direct clone failed (${err.message}), fallback template used.`,
       research: { enabled: false, results: [] },
     });
