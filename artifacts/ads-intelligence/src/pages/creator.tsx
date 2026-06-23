@@ -133,7 +133,35 @@ export default function Creator() {
 
   const saveWebsites = (newList: SavedWebsite[]) => {
     setSavedWebsites(newList);
-    localStorage.setItem("saved_bridges", JSON.stringify(newList));
+    
+    let listToSave = newList;
+    let success = false;
+    let attempts = 0;
+    
+    while (!success && attempts < newList.length) {
+      try {
+        localStorage.setItem("saved_bridges", JSON.stringify(listToSave));
+        success = true;
+      } catch (err: any) {
+        if (err.name === "QuotaExceededError" || err.message?.toLowerCase().includes("quota")) {
+          // Evict the oldest item with non-empty HTML to free up space
+          let clearedSomething = false;
+          for (let i = listToSave.length - 1; i >= 0; i--) {
+            if (listToSave[i].generatedHtml) {
+              listToSave = listToSave.map((s, idx) => idx === i ? { ...s, generatedHtml: "" } : s);
+              clearedSomething = true;
+              break;
+            }
+          }
+          if (!clearedSomething) {
+            break;
+          }
+          attempts++;
+        } else {
+          break;
+        }
+      }
+    }
   };
 
   const handleGenerate = async (e: React.FormEvent) => {
@@ -257,8 +285,29 @@ export default function Creator() {
     }
   };
 
-  const downloadSavedWebsite = (site: SavedWebsite) => {
-    const blob = new Blob([site.generatedHtml], { type: "text/html" });
+  const downloadSavedWebsite = async (site: SavedWebsite) => {
+    let html = site.generatedHtml;
+    
+    // Fallback: If local storage has cleared the cached html, try to fetch it from the published server URL
+    if (!html && site.publishedUrl) {
+      try {
+        const res = await fetch(site.publishedUrl);
+        if (res.ok) {
+          html = await res.text();
+        }
+      } catch (_) {}
+    }
+    
+    if (!html) {
+      toast({
+        title: "Conteúdo Indisponível 🗃️",
+        description: "O cache local desta página foi limpo para poupar espaço. Use 'Reutilizar / Editar' para gerá-la novamente.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -276,10 +325,36 @@ export default function Creator() {
   };
 
   const toggleWebsiteStatus = async (site: SavedWebsite) => {
+    let targetHtml = "";
     const isCurrentlyActive = site.status === "active";
     const newStatus = isCurrentlyActive ? "paused" : "active";
     const pausedTemplate = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Página Pausada</title><style>body{background:#0f172a;color:#f8fafc;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}.c{text-align:center;padding:24px;border-radius:16px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);max-width:400px}h1{font-size:20px;font-weight:700;margin:0 0 8px}p{font-size:13px;color:#94a3b8;margin:0}</style></head><body><div class="c"><h1>Página Pausada</h1><p>Este redirecionamento está temporariamente inativo.</p></div></body></html>`;
-    const targetHtml = isCurrentlyActive ? pausedTemplate : site.generatedHtml;
+    
+    if (isCurrentlyActive) {
+      targetHtml = pausedTemplate;
+    } else {
+      targetHtml = site.generatedHtml;
+      
+      // Fallback: If cache was evicted, try to restore from the published page on server before we paused it
+      if (!targetHtml && site.publishedUrl) {
+        try {
+          const res = await fetch(site.publishedUrl);
+          if (res.ok) {
+            targetHtml = await res.text();
+          }
+        } catch (_) {}
+      }
+    }
+    
+    if (!targetHtml) {
+      toast({
+        title: "Não foi possível ativar 🚫",
+        description: "O código-fonte original não está disponível no cache local. Clique em 'Reutilizar / Editar' para gerá-lo de novo.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     const token = localStorage.getItem("ads_token");
     try {
       const response = await fetch("/api/publish-bridge", {
