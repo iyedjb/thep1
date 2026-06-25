@@ -871,7 +871,7 @@ export default function Trends() {
                             <td className="py-3.5 px-4">{compBadge}</td>
                             <td className="py-3.5 px-4">
                               <span className="font-mono text-sm text-foreground">
-                                {item.cpc ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(item.cpc) : "R$ 0,00"}
+                                {item.cpc ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(item.cpc) : "$0.00"}
                               </span>
                             </td>
                             <td className="py-3.5 px-4 text-right">

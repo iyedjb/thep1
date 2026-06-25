@@ -146,16 +146,16 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
             }
           }
           
-          // Fetch and base64-encode images in CSS
+          // Fetch and base64-encode images in CSS (only if size <= 10KB for performance)
           for (const item of cssUrlsToReplace) {
             const imgAsset = await fetchAsset(item.absUrl);
-            if (imgAsset) {
+            if (imgAsset && imgAsset.buffer.byteLength <= 10240) {
               const base64 = imgAsset.buffer.toString("base64");
               const mime = imgAsset.contentType || "image/png";
               const dataUri = `url("data:${mime};base64,${base64}")`;
               cssText = cssText.replaceAll(item.matchStr, dataUri);
             } else {
-              // Fallback to absolute URL if fetch fails
+              // Fallback to absolute URL if fetch fails or size > 10KB
               cssText = cssText.replaceAll(item.matchStr, `url("${item.absUrl}")`);
             }
           }
@@ -229,7 +229,7 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
       
       const absSrc = getAbsoluteUrl(relSrc);
       const asset = await fetchAsset(absSrc);
-      if (asset) {
+      if (asset && asset.buffer.byteLength <= 10240) { // Limit to 10KB
         const base64 = asset.buffer.toString("base64");
         const mime = asset.contentType || "image/png";
         const dataUri = `data:${mime};base64,${base64}`;
@@ -512,6 +512,365 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
   return { productName, primaryColor, productImageUrl };
 }
 
+function getThankYouModalCode(
+  productName: string,
+  primaryColor: string,
+  productImageUrl: string,
+  referenceUrl: string,
+  popupLanguage: string
+): string {
+  let domainName = "produto.com";
+  try {
+    domainName = new URL(referenceUrl).hostname.replace("www.", "");
+  } catch (_) {}
+
+  const finalSupportEmail = `suporte@${domainName}`;
+
+  let lang = popupLanguage || "pt-BR";
+  if (lang === "auto" || !lang) {
+    lang = "pt-BR";
+  }
+
+  const localization: Record<string, {
+    headline: string;
+    subHeadline: string;
+    productTitle: string;
+    productDesc: string;
+    discountBadge: string;
+    adviserTitle: string;
+    adviserDesc: string;
+    step1Title: string;
+    step1Desc: string;
+    step2Title: string;
+    step2Desc: string;
+    step3Title: string;
+    step3Desc: string;
+    badge1: string;
+    badge2: string;
+    badge3: string;
+    badge4: string;
+    footerText: string;
+    closeBtn: string;
+  }> = {
+    "pt-BR": {
+      headline: "Obrigado, seu pedido<br>foi <span style='color:#16a34a'>recebido</span>!",
+      subHeadline: "Registramos sua solicitação corretamente. A equipe de vendas entrará em contato em breve e a entrega será realizada no prazo estabelecido.",
+      productTitle: `${productName} - Suporte Oficial`,
+      productDesc: "Preço de promoção - 50% de desconto<br>Garantia de satisfação - Frete seguro",
+      discountBadge: "-50% OFF",
+      adviserTitle: "Nosso consultor vai te ligar!",
+      adviserDesc: "Nossa equipe de vendas entrará em contato em breve por telefone para confirmar o pedido, e a entrega será feita no prazo estabelecido.",
+      step1Title: "Atenda a chamada do nosso consultor",
+      step1Desc: "Nossa equipe de vendas entrará em contato por ligação em breve para confirmar o pedido.",
+      step2Title: "Envio em 24 horas",
+      step2Desc: "Após a confirmação por nossa equipe, seu pedido será enviado para garantir a entrega no prazo estabelecido.",
+      step3Title: "Recebimento e pagamento na entrega",
+      step3Desc: "Pague apenas quando o pacote chegar na sua porta.",
+      badge1: "Entrega segura",
+      badge2: "Produto certificado",
+      badge3: "+2.500 avaliações",
+      badge4: "100% natural",
+      footerText: `Se você não puder atender a ligação, tentaremos de novo. Dúvidas? Escreva para: ${finalSupportEmail}`,
+      closeBtn: "Voltar para o site"
+    },
+    "es": {
+      headline: "¡Gracias, tu pedido<br>ha sido <span style='color:#16a34a'>recibido</span>!",
+      subHeadline: "Hemos registrado tu solicitud correctamente. El equipo de ventas se pondrá en contacto en breve y la entrega se realizará en el plazo establecido.",
+      productTitle: `${productName} - Soporte Oficial`,
+      productDesc: "Precio de promoción - 50% de descuento<br>Garantía de satisfacción - Envío gratuito",
+      discountBadge: "-50% OFF",
+      adviserTitle: "¡Nuestro asesor te llamará!",
+      adviserDesc: "Nuestro equipo de ventas te contactará por teléfono en breve para confirmar el pedido, y la entrega se realizará en el plazo establecido.",
+      step1Title: "Atiende la llamada de nuestro asesor",
+      step1Desc: "Nuestro equipo de ventas te llamará en breve para confirmar los detalles de tu pedido.",
+      step2Title: "Envío en 24 horas",
+      step2Desc: "Tras la confirmación por nuestro equipo, tu pedido será enviado para garantizar la entrega en el plazo establecido.",
+      step3Title: "Recepción y pago contra entrega",
+      step3Desc: "Pagas solo cuando el paquete llegue a tu puerta.",
+      badge1: "Entrega segura",
+      badge2: "Producto certificado",
+      badge3: "+2.500 opiniones",
+      badge4: "100% orgánico",
+      footerText: `Si no puedes atender la llamada, te llamaremos de nuevo. ¿Preguntas? Escríbenos: ${finalSupportEmail}`,
+      closeBtn: "Volver al sitio"
+    },
+    "en": {
+      headline: "Thank you, your order<br>has been <span style='color:#16a34a'>received</span>!",
+      subHeadline: "We have successfully registered your request. The sales team will contact you shortly and delivery will be made within the established timeframe.",
+      productTitle: `${productName} - Official Support`,
+      productDesc: "Promotion price - 50% discount<br>Satisfaction guarantee - Secure shipping",
+      discountBadge: "-50% OFF",
+      adviserTitle: "Our specialist will call you!",
+      adviserDesc: "Our sales team will contact you by phone shortly to confirm your order, and delivery will be made within the established timeframe.",
+      step1Title: "Answer the call from our specialist",
+      step1Desc: "Our sales team will call you shortly to confirm your order details.",
+      step2Title: "Shipping within 24 hours",
+      step2Desc: "After confirmation by our team, your order will be shipped to ensure delivery within the established timeframe.",
+      step3Title: "Cash on delivery",
+      step3Desc: "Pay only when the package arrives at your door.",
+      badge1: "Secure delivery",
+      badge2: "Certified product",
+      badge3: "+2,500 reviews",
+      badge4: "100% natural",
+      footerText: `If you cannot answer the call, we will call you again. Questions? Contact us: ${finalSupportEmail}`,
+      closeBtn: "Back to website"
+    }
+  };
+
+  const t = localization[lang] || localization["pt-BR"];
+
+  let productIcon = "✨";
+  const nameLower = productName.toLowerCase();
+  if (nameLower.includes("cardi")) productIcon = "❤️";
+  else if (nameLower.includes("clean") || nameLower.includes("detox") || nameLower.includes("tea") || nameLower.includes("chá") || nameLower.includes("green")) productIcon = "🌿";
+  else if (nameLower.includes("drop") || nameLower.includes("gota")) productIcon = "💧";
+  else if (nameLower.includes("caps") || nameLower.includes("tabs") || nameLower.includes("pill") || nameLower.includes("cardiox") || nameLower.includes("pills")) productIcon = "💊";
+  else if (nameLower.includes("skin") || nameLower.includes("colagen") || nameLower.includes("crea") || nameLower.includes("gel") || nameLower.includes("lift")) productIcon = "✨";
+
+  const btnColor = primaryColor || "#16a34a";
+
+  return `
+<!-- Inline Thank You Modal Structure and Styling -->
+<style>
+  .thanks-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(8px);
+    z-index: 99999999;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
+    overflow-y: auto;
+  }
+  .thanks-modal-content {
+    background: #ffffff;
+    border-radius: 24px;
+    width: 100%;
+    max-width: 480px;
+    padding: 32px 24px;
+    text-align: center;
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+    animation: thanksModalScaleUp 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    color: #0f172a;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: auto;
+  }
+  @keyframes thanksModalScaleUp {
+    from { transform: scale(0.9); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  .thanks-success-badge {
+    width: 64px;
+    height: 64px;
+    background: #dcfce7;
+    color: #16a34a;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+  }
+  .thanks-success-badge svg {
+    width: 32px;
+    height: 32px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .thanks-headline {
+    font-size: 24px;
+    font-weight: 800;
+    color: #0f172a;
+    margin-bottom: 12px;
+    line-height: 1.3;
+  }
+  .thanks-subheadline {
+    font-size: 13px;
+    color: #475569;
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+  .thanks-product-box {
+    display: flex;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 16px;
+    padding: 12px;
+    gap: 12px;
+    text-align: left;
+    margin-bottom: 20px;
+    align-items: center;
+  }
+  .thanks-product-img-wrapper {
+    width: 50px;
+    height: 50px;
+    background: #ffffff;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 20px;
+    overflow: hidden;
+  }
+  .thanks-product-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  .thanks-product-details {
+    flex: 1;
+  }
+  .thanks-product-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 2px;
+  }
+  .thanks-product-desc {
+    font-size: 11px;
+    color: #64748b;
+  }
+  .thanks-steps {
+    text-align: left;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+  .thanks-step-item {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .thanks-step-item:last-child {
+    margin-bottom: 0;
+  }
+  .thanks-step-num {
+    width: 20px;
+    height: 20px;
+    background: ${btnColor};
+    color: #ffffff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .thanks-step-text {
+    font-size: 12px;
+    color: #334155;
+    line-height: 1.45;
+  }
+  .thanks-step-text strong {
+    color: #0f172a;
+  }
+  .thanks-btn {
+    display: inline-block;
+    width: 100%;
+    background: ${btnColor};
+    color: #ffffff;
+    font-weight: 700;
+    padding: 14px 20px;
+    border-radius: 12px;
+    text-decoration: none;
+    font-size: 14px;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+    transition: filter 0.15s, transform 0.1s;
+  }
+  .thanks-btn:hover {
+    filter: brightness(0.92);
+  }
+  .thanks-btn:active {
+    transform: scale(0.98);
+  }
+  .thanks-footer {
+    font-size: 10px;
+    color: #94a3b8;
+    margin-top: 16px;
+    line-height: 1.4;
+  }
+</style>
+
+<div class="thanks-modal-overlay" id="thanksModalOverlay">
+  <div class="thanks-modal-content">
+    <div class="thanks-success-badge">
+      <svg viewBox="0 0 24 24">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+    </div>
+    <h1 class="thanks-headline">${t.headline}</h1>
+    <p class="thanks-subheadline">${t.subHeadline}</p>
+    
+    <div class="thanks-product-box">
+      <div class="thanks-product-img-wrapper">
+        ${productImageUrl ? `<img class="thanks-product-img" src="${productImageUrl}" alt="${productName}" />` : `<span>${productIcon}</span>`}
+      </div>
+      <div class="thanks-product-details">
+        <h4 class="thanks-product-title">${t.productTitle}</h4>
+        <p class="thanks-product-desc">${t.productDesc.split("<br>")[0]}</p>
+      </div>
+    </div>
+
+    <div class="thanks-steps">
+      <div class="thanks-step-item">
+        <div class="thanks-step-num">1</div>
+        <span class="thanks-step-text"><strong>${t.step1Title}</strong>: ${t.step1Desc}</span>
+      </div>
+      <div class="thanks-step-item">
+        <div class="thanks-step-num">2</div>
+        <span class="thanks-step-text"><strong>${t.step2Title}</strong>: ${t.step2Desc}</span>
+      </div>
+      <div class="thanks-step-item">
+        <div class="thanks-step-num">3</div>
+        <span class="thanks-step-text"><strong>${t.step3Title}</strong>: ${t.step3Desc}</span>
+      </div>
+    </div>
+
+    <button class="thanks-btn" onclick="window.location.hash = ''">${t.closeBtn}</button>
+    <p class="thanks-footer">${t.footerText}</p>
+  </div>
+</div>
+
+<script>
+(function() {
+  var overlay = document.getElementById('thanksModalOverlay');
+  function checkThanksHash() {
+    if (overlay) {
+      if (window.location.hash === '#obrigado' || window.location.hash === '#thanks') {
+        overlay.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+      } else {
+        overlay.style.display = 'none';
+        document.body.style.overflow = '';
+      }
+    }
+  }
+  window.addEventListener('hashchange', checkThanksHash);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', checkThanksHash);
+  } else {
+    checkThanksHash();
+  }
+})();
+</script>
+`;
+}
+
 function generateThankYouHtml(options: {
   productName: string;
   primaryColor: string;
@@ -559,16 +918,16 @@ function generateThankYouHtml(options: {
     "pt-BR": {
       title: "Pedido Recebido",
       headline: "Obrigado, seu pedido<br>foi <span>recebido</span>!",
-      subHeadline: "Registramos sua solicitação corretamente. Um consultor entrará em contato em breve para confirmar os detalhes e o endereço de entrega.",
+      subHeadline: "Registramos sua solicitação corretamente. A equipe de vendas entrará em contato em breve e a entrega será realizada no prazo estabelecido.",
       productTitle: `${productName} - Suporte Oficial`,
       productDesc: "Preço de promoção - 50% de desconto<br>Garantia de satisfação - Frete seguro",
       discountBadge: "-50% OFF",
       adviserTitle: "Nosso consultor vai te ligar!",
-      adviserDesc: "Prepare-se para receber uma ligação de nossa equipe de vendas. Confirmaremos os detalhes do pedido e o endereço de entrega.",
+      adviserDesc: "Nossa equipe de vendas entrará em contato em breve por telefone para confirmar o pedido, e a entrega será feita no prazo estabelecido.",
       step1Title: "Atenda a chamada do nosso consultor",
-      step1Desc: "Nosso especialista entrará em contato em breve para confirmar o pedido e o endereço de entrega.",
+      step1Desc: "Nossa equipe de vendas entrará em contato por ligação em breve para confirmar o pedido.",
       step2Title: "Envio em 24 horas",
-      step2Desc: "Após a confirmação, seu pedido será enviado imediatamente. Você receberá o código de rastreamento.",
+      step2Desc: "Após a confirmação por nossa equipe, seu pedido será enviado para garantir a entrega no prazo estabelecido.",
       step3Title: "Recebimento e pagamento na entrega",
       step3Desc: "Pague apenas quando o pacote chegar na sua porta. Entrega segura em sua residência.",
       badge1: "Entrega segura",
@@ -580,16 +939,16 @@ function generateThankYouHtml(options: {
     "es": {
       title: "Pedido Recibido",
       headline: "¡Gracias, tu pedido<br>ha sido <span>recibido</span>!",
-      subHeadline: "Hemos registrado tu solicitud correctamente. Un asesor te llamará en breve para confirmar los detalles y la dirección de entrega.",
+      subHeadline: "Hemos registrado tu solicitud correctamente. El equipo de ventas se pondrá en contacto en breve y la entrega se realizará en el plazo establecido.",
       productTitle: `${productName} - Soporte Oficial`,
       productDesc: "Precio de promoción - 50% de descuento<br>Garantía de satisfacción - Envío gratuito",
       discountBadge: "-50% OFF",
       adviserTitle: "¡Nuestro asesor te llamará!",
-      adviserDesc: "Prepárate para recibir una llamada de nuestro equipo de ventas. Confirmaremos los detalles del pedido y la dirección de entrega.",
+      adviserDesc: "Nuestro equipo de ventas te contactará por teléfono en breve para confirmar el pedido, y la entrega se realizará en el plazo establecido.",
       step1Title: "Atiende la llamada de nuestro asesor",
-      step1Desc: "Nuestro consultor te contactará pronto para confirmar el pedido y la dirección de entrega.",
-      step2Title: "Envío en 24 horas",
-      step2Desc: "Tras la confirmación, tu pedido se despacha de inmediato. Recibirás el número de seguimiento.",
+      step1Desc: "Nuestro equipo de ventas te llamará en breve para confirmar los detalles de tu pedido.",
+      step2Title: "Envio en 24 horas",
+      step2Desc: "Tras la confirmación por nuestro equipo, tu pedido será enviado para garantizar la entrega en el plazo establecido.",
       step3Title: "Recepción y pago contra entrega",
       step3Desc: "Pagas solo cuando el paquete llegue a tu puerta. Entrega segura a domicilio.",
       badge1: "Entrega segura",
@@ -601,16 +960,16 @@ function generateThankYouHtml(options: {
     "en": {
       title: "Order Received",
       headline: "Thank you, your order<br>has been <span>received</span>!",
-      subHeadline: "We have successfully registered your request. A specialist will call you shortly to confirm the details and delivery address.",
+      subHeadline: "We have successfully registered your request. The sales team will contact you shortly and delivery will be made within the established timeframe.",
       productTitle: `${productName} - Official Support`,
       productDesc: "Promotion price - 50% discount<br>Satisfaction guarantee - Secure shipping",
       discountBadge: "-50% OFF",
       adviserTitle: "Our specialist will call you!",
-      adviserDesc: "Prepare to receive a call from our sales team. We will confirm the order details and the delivery address.",
+      adviserDesc: "Our sales team will contact you by phone shortly to confirm your order, and delivery will be made within the established timeframe.",
       step1Title: "Answer the call from our specialist",
-      step1Desc: "Our consultant will contact you soon to confirm the order and the delivery address.",
+      step1Desc: "Our sales team will call you shortly to confirm your order details.",
       step2Title: "Shipping within 24 hours",
-      step2Desc: "After confirmation, your order is dispatched immediately. You will receive a tracking number.",
+      step2Desc: "After confirmation by our team, your order will be shipped to ensure delivery within the established timeframe.",
       step3Title: "Cash on delivery",
       step3Desc: "Pay only when the package arrives at your door. Secure home delivery.",
       badge1: "Secure delivery",
@@ -1336,8 +1695,8 @@ function generateScreenshotBridgeHtml(input: {
   const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
   const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
   const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-  // Full-height, no crop — shows the full page naturally
-  const thumIoUrl = `https://image.thum.io/get/${authPrefix}width/1280/${input.referenceUrl}`;
+  // Full-height, no crop — shows the full page naturally, using maxAge/24 cache for instant load
+  const thumIoUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1280/${input.referenceUrl}`;
 
   let faviconUrl = "";
   try {
@@ -1354,6 +1713,7 @@ function generateScreenshotBridgeHtml(input: {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${product}</title>
   <meta name="robots" content="index, follow" />
+  <link rel="preload" as="image" href="${thumIoUrl}" />
   ${faviconUrl ? `<link rel="icon" href="${faviconUrl}">` : ""}
   ${input.trackingTags}
   <style>
@@ -1492,13 +1852,33 @@ function generateScreenshotBridgeHtml(input: {
 </head>
 <body>
 
+  <!-- Loading Overlay -->
+  <div id="screenshotLoader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #ffffff; z-index: 9999999;">
+    <div style="width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #198754; border-radius: 50%; animation: screenshotSpin 1s linear infinite;"></div>
+  </div>
+  <style>
+    @keyframes screenshotSpin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+
   <img
     class="site-screenshot"
     src="${thumIoUrl}"
     alt="${product}"
     loading="eager"
     decoding="async"
+    onload="var l = document.getElementById('screenshotLoader'); if(l) l.style.display='none';"
   />
+
+  <script>
+    // Safety net: hide loader after 5 seconds if image load event fails
+    setTimeout(function() {
+      var l = document.getElementById('screenshotLoader');
+      if (l) l.style.display = 'none';
+    }, 5000);
+  </script>
 
   <div class="cookie-bar" id="cookieBar">
     <span class="cb-icon" aria-hidden="true" style="display: inline-flex; align-items: center;">
@@ -2234,6 +2614,35 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         throw new Error("Could not fetch the reference page HTML.");
       }
 
+      const meta = extractPageMetadata(rawHtml, normalizedReference);
+      const resolvedProductName = productHint || meta.productName || extractProductName(normalizedReference);
+      const detectedLang = detectLandingPageLanguage(rawHtml, normalizedReference, popupLanguage);
+
+      let finalThankYouUrl = thankYouUrl;
+      let thankYouFileName = "";
+      let thankYouHtml = "";
+      let shouldInjectThanksModal = false;
+
+      if (!finalThankYouUrl || finalThankYouUrl === "./Obrigado.html" || finalThankYouUrl === "#obrigado") {
+        finalThankYouUrl = "#obrigado";
+        shouldInjectThanksModal = true;
+      } else {
+        thankYouFileName = finalThankYouUrl.replace(/^\.\//, "");
+      }
+
+      if (!shouldInjectThanksModal) {
+        // Generate Thank You page matching colors, name, and image of the cloned page
+        thankYouHtml = generateThankYouHtml({
+          productName: resolvedProductName,
+          primaryColor: meta.primaryColor,
+          productImageUrl: meta.productImageUrl,
+          referenceUrl: normalizedReference,
+          popupLanguage: detectedLang,
+          supportEmail: "",
+          trackingTags: trackingTags
+        });
+      }
+
       let finalHtml = injectAffiliateIntoHtml(
         rawHtml,
         normalizedReference,
@@ -2241,7 +2650,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         trackingTags,
         apiToken,
         streamCode,
-        thankYouUrl
+        finalThankYouUrl
       );
 
       // Strip before/after testimonial sections
@@ -2256,6 +2665,21 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       // Lock scroll + show cookie popup after 2 seconds
       finalHtml = injectCookieConsentOverlay(finalHtml, normalizedAffiliate, normalizedReference, popupLanguage);
 
+      if (shouldInjectThanksModal) {
+        const modalCode = getThankYouModalCode(
+          resolvedProductName,
+          meta.primaryColor || "#16a34a",
+          meta.productImageUrl || "",
+          normalizedReference,
+          detectedLang
+        );
+        if (/<\/body>/i.test(finalHtml)) {
+          finalHtml = finalHtml.replace(/<\/body>/i, `${modalCode}\n</body>`);
+        } else {
+          finalHtml += modalCode;
+        }
+      }
+
       // Inline assets using the captured cookies
       try {
         finalHtml = await inlinePageAssets(finalHtml, normalizedReference, cookies);
@@ -2266,10 +2690,12 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       res.json({
         html: finalHtml,
         mode: "presell" as BridgeMode,
-        productName: productHint || extractProductName(normalizedReference),
+        productName: resolvedProductName,
         language: "auto",
         designSummary: "Cloned HTML — scroll locked, cookie consent popup appears after 2 seconds.",
-        research: { enabled: false, results: [] }
+        research: { enabled: false, results: [] },
+        thankYouHtml,
+        thankYouFileName
       });
       return;
     } catch (err: any) {
@@ -2314,24 +2740,29 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
     let finalThankYouUrl = thankYouUrl;
     let thankYouFileName = "";
     let thankYouHtml = "";
+    let shouldInjectThanksModal = false;
 
-    if (!finalThankYouUrl || finalThankYouUrl === "./Obrigado.html") {
-      thankYouFileName = `obrigado-${domain}-${timestamp}.html`;
-      finalThankYouUrl = `./${thankYouFileName}`;
+    if (!finalThankYouUrl || finalThankYouUrl === "./Obrigado.html" || finalThankYouUrl === "#obrigado") {
+      finalThankYouUrl = "#obrigado";
+      shouldInjectThanksModal = true;
     } else {
       thankYouFileName = finalThankYouUrl.replace(/^\.\//, "");
     }
 
-    // Generate Thank You page matching colors, name, and image of the cloned page
-    thankYouHtml = generateThankYouHtml({
-      productName: resolvedProductName,
-      primaryColor: meta.primaryColor,
-      productImageUrl: meta.productImageUrl,
-      referenceUrl: normalizedReference,
-      popupLanguage: popupLanguage || "pt-BR",
-      supportEmail: "",
-      trackingTags: trackingTags
-    });
+    const detectedLang = detectLandingPageLanguage(rawHtml, normalizedReference, popupLanguage);
+
+    if (!shouldInjectThanksModal) {
+      // Generate Thank You page matching colors, name, and image of the cloned page
+      thankYouHtml = generateThankYouHtml({
+        productName: resolvedProductName,
+        primaryColor: meta.primaryColor,
+        productImageUrl: meta.productImageUrl,
+        referenceUrl: normalizedReference,
+        popupLanguage: detectedLang,
+        supportEmail: "",
+        trackingTags: trackingTags
+      });
+    }
 
     let finalHtml = injectAffiliateIntoHtml(
       rawHtml,
@@ -2342,6 +2773,21 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       streamCode,
       finalThankYouUrl
     );
+
+    if (shouldInjectThanksModal) {
+      const modalCode = getThankYouModalCode(
+        resolvedProductName,
+        meta.primaryColor || "#16a34a",
+        meta.productImageUrl || "",
+        normalizedReference,
+        detectedLang
+      );
+      if (/<\/body>/i.test(finalHtml)) {
+        finalHtml = finalHtml.replace(/<\/body>/i, `${modalCode}\n</body>`);
+      } else {
+        finalHtml += modalCode;
+      }
+    }
 
     // Strip before/after testimonial sections and reviews
     finalHtml = stripBeforeAfterSections(finalHtml);

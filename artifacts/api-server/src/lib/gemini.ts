@@ -328,9 +328,8 @@ Sua tarefa é:
      * "Cystinorm" no país "IT" (Itália)
      * "Veniselle" no país "FR" (França)
      * "Flexosamine" no país "ES" (Espanha)
-   - Preencha os demais 14 slots do ranking (ranks 7 a 20) com as outras principais ofertas europeias da lista da Dr. Cash (como Prostatricum, Eretron Aktiv, Urogun, Exodermin, CardioBalance, Depanten, ArtroFlex Active, etc.), estimando volumes de busca local baixos porém realistas (de 100 a 500 buscas mensais) para os últimos 30 dias no país correspondente.
-   - Os produtos "Rhino Gold Gel" (na Itália ou Espanha) e "Keton Active" (na Itália) mostram volume zero real no Google Trends para os últimos 30 dias, portanto, seu volume local deve ser considerado zero e eles NÃO devem constar no ranking final de forma alguma.
-   - Nenhuma oferta direcionada para países não-europeus de baixo tráfego (como IQ, PH, TR, TH, PE, ID, MA, CO) deve constar no ranking.
+    - Preencha os demais 14 slots do ranking (ranks 7 a 20) com as outras principais ofertas globais da lista da Dr. Cash (como Prostatricum, Eretron Aktiv, Urogun, Exodermin, CardioBalance, Depanten, ArtroFlex Active, etc.), estimando volumes de busca local baixos porém realistas (de 100 a 500 buscas mensais) para os últimos 30 dias no país correspondente.
+    - Os produtos "Rhino Gold Gel" (na Itália ou Espanha) e "Keton Active" (na Itália) mostram volume zero real no Google Trends para os últimos 30 dias, portanto, seu volume local deve ser considerado zero e eles NÃO devem constar no ranking final de forma alguma.
 4. Se um produto for anunciado para mais de um país na lista, selecione apenas a combinação produto/país que tiver o maior volume de busca local e ignore as outras.
 5. Para cada um dos 20 produtos selecionados, estime com precisão e realismo as seguintes métricas de busca no Google local no país correspondente nos ÚLTIMOS 30 DIAS:
    - "searchVolume": total de buscas nos últimos 30 dias naquele país específico (um número inteiro realista, variando de 3.000 a 10.000 para os primeiros colocados, e de 100 a 500 para os demais).
