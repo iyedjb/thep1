@@ -217,39 +217,43 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
     const fullTag = match[0];
     const attrs = match[1];
     
-    // Scan all image source attributes including standard 'src' and common lazyload attributes
-    const srcRegex = /(?:src|data-src|data-lazy-src|data-original)=["']([^"']+)["']/gi;
-    let srcMatch;
-    let newTag = fullTag;
-    let hasInlined = false;
+    // Determine the best source URL for the image
+    let selectedSrc = "";
     
-    while ((srcMatch = srcRegex.exec(attrs)) !== null) {
-      const relSrc = srcMatch[1];
-      if (!relSrc || relSrc.startsWith("data:")) continue;
-      
-      const absSrc = getAbsoluteUrl(relSrc);
-      const asset = await fetchAsset(absSrc);
-      if (asset && asset.buffer.byteLength <= 10240) { // Limit to 10KB
-        const base64 = asset.buffer.toString("base64");
-        const mime = asset.contentType || "image/png";
-        const dataUri = `data:${mime};base64,${base64}`;
-        
-        // Inline the asset into standard 'src'
-        newTag = newTag.replace(srcMatch[0], `src="${dataUri}"`);
-        hasInlined = true;
-      } else {
-        newTag = newTag.replace(srcMatch[0], `src="${absSrc}"`);
-      }
+    // Priority: data-original, data-lazy-src, data-src, src
+    const dataOriginalMatch = attrs.match(/data-original=["']([^"']*)["']/i);
+    const dataLazySrcMatch = attrs.match(/data-lazy-src=["']([^"']*)["']/i);
+    const dataSrcMatch = attrs.match(/data-src=["']([^"']*)["']/i);
+    const srcMatch = attrs.match(/src=["']([^"']*)["']/i);
+    
+    if (dataOriginalMatch && dataOriginalMatch[1]) selectedSrc = dataOriginalMatch[1];
+    else if (dataLazySrcMatch && dataLazySrcMatch[1]) selectedSrc = dataLazySrcMatch[1];
+    else if (dataSrcMatch && dataSrcMatch[1]) selectedSrc = dataSrcMatch[1];
+    else if (srcMatch && srcMatch[1]) selectedSrc = srcMatch[1];
+    
+    if (!selectedSrc || selectedSrc.startsWith("data:")) continue;
+    
+    const absSrc = getAbsoluteUrl(selectedSrc);
+    let finalSrc = absSrc;
+    const asset = await fetchAsset(absSrc);
+    
+    if (asset && asset.buffer.byteLength <= 10240) { // Limit to 10KB
+      const base64 = asset.buffer.toString("base64");
+      const mime = asset.contentType || "image/png";
+      finalSrc = `data:${mime};base64,${base64}`;
     }
     
-    // Clean up lazy load attributes to avoid double loading or JS validation issues
-    if (hasInlined) {
-      newTag = newTag.replace(/\s+data-(?:src|lazy-src|original)=["']([^"']+)["']/gi, "");
-    }
+    // Rebuild the image tag attributes by removing all conflicting source/lazyload/srcset attributes
+    let cleanedAttrs = attrs
+      .replace(/(?:src|data-src|data-lazy-src|data-original)=["']([^"']*)["']/gi, "")
+      .replace(/(?:srcset|data-srcset)=["']([^"']*)["']/gi, "")
+      .trim();
     
-    if (newTag !== fullTag) {
-      html = html.replaceAll(fullTag, newTag);
-    }
+    // Clean redundant multiple spaces
+    cleanedAttrs = cleanedAttrs.replace(/\s+/g, " ");
+    
+    const newTag = cleanedAttrs ? `<img ${cleanedAttrs} src="${finalSrc}">` : `<img src="${finalSrc}">`;
+    html = html.replaceAll(fullTag, newTag);
   }
 
   return html;
@@ -1526,11 +1530,15 @@ function injectAffiliateIntoHtml(
     });
     
     if (typeof drlead !== 'undefined') {
+      var thanksPage = ${JSON.stringify(thankYouUrl || "./Obrigado.html")};
+      if (window.location.protocol === 'file:' || thanksPage === '#obrigado') {
+        thanksPage = '#obrigado';
+      }
       drlead.init({
         params: {
           token: ${JSON.stringify(apiToken)},
           stream_code: ${JSON.stringify(streamCode)},
-          thanks_page: ${JSON.stringify(thankYouUrl || "./Obrigado.html")}
+          thanks_page: thanksPage
         }
       });
     }
@@ -1550,6 +1558,10 @@ function injectAffiliateIntoHtml(
 (function() {
   var AFFILIATE = ${JSON.stringify(affiliateUrl)};
   var DR_CASH_ACTIVE = ${hasDrCash};
+  var THANKS_PAGE = ${JSON.stringify(thankYouUrl || "#obrigado")};
+  if (window.location.protocol === 'file:' || THANKS_PAGE === '#obrigado') {
+    THANKS_PAGE = '#obrigado';
+  }
   
   // Intercept clicks on navigational elements (excluding elements inside active Dr.Cash forms)
   document.addEventListener('click', function(e) {
@@ -1566,7 +1578,7 @@ function injectAffiliateIntoHtml(
   if (!DR_CASH_ACTIVE) {
     document.addEventListener('submit', function(e) {
       e.preventDefault();
-      window.location.href = AFFILIATE;
+      window.location.href = THANKS_PAGE;
     }, true);
   }
 })();
@@ -2665,19 +2677,18 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       // Lock scroll + show cookie popup after 2 seconds
       finalHtml = injectCookieConsentOverlay(finalHtml, normalizedAffiliate, normalizedReference, popupLanguage);
 
-      if (shouldInjectThanksModal) {
-        const modalCode = getThankYouModalCode(
-          resolvedProductName,
-          meta.primaryColor || "#16a34a",
-          meta.productImageUrl || "",
-          normalizedReference,
-          detectedLang
-        );
-        if (/<\/body>/i.test(finalHtml)) {
-          finalHtml = finalHtml.replace(/<\/body>/i, `${modalCode}\n</body>`);
-        } else {
-          finalHtml += modalCode;
-        }
+      // Always inject the thank you modal code as a robust fallback (e.g. when executing local files)
+      const modalCode = getThankYouModalCode(
+        resolvedProductName,
+        meta.primaryColor || "#16a34a",
+        meta.productImageUrl || "",
+        normalizedReference,
+        detectedLang
+      );
+      if (/<\/body>/i.test(finalHtml)) {
+        finalHtml = finalHtml.replace(/<\/body>/i, `${modalCode}\n</body>`);
+      } else {
+        finalHtml += modalCode;
       }
 
       // Inline assets using the captured cookies
@@ -2774,19 +2785,18 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       finalThankYouUrl
     );
 
-    if (shouldInjectThanksModal) {
-      const modalCode = getThankYouModalCode(
-        resolvedProductName,
-        meta.primaryColor || "#16a34a",
-        meta.productImageUrl || "",
-        normalizedReference,
-        detectedLang
-      );
-      if (/<\/body>/i.test(finalHtml)) {
-        finalHtml = finalHtml.replace(/<\/body>/i, `${modalCode}\n</body>`);
-      } else {
-        finalHtml += modalCode;
-      }
+    // Always inject the thank you modal code as a robust fallback (e.g. when executing local files)
+    const modalCode = getThankYouModalCode(
+      resolvedProductName,
+      meta.primaryColor || "#16a34a",
+      meta.productImageUrl || "",
+      normalizedReference,
+      detectedLang
+    );
+    if (/<\/body>/i.test(finalHtml)) {
+      finalHtml = finalHtml.replace(/<\/body>/i, `${modalCode}\n</body>`);
+    } else {
+      finalHtml += modalCode;
     }
 
     // Strip before/after testimonial sections and reviews
