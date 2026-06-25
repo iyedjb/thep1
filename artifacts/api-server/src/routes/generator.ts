@@ -22,6 +22,23 @@ function normalizeUrl(url: string) {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
+function getAttributeValue(attrs: string, name: string): string | null {
+  const regex = new RegExp(name + '\\s*=\\s*([\'"]?)([^\'"\\s>]+)\\1', 'i');
+  const match = attrs.match(regex);
+  return match && match[2] ? match[2] : null;
+}
+
+function isValidImageSrc(src: string): boolean {
+  if (!src) return false;
+  const s = src.toLowerCase();
+  if (s.startsWith('data:image/gif') || s.startsWith('data:image/svg+xml') || s.startsWith('data:image/png;base64,i')) {
+    // Standard blank 1x1 transparent png starts with 'data:image/png;base64,iVBORw0KGgo'
+    if (s.length < 200) return false; 
+  }
+  if (s.includes('blank.gif') || s.includes('pixel.gif') || s.includes('spacer.gif') || s.includes('loader.gif') || s.includes('loading.gif') || s.includes('clear.gif')) return false;
+  return true;
+}
+
 function extractJsonObject(raw: string) {
   const cleaned = raw.trim().replace(/^```(?:json|html)?/i, "").replace(/```$/i, "").trim();
   try {
@@ -36,23 +53,57 @@ function extractJsonObject(raw: string) {
   }
 }
 
-export async function fetchReferenceHtml(referenceUrl: string): Promise<{ html: string; cookies: string }> {
+function extractCleanCookies(headers: Headers): string {
+  let cookieStrings: string[] = [];
+  
+  if (typeof (headers as any).getSetCookie === "function") {
+    cookieStrings = (headers as any).getSetCookie();
+  } else {
+    const raw = headers.get("set-cookie");
+    if (raw) {
+      cookieStrings = raw.split(",");
+    }
+  }
+
+  const cleanPairs: string[] = [];
+  for (const str of cookieStrings) {
+    const firstPart = str.split(";")[0].trim();
+    if (firstPart && firstPart.includes("=")) {
+      cleanPairs.push(firstPart);
+    }
+  }
+
+  return cleanPairs.join("; ");
+}
+
+export async function fetchReferenceHtml(referenceUrl: string): Promise<{ html: string; cookies: string; finalUrl: string }> {
   try {
     const response = await fetch(referenceUrl, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7,es;q=0.6",
+        "Cache-Control": "max-age=0",
+        "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1"
       },
     });
-    if (!response.ok) return { html: "", cookies: "" };
+    if (!response.ok) return { html: "", cookies: "", finalUrl: referenceUrl };
     const html = await response.text();
-    const cookies = response.headers.get("set-cookie") || "";
-    return { html: html.slice(0, 150000), cookies };
+    const cookies = extractCleanCookies(response.headers);
+    return { html: html.slice(0, 150000), cookies, finalUrl: response.url || referenceUrl };
   } catch (err: any) {
     logger.warn({ err: err.message, referenceUrl }, "Direct reference fetch failed");
-    return { html: "", cookies: "" };
+    return { html: "", cookies: "", finalUrl: referenceUrl };
   }
 }
+
 
 export async function inlinePageAssets(rawHtml: string, referenceUrl: string, cookies: string): Promise<string> {
   let html = rawHtml;
@@ -90,12 +141,18 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
     try {
       const headers: Record<string, string> = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "*/*",
+        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7,es;q=0.6",
+        "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
         "Referer": referenceUrl
       };
       if (cookies) {
         headers["Cookie"] = cookies;
       }
       const res = await fetch(url, { headers });
+
       if (res.status === 200) {
         const buffer = await res.arrayBuffer();
         const contentType = res.headers.get("content-type") || "";
@@ -146,10 +203,11 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
             }
           }
           
-          // Fetch and base64-encode images in CSS (only if size <= 10KB for performance)
+          // Fetch and base64-encode images in CSS (only if size <= 3MB for completeness)
           for (const item of cssUrlsToReplace) {
             const imgAsset = await fetchAsset(item.absUrl);
-            if (imgAsset && imgAsset.buffer.byteLength <= 10240) {
+            if (imgAsset && imgAsset.buffer.byteLength <= 3145728) {
+
               const base64 = imgAsset.buffer.toString("base64");
               const mime = imgAsset.contentType || "image/png";
               const dataUri = `url("data:${mime};base64,${base64}")`;
@@ -218,26 +276,45 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
     const attrs = match[1];
     
     // Determine the best source URL for the image
-    let selectedSrc = "";
+    let selectedSrc = getAttributeValue(attrs, 'data-original') ||
+                      getAttributeValue(attrs, 'data-lazy-src') ||
+                      getAttributeValue(attrs, 'data-src') ||
+                      getAttributeValue(attrs, 'src') ||
+                      "";
     
-    // Priority: data-original, data-lazy-src, data-src, src
-    const dataOriginalMatch = attrs.match(/data-original=["']([^"']*)["']/i);
-    const dataLazySrcMatch = attrs.match(/data-lazy-src=["']([^"']*)["']/i);
-    const dataSrcMatch = attrs.match(/data-src=["']([^"']*)["']/i);
-    const srcMatch = attrs.match(/src=["']([^"']*)["']/i);
-    
-    if (dataOriginalMatch && dataOriginalMatch[1]) selectedSrc = dataOriginalMatch[1];
-    else if (dataLazySrcMatch && dataLazySrcMatch[1]) selectedSrc = dataLazySrcMatch[1];
-    else if (dataSrcMatch && dataSrcMatch[1]) selectedSrc = dataSrcMatch[1];
-    else if (srcMatch && srcMatch[1]) selectedSrc = srcMatch[1];
-    
-    if (!selectedSrc || selectedSrc.startsWith("data:")) continue;
-    
+    if (!selectedSrc) continue;
+
+    // If the selected source is a base64 inline placeholder, and there is another source available, we check if one of them is valid
+    if (!isValidImageSrc(selectedSrc)) {
+      const alternativeSrc = [
+        getAttributeValue(attrs, 'data-original'),
+        getAttributeValue(attrs, 'data-lazy-src'),
+        getAttributeValue(attrs, 'data-src'),
+        getAttributeValue(attrs, 'src')
+      ].find(src => src && isValidImageSrc(src));
+      
+      if (alternativeSrc) {
+        selectedSrc = alternativeSrc;
+      }
+    }
+
+    if (selectedSrc.startsWith("data:")) {
+      // It's already inlined or we have no valid alternative. Just clean conflicting lazyload attributes.
+      let cleanedAttrs = attrs
+        .replace(/(?:data-src|data-lazy-src|data-original)\s*=\s*(['"]?)[^'"]*\1/gi, "")
+        .replace(/(?:srcset|data-srcset)\s*=\s*(['"]?)[^'"]*\1/gi, "")
+        .trim();
+      cleanedAttrs = cleanedAttrs.replace(/\s+/g, " ");
+      const newTag = cleanedAttrs ? `<img ${cleanedAttrs} src="${selectedSrc}">` : `<img src="${selectedSrc}">`;
+      html = html.replaceAll(fullTag, newTag);
+      continue;
+    }
+
     const absSrc = getAbsoluteUrl(selectedSrc);
     let finalSrc = absSrc;
     const asset = await fetchAsset(absSrc);
     
-    if (asset && asset.buffer.byteLength <= 10240) { // Limit to 10KB
+    if (asset && asset.buffer.byteLength <= 3145728) { // Limit to 3MB
       const base64 = asset.buffer.toString("base64");
       const mime = asset.contentType || "image/png";
       finalSrc = `data:${mime};base64,${base64}`;
@@ -245,8 +322,8 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
     
     // Rebuild the image tag attributes by removing all conflicting source/lazyload/srcset attributes
     let cleanedAttrs = attrs
-      .replace(/(?:src|data-src|data-lazy-src|data-original)=["']([^"']*)["']/gi, "")
-      .replace(/(?:srcset|data-srcset)=["']([^"']*)["']/gi, "")
+      .replace(/(?:src|data-src|data-lazy-src|data-original)\s*=\s*(['"]?)[^'"]*\1/gi, "")
+      .replace(/(?:srcset|data-srcset)\s*=\s*(['"]?)[^'"]*\1/gi, "")
       .trim();
     
     // Clean redundant multiple spaces
@@ -468,14 +545,20 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
   }
 
   if (!productImageUrl) {
-    const imgRegex = /<img\s+[^>]*src=["']([^"']+)["']/gi;
+    const imgRegex = /<img\s+([^>]+)>/gi;
     const productKeywords = [/product/i, /prod/i, /pack/i, /bottle/i, /garrafa/i, /pot/i, /capsule/i, /gel/i, /box/i, /kit/i, /main/i, /hero/i, /comprar/i, /oferta/i, /cardiox/i];
     const candidates: string[] = [];
     let imgMatch;
     while ((imgMatch = imgRegex.exec(html)) !== null) {
-      const src = imgMatch[1];
-      if (productKeywords.some(kw => kw.test(src))) {
-        candidates.push(src);
+      const attrs = imgMatch[1];
+      const src = getAttributeValue(attrs, 'data-original') ||
+                  getAttributeValue(attrs, 'data-lazy-src') ||
+                  getAttributeValue(attrs, 'data-src') ||
+                  getAttributeValue(attrs, 'src');
+      if (src && isValidImageSrc(src)) {
+        if (productKeywords.some(kw => kw.test(src))) {
+          candidates.push(src);
+        }
       }
     }
     if (candidates.length > 0) {
@@ -483,8 +566,12 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     } else {
       imgRegex.lastIndex = 0;
       while ((imgMatch = imgRegex.exec(html)) !== null) {
-        const src = imgMatch[1];
-        if (!src.includes("icon") && !src.includes("logo") && !src.includes("avatar") && !src.endsWith(".svg")) {
+        const attrs = imgMatch[1];
+        const src = getAttributeValue(attrs, 'data-original') ||
+                    getAttributeValue(attrs, 'data-lazy-src') ||
+                    getAttributeValue(attrs, 'data-src') ||
+                    getAttributeValue(attrs, 'src');
+        if (src && isValidImageSrc(src) && !src.includes("icon") && !src.includes("logo") && !src.includes("avatar") && !src.endsWith(".svg")) {
           productImageUrl = src;
           break;
         }
@@ -1487,6 +1574,14 @@ function injectAffiliateIntoHtml(
   // Step 5: Inject tracking tags into <head>
   if (trackingTags && trackingTags.trim()) {
     html = html.replace(/<head([^>]*)>/i, `<head$1>\n  ${trackingTags}`);
+  }
+
+  // Step 5.5: Clean up pre-existing Dr.Cash SDK scripts and calls if using Dr.Cash
+  if (hasDrCash) {
+    // Remove static.statthroat.tech and snippet.infothroat.com scripts
+    html = html.replace(/<script[^>]*src=["']?[^"']*(?:statthroat\.tech|infothroat\.com)[^"']*["']?[^>]*><\/script>/gi, "");
+    // Remove inline scripts initializing drlead
+    html = html.replace(/<script[^>]*>[\s\S]*?drlead\.init[\s\S]*?<\/script>/gi, "");
   }
 
   // Step 6: Inject universal affiliate click interceptor + form submit interceptor / Dr.Cash SDK
@@ -2606,8 +2701,10 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
     thankYouUrl = "",
     network = "Dr.Cash",
     selectedOption = "a",
-    popupLanguage = "pt-BR"
+    popupLanguage = "pt-BR",
+    rawHtml = ""
   } = req.body || {};
+
 
   const normalizedReference = normalizeUrl(referenceUrl);
   const normalizedAffiliate = normalizeUrl(affiliateUrl);
@@ -2620,15 +2717,24 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
   // OPTION A: Clone real HTML (same as Option B) — scroll locked, cookie popup appears after 2 seconds
   if (selectedOption === "a") {
     try {
-      const { html: rawHtml, cookies } = await fetchReferenceHtml(normalizedReference);
+      let rawHtmlString = rawHtml;
+      let cookies = "";
+      let finalUrl = normalizedReference;
 
-      if (!rawHtml) {
+      if (!rawHtmlString) {
+        const fetchResult = await fetchReferenceHtml(normalizedReference);
+        rawHtmlString = fetchResult.html;
+        cookies = fetchResult.cookies;
+        finalUrl = fetchResult.finalUrl;
+      }
+
+      if (!rawHtmlString) {
         throw new Error("Could not fetch the reference page HTML.");
       }
 
-      const meta = extractPageMetadata(rawHtml, normalizedReference);
-      const resolvedProductName = productHint || meta.productName || extractProductName(normalizedReference);
-      const detectedLang = detectLandingPageLanguage(rawHtml, normalizedReference, popupLanguage);
+      const meta = extractPageMetadata(rawHtmlString, finalUrl);
+      const resolvedProductName = productHint || meta.productName || extractProductName(finalUrl);
+      const detectedLang = detectLandingPageLanguage(rawHtmlString, finalUrl, popupLanguage);
 
       let finalThankYouUrl = thankYouUrl;
       let thankYouFileName = "";
@@ -2648,7 +2754,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
           productName: resolvedProductName,
           primaryColor: meta.primaryColor,
           productImageUrl: meta.productImageUrl,
-          referenceUrl: normalizedReference,
+          referenceUrl: finalUrl,
           popupLanguage: detectedLang,
           supportEmail: "",
           trackingTags: trackingTags
@@ -2656,14 +2762,15 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       }
 
       let finalHtml = injectAffiliateIntoHtml(
-        rawHtml,
-        normalizedReference,
+        rawHtmlString,
+        finalUrl,
         normalizedAffiliate,
         trackingTags,
         apiToken,
         streamCode,
         finalThankYouUrl
       );
+
 
       // Strip before/after testimonial sections
       finalHtml = stripBeforeAfterSections(finalHtml);
@@ -2675,14 +2782,14 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       finalHtml = await rewriteClaimsForCompliance(finalHtml);
 
       // Lock scroll + show cookie popup after 2 seconds
-      finalHtml = injectCookieConsentOverlay(finalHtml, normalizedAffiliate, normalizedReference, popupLanguage);
+      finalHtml = injectCookieConsentOverlay(finalHtml, normalizedAffiliate, finalUrl, popupLanguage);
 
       // Always inject the thank you modal code as a robust fallback (e.g. when executing local files)
       const modalCode = getThankYouModalCode(
         resolvedProductName,
         meta.primaryColor || "#16a34a",
         meta.productImageUrl || "",
-        normalizedReference,
+        finalUrl,
         detectedLang
       );
       if (/<\/body>/i.test(finalHtml)) {
@@ -2693,7 +2800,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
 
       // Inline assets using the captured cookies
       try {
-        finalHtml = await inlinePageAssets(finalHtml, normalizedReference, cookies);
+        finalHtml = await inlinePageAssets(finalHtml, finalUrl, cookies);
       } catch (inlineErr: any) {
         logger.warn({ err: inlineErr.message }, "Option A: Asset inlining failed, keeping raw URLs");
       }
@@ -2737,14 +2844,23 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
 
   // OPTION B: Direct HTML clone — fetch raw HTML (like DevTools Copy Element) and inject affiliate redirect
   try {
-    const { html: rawHtml, cookies } = await fetchReferenceHtml(normalizedReference);
+    let rawHtmlString = rawHtml;
+    let cookies = "";
+    let finalUrl = normalizedReference;
 
-    if (!rawHtml) {
+    if (!rawHtmlString) {
+      const fetchResult = await fetchReferenceHtml(normalizedReference);
+      rawHtmlString = fetchResult.html;
+      cookies = fetchResult.cookies;
+      finalUrl = fetchResult.finalUrl;
+    }
+
+    if (!rawHtmlString) {
       throw new Error("Could not fetch the reference page HTML. The site may block bots or require authentication.");
     }
 
-    const meta = extractPageMetadata(rawHtml, normalizedReference);
-    const resolvedProductName = productHint || meta.productName || extractProductName(normalizedReference);
+    const meta = extractPageMetadata(rawHtmlString, finalUrl);
+    const resolvedProductName = productHint || meta.productName || extractProductName(finalUrl);
     const domain = extractDomainName(normalizedAffiliate) || "presell";
     const timestamp = Date.now();
 
@@ -2760,7 +2876,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       thankYouFileName = finalThankYouUrl.replace(/^\.\//, "");
     }
 
-    const detectedLang = detectLandingPageLanguage(rawHtml, normalizedReference, popupLanguage);
+    const detectedLang = detectLandingPageLanguage(rawHtmlString, finalUrl, popupLanguage);
 
     if (!shouldInjectThanksModal) {
       // Generate Thank You page matching colors, name, and image of the cloned page
@@ -2768,7 +2884,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         productName: resolvedProductName,
         primaryColor: meta.primaryColor,
         productImageUrl: meta.productImageUrl,
-        referenceUrl: normalizedReference,
+        referenceUrl: finalUrl,
         popupLanguage: detectedLang,
         supportEmail: "",
         trackingTags: trackingTags
@@ -2776,8 +2892,8 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
     }
 
     let finalHtml = injectAffiliateIntoHtml(
-      rawHtml,
-      normalizedReference,
+      rawHtmlString,
+      finalUrl,
       normalizedAffiliate,
       trackingTags,
       apiToken,
@@ -2785,12 +2901,13 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       finalThankYouUrl
     );
 
+
     // Always inject the thank you modal code as a robust fallback (e.g. when executing local files)
     const modalCode = getThankYouModalCode(
       resolvedProductName,
       meta.primaryColor || "#16a34a",
       meta.productImageUrl || "",
-      normalizedReference,
+      finalUrl,
       detectedLang
     );
     if (/<\/body>/i.test(finalHtml)) {
@@ -2812,7 +2929,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
 
     // Inline assets using the captured cookies
     try {
-      finalHtml = await inlinePageAssets(finalHtml, normalizedReference, cookies);
+      finalHtml = await inlinePageAssets(finalHtml, finalUrl, cookies);
     } catch (inlineErr: any) {
       logger.warn({ err: inlineErr.message }, "Option B: Asset inlining failed, keeping raw URLs");
     }

@@ -75,6 +75,7 @@ export default function Creator() {
   const [searchTerm, setSearchTerm] = useState("");
 
   const [referenceUrl, setReferenceUrl] = useState("");
+  const [rawHtml, setRawHtml] = useState("");
   const [destinationUrl, setDestinationUrl] = useState("");
   const [scripts, setScripts] = useState<string[]>([""]);
   const [popupLanguage, setPopupLanguage] = useState("auto");
@@ -198,7 +199,7 @@ export default function Creator() {
         body: JSON.stringify({
           referenceUrl: sourceUrl, affiliateUrl: targetUrl, trackingTags: combinedAiTags,
           productHint: productName, apiToken, streamCode, thankYouUrl,
-          network: "Dr.Cash", selectedOption, popupLanguage
+          network: "Dr.Cash", selectedOption, popupLanguage, rawHtml
         })
       });
 
@@ -228,6 +229,7 @@ export default function Creator() {
         thankYouHtml: tyHtml, thankYouFileName: tyFileName
       };
       saveWebsites([newSite, ...savedWebsites]);
+      setRawHtml(""); // Reset pasted HTML on success
       setGeneratingMessage("✅ Finalizando e salvando no histórico...");
       setStep("done");
       setTimeout(() => {
@@ -511,6 +513,20 @@ export default function Creator() {
                         </div>
                       </div>
 
+                      {/* Paste HTML Bypass */}
+                      <div className="space-y-1.5 pt-1">
+                        <Label htmlFor="raw-html" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                          Código HTML da Página (Opcional - Use se o servidor estiver bloqueado)
+                        </Label>
+                        <Textarea
+                          id="raw-html"
+                          placeholder="Cole o código-fonte HTML completo da página se o robô do servidor for bloqueado pelo rastreador (bot protection)"
+                          value={rawHtml}
+                          onChange={(e) => setRawHtml(e.target.value)}
+                          className="rounded-xl border-border min-h-[90px] resize-y bg-muted/20 font-mono text-[11px] placeholder:text-muted-foreground/60"
+                        />
+                      </div>
+
                       {/* Template selection */}
                       <div className="space-y-2">
                         <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
@@ -666,12 +682,7 @@ export default function Creator() {
                                 onChange={(e) => setStreamCode(e.target.value)}
                                 className="rounded-lg h-9 bg-muted/30 border-border text-xs font-mono" />
                             </div>
-                            <div className="space-y-1.5 col-span-2">
-                              <Label htmlFor="thank-you-url" className="text-[11px] font-semibold text-muted-foreground">Página de Obrigado</Label>
-                              <Input id="thank-you-url" type="text" placeholder="./Obrigado.html" value={thankYouUrl}
-                                onChange={(e) => setThankYouUrl(e.target.value)}
-                                className="rounded-lg h-9 bg-muted/30 border-border text-xs font-mono" />
-                            </div>
+
                           </div>
                         </div>
                       )}
