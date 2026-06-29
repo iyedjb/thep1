@@ -2249,41 +2249,129 @@ function fallbackBridgeHtml(input: {
 </html>`;
 }
 
-function extractBackgroundImage(html: string, referenceUrl: string): string {
+async function downloadAsset(url: string, referenceUrl: string, cookies: string): Promise<{ buffer: Buffer; contentType: string } | null> {
   try {
-    // 1. Try to find background-image urls in body styles
+    const headers: Record<string, string> = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept": "*/*",
+      "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7,es;q=0.6",
+      "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+      "Sec-Ch-Ua-Mobile": "?0",
+      "Sec-Ch-Ua-Platform": '"Windows"',
+      "Referer": referenceUrl
+    };
+    if (cookies) {
+      headers["Cookie"] = cookies;
+    }
+    const res = await fetch(url, { headers });
+
+    if (res.status === 200) {
+      const buffer = await res.arrayBuffer();
+      const contentType = res.headers.get("content-type") || "";
+      return { buffer: Buffer.from(buffer), contentType };
+    }
+    logger.warn({ url, status: res.status }, "Failed to fetch asset during template building");
+    return null;
+  } catch (err: any) {
+    logger.warn({ url, err: err.message }, "Error fetching asset during template building");
+    return null;
+  }
+}
+
+async function extractBackgroundImage(html: string, referenceUrl: string, cookies: string): Promise<string> {
+  try {
+    // 1. Try body inline style
     const bodyStyleMatch = html.match(/<body[^>]*style=["'][^"']*background-image\s*:\s*url\((['"]?)([^'")]+)\1\)/i);
     if (bodyStyleMatch && bodyStyleMatch[2]) {
       return bodyStyleMatch[2].trim();
     }
 
-    // 2. Try to find style tags with background-image: url(...)
-    const styleBgMatch = html.match(/background-image\s*:\s*url\((['"]?)([^'")]+)\1\)/i);
-    if (styleBgMatch && styleBgMatch[2]) {
-      return styleBgMatch[2].trim();
+    // 2. Try generic background-image inline style
+    const inlineBgMatch = html.match(/background-image\s*:\s*url\((['"]?)([^'")]+)\1\)/i);
+    if (inlineBgMatch && inlineBgMatch[2]) {
+      return inlineBgMatch[2].trim();
     }
 
-    // 3. Try to find og:image
+    // 3. Scan external stylesheets linked in the HTML document
+    const cssLinks: string[] = [];
+    const cssLinkRegex = /<link[^>]*href=["']([^"']+\.css(?:\?[^"']*)?)["']/gi;
+    let match;
+    while ((match = cssLinkRegex.exec(html)) !== null) {
+      cssLinks.push(match[1]);
+    }
+    
+    const stylesheetRegex = /<link[^>]*rel=["']stylesheet["'][^]href=["']([^"']+)["']/gi;
+    let ssMatch;
+    while ((ssMatch = stylesheetRegex.exec(html)) !== null) {
+      cssLinks.push(ssMatch[1]);
+    }
+
+    const uniqueCssUrls = Array.from(new Set(cssLinks)).map(relUrl => {
+      try {
+        return new URL(relUrl.trim(), referenceUrl).href;
+      } catch (_) {
+        return "";
+      }
+    }).filter(url => url !== "");
+
+    logger.info({ uniqueCssUrls }, "Compliance background extraction: scanning stylesheets");
+
+    for (const cssUrl of uniqueCssUrls) {
+      try {
+        const asset = await downloadAsset(cssUrl, referenceUrl, cookies);
+        if (asset) {
+          const cssContent = asset.buffer.toString("utf8");
+          
+          // Pattern A: body background-image/background URL
+          const bodyBgRegex = /(?:body|html|\.wrapper|\.main|\.page|\.bg-container)[^{]*\{[^}]*background(?:-image)?\s*:\s*url\((['"]?)([^'")\s]+)\1\)/i;
+          const bodyMatch = cssContent.match(bodyBgRegex);
+          if (bodyMatch && bodyMatch[2]) {
+            const relBg = bodyMatch[2].trim();
+            const absBg = new URL(relBg, cssUrl).href;
+            logger.info({ cssUrl, relBg, absBg }, "Found body background-image URL in external stylesheet");
+            return absBg;
+          }
+
+          // Pattern B: generic background urls matching keywords
+          const bgUrlRegex = /background(?:-image)?\s*:\s*url\((['"]?)([^'")\s]+)\1\)/gi;
+          let bgUrlMatch;
+          while ((bgUrlMatch = bgUrlRegex.exec(cssContent)) !== null) {
+            const relBg = bgUrlMatch[2].trim();
+            if (relBg.includes("bg") || relBg.includes("background") || relBg.includes("hero") || relBg.includes("pattern") || relBg.includes("pulse") || relBg.includes("heart") || relBg.includes("beat")) {
+              const absBg = new URL(relBg, cssUrl).href;
+              logger.info({ cssUrl, relBg, absBg }, "Found keyword background-image URL in stylesheet");
+              return absBg;
+            }
+          }
+        }
+      } catch (err: any) {
+        logger.warn({ err: err.message, cssUrl }, "Failed to fetch css during background extraction");
+      }
+    }
+
+    // 4. Try og:image fallback
     const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i) ||
                          html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i);
     if (ogImageMatch && ogImageMatch[1]) {
       return ogImageMatch[1].trim();
     }
 
-    // 4. Try to find large hero images or first large img
+    // 5. Try first large img tag fallback
     const imgRegex = /<img\s+([^>]+)>/gi;
-    let match;
-    while ((match = imgRegex.exec(html)) !== null) {
-      const attrs = match[1];
+    let imgMatch;
+    while ((imgMatch = imgRegex.exec(html)) !== null) {
+      const attrs = imgMatch[1];
       const src = getAttributeValue(attrs, 'data-original') ||
                   getAttributeValue(attrs, 'data-lazy-src') ||
                   getAttributeValue(attrs, 'data-src') ||
                   getAttributeValue(attrs, 'src');
       if (src && isValidImageSrc(src) && !src.includes("logo") && !src.includes("icon") && !src.includes("avatar")) {
-        return src;
+        return new URL(src.trim(), referenceUrl).href;
       }
     }
-  } catch (_) {}
+  } catch (err: any) {
+    logger.warn({ err: err.message }, "extractBackgroundImage search failed");
+  }
 
   return "";
 }
@@ -3110,7 +3198,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       }
 
       // Extract background image from the reference HTML
-      const backgroundImageUrl = extractBackgroundImage(rawHtmlString, finalUrl);
+      const backgroundImageUrl = await extractBackgroundImage(rawHtmlString, finalUrl, cookies);
 
       // Generate extremely clean, policy-compliant presell page with background image only
       let cleanHtml = generateCleanBackgroundPresellHtml({
