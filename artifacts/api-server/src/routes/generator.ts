@@ -3028,6 +3028,7 @@ function injectCookieConsentOverlay(
     align-items: center;
     justify-content: center;
     padding: 20px;
+    pointer-events: none;
   }
   #ads-overlay.ads-show {
     display: flex;
@@ -3048,6 +3049,7 @@ function injectCookieConsentOverlay(
     box-shadow: 0 40px 80px -12px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.06);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     animation: adsCardIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both;
+    pointer-events: auto;
   }
   @keyframes adsCardIn {
     from { transform: scale(0.8) translateY(30px); opacity: 0; }
@@ -3204,8 +3206,8 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
       const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
       const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-      const screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/${finalUrl}`;
-      const mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/480/${finalUrl}`;
+      const screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/fullpage/${finalUrl}`;
+      const mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/480/fullpage/${finalUrl}`;
 
       // Generate extremely clean, policy-compliant presell page with background image only
       let cleanHtml = generateCleanBackgroundPresellHtml({
