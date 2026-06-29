@@ -80,28 +80,86 @@ function extractCleanCookies(headers: Headers): string {
 
 export async function fetchReferenceHtml(referenceUrl: string): Promise<{ html: string; cookies: string; finalUrl: string }> {
   try {
-    const response = await fetch(referenceUrl, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7,es;q=0.6",
-        "Cache-Control": "max-age=0",
-        "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-        "Sec-Ch-Ua-Mobile": "?0",
-        "Sec-Ch-Ua-Platform": '"Windows"',
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-        "Upgrade-Insecure-Requests": "1"
-      },
-    });
-    if (!response.ok) return { html: "", cookies: "", finalUrl: referenceUrl };
-    const html = await response.text();
-    const cookies = extractCleanCookies(response.headers);
-    return { html: html.slice(0, 150000), cookies, finalUrl: response.url || referenceUrl };
+    let currentUrl = referenceUrl;
+    const cookieMap = new Map<string, string>();
+    let redirectCount = 0;
+    const maxRedirects = 10;
+    
+    const headers: Record<string, string> = {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+      "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7,es;q=0.6",
+      "Cache-Control": "max-age=0",
+      "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+      "Sec-Ch-Ua-Mobile": "?0",
+      "Sec-Ch-Ua-Platform": '"Windows"',
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "none",
+      "Sec-Fetch-User": "?1",
+      "Upgrade-Insecure-Requests": "1"
+    };
+
+    while (redirectCount < maxRedirects) {
+      if (cookieMap.size > 0) {
+        headers["Cookie"] = Array.from(cookieMap.entries()).map(([k, v]) => `${k}=${v}`).join("; ");
+      }
+
+      const response = await fetch(currentUrl, {
+        method: "GET",
+        headers,
+        redirect: "manual"
+      });
+
+      // Extract set-cookies
+      let cookieStrings: string[] = [];
+      if (typeof (response.headers as any).getSetCookie === "function") {
+        cookieStrings = (response.headers as any).getSetCookie();
+      } else {
+        const raw = response.headers.get("set-cookie");
+        if (raw) {
+          cookieStrings = raw.split(",");
+        }
+      }
+
+      for (const cookieStr of cookieStrings) {
+        const firstPart = cookieStr.split(";")[0].trim();
+        if (firstPart && firstPart.includes("=")) {
+          const parts = firstPart.split("=");
+          const key = parts[0].trim();
+          const value = parts.slice(1).join("=").trim();
+          cookieMap.set(key, value);
+        }
+      }
+
+      // Check redirect
+      if (response.status >= 300 && response.status < 400) {
+        const location = response.headers.get("location");
+        if (location) {
+          currentUrl = new URL(location, currentUrl).href;
+          redirectCount++;
+          continue;
+        }
+      }
+
+      if (!response.ok && response.status !== 304) {
+        logger.warn({ status: response.status, currentUrl }, "Reference fetch returned non-200 status");
+      }
+
+      const html = await response.text();
+      const cookies = Array.from(cookieMap.entries()).map(([k, v]) => `${k}=${v}`).join("; ");
+      logger.info({ finalUrl: currentUrl, cookiesCount: cookieMap.size }, "Stateful reference fetch complete");
+      
+      return { 
+        html: html.slice(0, 150000), 
+        cookies, 
+        finalUrl: currentUrl 
+      };
+    }
+    
+    throw new Error("Too many redirects");
   } catch (err: any) {
-    logger.warn({ err: err.message, referenceUrl }, "Direct reference fetch failed");
+    logger.warn({ err: err.message, referenceUrl }, "Stateful reference fetch failed");
     return { html: "", cookies: "", finalUrl: referenceUrl };
   }
 }
