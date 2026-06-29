@@ -2539,11 +2539,13 @@ function generateCleanBackgroundPresellHtml(input: {
   affiliateUrl: string;
   trackingTags: string;
   backgroundImageUrl: string;
+  mobileBackgroundImageUrl?: string;
   popupLanguage: string;
   meta: PageMetadata;
 }): string {
   const product = input.productName || "Oferta Oficial";
   const bgUrl = input.backgroundImageUrl;
+  const mobileBgUrl = input.mobileBackgroundImageUrl || bgUrl;
   const lang = input.popupLanguage || "pt-BR";
   
   let faviconUrl = "";
@@ -2570,9 +2572,12 @@ function generateCleanBackgroundPresellHtml(input: {
       position: relative;
     }
     .site-background-container {
+      max-width: 1280px;
+      margin: 0 auto;
       width: 100%;
       position: relative;
       z-index: 1;
+      box-shadow: 0 0 40px rgba(0,0,0,0.05);
     }
     .site-background-img {
       display: block;
@@ -2582,14 +2587,30 @@ function generateCleanBackgroundPresellHtml(input: {
       -webkit-user-drag: none;
       user-select: none;
     }
+    .ads-desktop-bg {
+      display: block;
+    }
+    .ads-mobile-bg {
+      display: none;
+    }
+    @media (max-width: 768px) {
+      .site-background-container {
+        max-width: 100%;
+      }
+      .ads-desktop-bg {
+        display: none;
+      }
+      .ads-mobile-bg {
+        display: block;
+      }
+    }
   </style>
 </head>
 <body>
-  ${bgUrl ? `
   <div class="site-background-container">
-    <img class="site-background-img" src="${bgUrl}" alt="background" />
+    ${bgUrl ? `<img class="site-background-img ads-desktop-bg" src="${bgUrl}" alt="desktop background" />` : ""}
+    ${mobileBgUrl ? `<img class="site-background-img ads-mobile-bg" src="${mobileBgUrl}" alt="mobile background" />` : ""}
   </div>
-  ` : ""}
 </body>
 </html>`;
 }
@@ -3185,11 +3206,12 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         });
       }
 
-      // Use the full site screenshot as the background image
+      // Use the full site screenshot as the background image (with desktop and mobile modes)
       const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
       const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
       const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
       const screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1280/${finalUrl}`;
+      const mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/480/${finalUrl}`;
 
       // Generate extremely clean, policy-compliant presell page with background image only
       let cleanHtml = generateCleanBackgroundPresellHtml({
@@ -3198,6 +3220,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         affiliateUrl: normalizedAffiliate,
         trackingTags: trackingTags,
         backgroundImageUrl: screenshotUrl,
+        mobileBackgroundImageUrl: mobileScreenshotUrl,
         popupLanguage: detectedLang,
         meta: meta
       });
