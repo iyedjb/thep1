@@ -2568,25 +2568,43 @@ function generateCleanBackgroundPresellHtml(input: {
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: #ffffff;
-      background-image: url('${bgUrl}');
-      background-size: cover;
-      background-position: center top;
-      background-repeat: no-repeat;
-      background-attachment: fixed;
       min-height: 100vh;
+      position: relative;
+    }
+    .site-background-container {
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+    .site-background-img {
+      display: block;
+      width: 100%;
+      height: auto;
+      pointer-events: none;
+      -webkit-user-drag: none;
+      user-select: none;
+    }
+    .ads-desktop-bg {
+      display: block;
+    }
+    .ads-mobile-bg {
+      display: none;
     }
     @media (max-width: 768px) {
-      body {
-        background-image: url('${mobileBgUrl}');
-        background-size: cover;
-        background-position: center top;
-        background-repeat: no-repeat;
-        background-attachment: fixed;
+      .ads-desktop-bg {
+        display: none;
+      }
+      .ads-mobile-bg {
+        display: block;
       }
     }
   </style>
 </head>
 <body>
+  <div class="site-background-container">
+    ${bgUrl ? `<img class="site-background-img ads-desktop-bg" src="${bgUrl}" alt="desktop background" />` : ""}
+    ${mobileBgUrl ? `<img class="site-background-img ads-mobile-bg" src="${mobileBgUrl}" alt="mobile background" />` : ""}
+  </div>
 </body>
 </html>`;
 }
