@@ -234,6 +234,78 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
     }
   }
 
+  // 1.5. Process and inline images inside inline <style> blocks of the HTML document
+  const styleMatches = Array.from(html.matchAll(/<style([^>]*)>([\s\S]*?)<\/style>/gi));
+  for (const match of styleMatches) {
+    const fullTag = match[0];
+    const attrs = match[1];
+    let cssText = match[2];
+    
+    const urlRegex = /url\((['"]?)([^'")\s?#]+)(.*?)\1\)/gi;
+    let urlMatch;
+    const cssUrlsToReplace: Array<{ matchStr: string; absUrl: string }> = [];
+    
+    while ((urlMatch = urlRegex.exec(cssText)) !== null) {
+      const relUrl = urlMatch[2];
+      const absUrl = getAbsoluteUrl(relUrl);
+      
+      const ext = path.extname(relUrl.split('?')[0]).toLowerCase();
+      const isImage = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'].includes(ext) || relUrl.includes("image") || relUrl.includes("img");
+      
+      if (isImage) {
+        cssUrlsToReplace.push({ matchStr: urlMatch[0], absUrl });
+      }
+    }
+    
+    for (const item of cssUrlsToReplace) {
+      const imgAsset = await fetchAsset(item.absUrl);
+      if (imgAsset && imgAsset.buffer.byteLength <= 3145728) {
+        const base64 = imgAsset.buffer.toString("base64");
+        const mime = imgAsset.contentType || "image/jpeg";
+        const dataUri = `url("data:${mime};base64,${base64}")`;
+        cssText = cssText.replaceAll(item.matchStr, dataUri);
+      } else {
+        cssText = cssText.replaceAll(item.matchStr, `url("${item.absUrl}")`);
+      }
+    }
+    
+    html = html.replaceAll(fullTag, `<style${attrs}>\n${cssText}\n</style>`);
+  }
+
+  // 1.6. Process and inline images inside inline style="" attributes
+  const styleAttrRegex = /style=(['"])([^'"]*background[^'"]*)\1/gi;
+  const styleAttrMatches = Array.from(html.matchAll(styleAttrRegex));
+  for (const match of styleAttrMatches) {
+    const fullAttr = match[0];
+    const quote = match[1];
+    let styleVal = match[2];
+    
+    const urlRegex = /url\((['"]?)([^'")\s?#]+)(.*?)\1\)/gi;
+    let urlMatch;
+    let modified = false;
+    
+    while ((urlMatch = urlRegex.exec(styleVal)) !== null) {
+      const relUrl = urlMatch[2];
+      const absUrl = getAbsoluteUrl(relUrl);
+      
+      const imgAsset = await fetchAsset(absUrl);
+      if (imgAsset && imgAsset.buffer.byteLength <= 3145728) {
+        const base64 = imgAsset.buffer.toString("base64");
+        const mime = imgAsset.contentType || "image/jpeg";
+        const dataUri = `url("data:${mime};base64,${base64}")`;
+        styleVal = styleVal.replaceAll(urlMatch[0], dataUri);
+        modified = true;
+      } else {
+        styleVal = styleVal.replaceAll(urlMatch[0], `url("${absUrl}")`);
+        modified = true;
+      }
+    }
+    
+    if (modified) {
+      html = html.replaceAll(fullAttr, `style=${quote}${styleVal}${quote}`);
+    }
+  }
+
   // 2. Process and inline JS files
   const scriptRegex = /<script\s+([^>]*?)src=["']([^"']+)["']([^>]*?)>([\s\S]*?)<\/script>/gi;
   const scriptMatches = Array.from(html.matchAll(scriptRegex));
