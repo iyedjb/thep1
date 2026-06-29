@@ -2321,6 +2321,33 @@ function fallbackBridgeHtml(input: {
 </html>`;
 }
 
+async function resolveRedirectUrl(url: string): Promise<string> {
+  try {
+    const res = await fetch(url, {
+      method: "HEAD",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      },
+      redirect: "follow"
+    });
+    return res.url || url;
+  } catch (err: any) {
+    logger.warn({ err: err.message, url }, "Failed to resolve redirect URL with HEAD, trying GET...");
+    try {
+      const res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        },
+        redirect: "follow"
+      });
+      return res.url || url;
+    } catch (_) {
+      return url;
+    }
+  }
+}
+
 async function downloadAsset(url: string, referenceUrl: string, cookies: string): Promise<{ buffer: Buffer; contentType: string } | null> {
   try {
     const headers: Record<string, string> = {
@@ -3234,6 +3261,8 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         rawHtmlString = fetchResult.html;
         cookies = fetchResult.cookies;
         finalUrl = fetchResult.finalUrl;
+      } else {
+        finalUrl = await resolveRedirectUrl(normalizedReference);
       }
 
       if (!rawHtmlString) {
@@ -3355,6 +3384,8 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       rawHtmlString = fetchResult.html;
       cookies = fetchResult.cookies;
       finalUrl = fetchResult.finalUrl;
+    } else {
+      finalUrl = await resolveRedirectUrl(normalizedReference);
     }
 
     if (!rawHtmlString) {
