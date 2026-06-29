@@ -3204,7 +3204,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
       const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
       const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-      const screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1280/${finalUrl}`;
+      const screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/${finalUrl}`;
       const mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/480/${finalUrl}`;
 
       // Generate extremely clean, policy-compliant presell page with background image only
