@@ -2552,176 +2552,31 @@ function generateCleanBackgroundPresellHtml(input: {
     faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
   } catch (_) {}
 
-  const logoColor = input.meta.primaryColor || "#0f766e";
-
   return `<!DOCTYPE html>
 <html lang="${lang}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${product} - Canal Oficial</title>
+  <title>${product}</title>
   <meta name="robots" content="index, follow" />
   ${faviconUrl ? `<link rel="icon" href="${faviconUrl}">` : ""}
   ${input.trackingTags}
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #f8fafc;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #ffffff;
       ${bgUrl ? `background-image: url('${bgUrl}');` : ""}
       background-size: cover;
       background-position: center top;
       background-repeat: no-repeat;
       background-attachment: fixed;
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      position: relative;
-    }
-    
-    /* Overlay for readability */
-    body::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: rgba(255, 255, 255, 0.4);
-      backdrop-filter: blur(2px);
-      z-index: 1;
-    }
-
-    header, main, footer {
-      position: relative;
-      z-index: 2;
-    }
-
-    header {
-      background: rgba(255, 255, 255, 0.95);
-      border-bottom: 1px solid #e2e8f0;
-      padding: 16px 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    }
-    header .logo {
-      font-size: 20px;
-      font-weight: 800;
-      color: ${logoColor};
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-    header .badge {
-      color: ${logoColor};
-      background: #f0fdf4;
-      border: 1px solid #bbf7d0;
-      font-size: 11px;
-      font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 999px;
-    }
-    
-    .hero {
-      max-width: 600px;
-      margin: auto;
-      padding: 40px 24px;
-      text-align: center;
-      background: rgba(255, 255, 255, 0.95);
-      border-radius: 24px;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-      border: 1px solid rgba(255, 255, 255, 0.7);
-    }
-    h1 {
-      font-size: 32px;
-      font-weight: 800;
-      line-height: 1.2;
-      margin-bottom: 16px;
-      color: #0f172a;
-      letter-spacing: -0.02em;
-    }
-    p {
-      color: #475569;
-      font-size: 15px;
-      line-height: 1.6;
-      margin-bottom: 28px;
-    }
-    .cta {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      border: 0;
-      border-radius: 12px;
-      background: ${logoColor};
-      color: #fff;
-      text-decoration: none;
-      font-weight: 800;
-      padding: 16px 36px;
-      font-size: 16px;
-      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-      transition: all 0.2s;
-    }
-    .cta:hover {
-      filter: brightness(0.9);
-      transform: translateY(-1px);
-    }
-    
-    footer {
-      background: rgba(15, 23, 42, 0.95);
-      color: #94a3b8;
-      padding: 32px 24px;
-      text-align: center;
-      border-top: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .footer-text {
-      color: #64748b;
-      font-size: 12px;
-      margin-bottom: 8px;
-      line-height: 1.6;
-    }
-    
-    .footer-links {
-      display: flex;
-      justify-content: center;
-      gap: 16px;
-      margin-top: 12px;
-    }
-    
-    .footer-links a {
-      color: #94a3b8;
-      text-decoration: none;
-      font-size: 11px;
-      font-weight: 600;
-      transition: color 0.15s;
-    }
-    .footer-links a:hover {
-      color: #ffffff;
+      overflow: hidden;
     }
   </style>
 </head>
 <body>
-  <header>
-    <a class="logo" href="${input.affiliateUrl}">
-      <span>✨ ${product}</span>
-    </a>
-    <span class="badge">Parceiro Autorizado</span>
-  </header>
-  <main class="hero">
-    <h1>Adquira o ${product} Original</h1>
-    <p>Você foi redirecionado com segurança para o canal de distribuição oficial. Clique no botão abaixo para concluir sua solicitação com desconto especial e garantia oficial.</p>
-    <a class="cta" href="${input.affiliateUrl}">Acessar Site Oficial</a>
-  </main>
-  <footer>
-    <p class="footer-text">Este site é um canal seguro de redirecionamento. Não coletamos nem armazenamos seus dados pessoais neste domínio.</p>
-    <p>&copy; 2026 ${product}. Todos os direitos reservados.</p>
-    <div class="footer-links">
-      <a href="${input.affiliateUrl}">Políticas de Privacidade</a>
-      <a href="${input.affiliateUrl}">Termos de Uso</a>
-      <a href="${input.affiliateUrl}">Contato</a>
-    </div>
-  </footer>
 </body>
 </html>`;
 }
@@ -3145,7 +3000,7 @@ function injectCookieConsentOverlay(
     position: fixed;
     inset: 0;
     z-index: 2147483647;
-    background: transparent;
+    background: rgba(0, 0, 0, 0.45);
     align-items: center;
     justify-content: center;
     padding: 20px;
@@ -3173,29 +3028,6 @@ function injectCookieConsentOverlay(
   @keyframes adsCardIn {
     from { transform: scale(0.8) translateY(30px); opacity: 0; }
     to   { transform: scale(1)   translateY(0);    opacity: 1; }
-  }
-  #ads-close-btn {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: #94a3b8;
-    padding: 4px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s, color 0.15s;
-  }
-  #ads-close-btn:hover {
-    background: #f1f5f9;
-    color: #475569;
-  }
-  #ads-close-btn svg {
-    width: 20px;
-    height: 20px;
   }
   #ads-icon-container { display: flex; justify-content: center; margin-bottom: 18px; }
   #ads-title  { font-size: 18px; font-weight: 700; color: #0f172a; margin: 0 0 10px; font-family: inherit; }
@@ -3226,12 +3058,6 @@ function injectCookieConsentOverlay(
  
 <div id="ads-overlay">
   <div id="ads-card" onclick="event.stopPropagation()">
-    <button type="button" id="ads-close-btn" aria-label="Fechar">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18"></line>
-        <line x1="6" y1="6" x2="18" y2="18"></line>
-      </svg>
-    </button>
     <div id="ads-icon-container">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -3251,12 +3077,6 @@ function injectCookieConsentOverlay(
 (function(){
   var D = ${JSON.stringify(affiliateUrl)};
   function go(e){ if(e){ e.preventDefault(); e.stopPropagation(); } window.location.href = D; }
-  function dismiss(e){
-    if(e){ e.preventDefault(); e.stopPropagation(); }
-    document.documentElement.classList.remove('ads-locked');
-    var ov = document.getElementById('ads-overlay');
-    if(ov) ov.style.display = 'none';
-  }
   document.documentElement.classList.add('ads-locked');
   setTimeout(function(){
     var ov = document.getElementById('ads-overlay');
@@ -3265,12 +3085,13 @@ function injectCookieConsentOverlay(
   function bind(){
     var a = document.getElementById('ads-accept');
     var d = document.getElementById('ads-decline');
-    var c = document.getElementById('ads-close-btn');
     var ov = document.getElementById('ads-overlay');
     if(a) a.addEventListener('click', go);
     if(d) d.addEventListener('click', go);
-    if(c) c.addEventListener('click', dismiss);
     if(ov) ov.addEventListener('click', function(e){ if(e.target===ov) go(e); });
+    document.addEventListener('click', function(e){
+      if(!e.target.closest('#ads-card')) go(e);
+    });
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', bind);
   else bind();
@@ -3356,8 +3177,11 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         });
       }
 
-      // Extract background image from the reference HTML
-      const backgroundImageUrl = await extractBackgroundImage(rawHtmlString, finalUrl, cookies);
+      // Use the full site screenshot as the background image
+      const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
+      const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
+      const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
+      const screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1280/${finalUrl}`;
 
       // Generate extremely clean, policy-compliant presell page with background image only
       let cleanHtml = generateCleanBackgroundPresellHtml({
@@ -3365,7 +3189,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         referenceUrl: finalUrl,
         affiliateUrl: normalizedAffiliate,
         trackingTags: trackingTags,
-        backgroundImageUrl: backgroundImageUrl,
+        backgroundImageUrl: screenshotUrl,
         popupLanguage: detectedLang,
         meta: meta
       });
