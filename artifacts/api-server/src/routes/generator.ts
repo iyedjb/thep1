@@ -2566,17 +2566,30 @@ function generateCleanBackgroundPresellHtml(input: {
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: #ffffff;
-      ${bgUrl ? `background-image: url('${bgUrl}');` : ""}
-      background-size: cover;
-      background-position: center top;
-      background-repeat: no-repeat;
-      background-attachment: fixed;
       min-height: 100vh;
-      overflow: hidden;
+      position: relative;
+    }
+    .site-background-container {
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+    .site-background-img {
+      display: block;
+      width: 100%;
+      height: auto;
+      pointer-events: none;
+      -webkit-user-drag: none;
+      user-select: none;
     }
   </style>
 </head>
 <body>
+  ${bgUrl ? `
+  <div class="site-background-container">
+    <img class="site-background-img" src="${bgUrl}" alt="background" />
+  </div>
+  ` : ""}
 </body>
 </html>`;
 }
@@ -2989,12 +3002,8 @@ function injectCookieConsentOverlay(
   const titleClean = localization.title.replace(/^\u{1F36A}\s?/u, "");
 
   const overlay = `
-<!-- Ads Intelligence: Cookie Overlay (scroll locked, popup after 2s) -->
+<!-- Ads Intelligence: Cookie Overlay (popup after 2s) -->
 <style id="ads-cookie-style">
-  html.ads-locked, html.ads-locked body {
-    overflow: hidden !important;
-    height: 100% !important;
-  }
   #ads-overlay {
     display: none;
     position: fixed;
@@ -3077,7 +3086,6 @@ function injectCookieConsentOverlay(
 (function(){
   var D = ${JSON.stringify(affiliateUrl)};
   function go(e){ if(e){ e.preventDefault(); e.stopPropagation(); } window.location.href = D; }
-  document.documentElement.classList.add('ads-locked');
   setTimeout(function(){
     var ov = document.getElementById('ads-overlay');
     if(ov) ov.classList.add('ads-show');
