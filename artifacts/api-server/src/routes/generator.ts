@@ -3,6 +3,8 @@ import { requireAuth } from "./auth";
 import fs from "fs";
 import path from "path";
 import { logger } from "../lib/logger";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
 
 const router = Router();
 
@@ -2247,6 +2249,293 @@ function fallbackBridgeHtml(input: {
 </html>`;
 }
 
+function extractBackgroundImage(html: string, referenceUrl: string): string {
+  try {
+    // 1. Try to find background-image urls in body styles
+    const bodyStyleMatch = html.match(/<body[^>]*style=["'][^"']*background-image\s*:\s*url\((['"]?)([^'")]+)\1\)/i);
+    if (bodyStyleMatch && bodyStyleMatch[2]) {
+      return bodyStyleMatch[2].trim();
+    }
+
+    // 2. Try to find style tags with background-image: url(...)
+    const styleBgMatch = html.match(/background-image\s*:\s*url\((['"]?)([^'")]+)\1\)/i);
+    if (styleBgMatch && styleBgMatch[2]) {
+      return styleBgMatch[2].trim();
+    }
+
+    // 3. Try to find og:image
+    const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i) ||
+                         html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i);
+    if (ogImageMatch && ogImageMatch[1]) {
+      return ogImageMatch[1].trim();
+    }
+
+    // 4. Try to find large hero images or first large img
+    const imgRegex = /<img\s+([^>]+)>/gi;
+    let match;
+    while ((match = imgRegex.exec(html)) !== null) {
+      const attrs = match[1];
+      const src = getAttributeValue(attrs, 'data-original') ||
+                  getAttributeValue(attrs, 'data-lazy-src') ||
+                  getAttributeValue(attrs, 'data-src') ||
+                  getAttributeValue(attrs, 'src');
+      if (src && isValidImageSrc(src) && !src.includes("logo") && !src.includes("icon") && !src.includes("avatar")) {
+        return src;
+      }
+    }
+  } catch (_) {}
+
+  return "";
+}
+
+function generateCleanBackgroundPresellHtml(input: {
+  productName: string;
+  referenceUrl: string;
+  affiliateUrl: string;
+  trackingTags: string;
+  backgroundImageUrl: string;
+  popupLanguage: string;
+  meta: PageMetadata;
+}): string {
+  const product = input.productName || "Oferta Oficial";
+  const bgUrl = input.backgroundImageUrl;
+  const lang = input.popupLanguage || "pt-BR";
+  
+  let faviconUrl = "";
+  try {
+    const domain = new URL(input.referenceUrl).hostname;
+    faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+  } catch (_) {}
+
+  const logoColor = input.meta.primaryColor || "#0f766e";
+
+  return `<!DOCTYPE html>
+<html lang="${lang}">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${product} - Canal Oficial</title>
+  <meta name="robots" content="index, follow" />
+  ${faviconUrl ? `<link rel="icon" href="${faviconUrl}">` : ""}
+  ${input.trackingTags}
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #f8fafc;
+      ${bgUrl ? `background-image: url('${bgUrl}');` : ""}
+      background-size: cover;
+      background-position: center top;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+    }
+    
+    /* Overlay for readability */
+    body::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255, 255, 255, 0.4);
+      backdrop-filter: blur(2px);
+      z-index: 1;
+    }
+
+    header, main, footer {
+      position: relative;
+      z-index: 2;
+    }
+
+    header {
+      background: rgba(255, 255, 255, 0.95);
+      border-bottom: 1px solid #e2e8f0;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    header .logo {
+      font-size: 20px;
+      font-weight: 800;
+      color: ${logoColor};
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    header .badge {
+      color: ${logoColor};
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+    
+    .hero {
+      max-width: 600px;
+      margin: auto;
+      padding: 40px 24px;
+      text-align: center;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 24px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1.2;
+      margin-bottom: 16px;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+    }
+    p {
+      color: #475569;
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+    .cta {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 0;
+      border-radius: 12px;
+      background: ${logoColor};
+      color: #fff;
+      text-decoration: none;
+      font-weight: 800;
+      padding: 16px 36px;
+      font-size: 16px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      transition: all 0.2s;
+    }
+    .cta:hover {
+      filter: brightness(0.9);
+      transform: translateY(-1px);
+    }
+    
+    footer {
+      background: rgba(15, 23, 42, 0.95);
+      color: #94a3b8;
+      padding: 32px 24px;
+      text-align: center;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .footer-text {
+      color: #64748b;
+      font-size: 12px;
+      margin-bottom: 8px;
+      line-height: 1.6;
+    }
+    
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      margin-top: 12px;
+    }
+    
+    .footer-links a {
+      color: #94a3b8;
+      text-decoration: none;
+      font-size: 11px;
+      font-weight: 600;
+      transition: color 0.15s;
+    }
+    .footer-links a:hover {
+      color: #ffffff;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="logo" href="${input.affiliateUrl}">
+      <span>✨ ${product}</span>
+    </a>
+    <span class="badge">Parceiro Autorizado</span>
+  </header>
+  <main class="hero">
+    <h1>Adquira o ${product} Original</h1>
+    <p>Você foi redirecionado com segurança para o canal de distribuição oficial. Clique no botão abaixo para concluir sua solicitação com desconto especial e garantia oficial.</p>
+    <a class="cta" href="${input.affiliateUrl}">Acessar Site Oficial</a>
+  </main>
+  <footer>
+    <p class="footer-text">Este site é um canal seguro de redirecionamento. Não coletamos nem armazenamos seus dados pessoais neste domínio.</p>
+    <p>&copy; 2026 ${product}. Todos os direitos reservados.</p>
+    <div class="footer-links">
+      <a href="${input.affiliateUrl}">Políticas de Privacidade</a>
+      <a href="${input.affiliateUrl}">Termos de Uso</a>
+      <a href="${input.affiliateUrl}">Contato</a>
+    </div>
+  </footer>
+</body>
+</html>`;
+}
+
+async function queryGemini(systemPrompt: string, userPrompt: string, jsonMode = false): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is not defined in environment");
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.0-flash",
+    generationConfig: {
+      responseMimeType: jsonMode ? "application/json" : "text/plain",
+      temperature: 0.1,
+    }
+  });
+
+  const chat = model.startChat({
+    history: [
+      {
+        role: "user",
+        parts: [{ text: systemPrompt }]
+      },
+      {
+        role: "model",
+        parts: [{ text: "Entendido. Serei o seu especialista de copy para compliance de anúncios do Google. Envie-me os textos para análise." }]
+      }
+    ]
+  });
+
+  const result = await chat.sendMessage(userPrompt);
+  return result.response.text();
+}
+
+function rewriteClaimsWithLocalDictionary(html: string): string {
+  // Regex mapping of known violating patterns to safe compliance terminology
+  const mapping: Array<{ regex: RegExp; replacement: string }> = [
+    { regex: /\b(comprovou sua eficácia|comprovado clinicamente|clinicamente comprovado|eficácia clínica comprovada)\b/gi, replacement: "Fórmula com ingredientes estudados" },
+    { regex: /\b(cura a diabetes|cura o diabetes|controla a glicemia|reduzir os níveis de açúcar no sangue|reduz o açúcar no sangue)\b/gi, replacement: "apoia o equilíbrio metabólico saudável" },
+    { regex: /\b(cura a hipertensão|cura a pressão alta|controla a pressão arterial|previne infartos)\b/gi, replacement: "promove a saúde cardiovascular" },
+    { regex: /\b(elimina parasitas|mata vermes|elimina toxinas|desintoxicação total)\b/gi, replacement: "auxilia no equilíbrio da flora intestinal e suporte digestivo" },
+    { regex: /\b(cura artrite|elimina a dor nas juntas|elimina a dor nas articulações)\b/gi, replacement: "promove o bem-estar e mobilidade articular" },
+    { regex: /\b(perdi \d+\s*(?:kg|kilos|kilos em \d+ dias))\b/gi, replacement: "me sinto mais leve e com mais disposição" },
+    { regex: /\b(emagreça rápido|queima de gordura garantida|perda de peso garantida)\b/gi, replacement: "auxilia na digestão e controle de peso saudável" },
+    { regex: /\b(apenas \d+ unidades restantes|últimas \d+ unidades no estoque)\b/gi, replacement: "Aproveite a condição de lançamento" },
+    { regex: /\b(o melhor do mundo|fórmula secreta|segredo que os médicos escondem)\b/gi, replacement: "Fórmula exclusiva com ingredientes de origem natural" },
+    { regex: /\b(se não tratar pode levar à morte|risco de mortalidade alto)\b/gi, replacement: "Mantenha seus exames em dia e sua rotina saudável" },
+    { regex: /\b(sem efeitos colaterais|100% livre de efeitos colaterais)\b/gi, replacement: "Fórmula suave desenvolvida com ingredientes naturais" }
+  ];
+
+  let cleaned = html;
+  for (const item of mapping) {
+    cleaned = cleaned.replace(item.regex, item.replacement);
+  }
+  return cleaned;
+}
+
 async function queryGroq(messages: any[], jsonMode = false) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
@@ -2275,6 +2564,7 @@ async function queryGroq(messages: any[], jsonMode = false) {
   const data = await response.json() as any;
   return data.choices[0]?.message?.content || "";
 }
+
 
 async function rewriteClaimsForCompliance(html: string): Promise<string> {
   try {
@@ -2381,13 +2671,31 @@ Textos para analisar:
 ${JSON.stringify(candidatesList.map(c => c.trim()), null, 2)}`
     };
 
-    const groqResult = await queryGroq([systemMessage, userMessage], true);
+    let responseText = "";
+    let useGemini = false;
+    
+    try {
+      responseText = await queryGroq([systemMessage, userMessage], true);
+    } catch (groqErr: any) {
+      logger.warn({ err: groqErr.message }, "Groq compliance rewriter failed, trying Gemini...");
+      useGemini = true;
+    }
+
+    if (useGemini) {
+      try {
+        responseText = await queryGemini(COMPLIANCE_SYSTEM_PROMPT, userMessage.content, true);
+      } catch (geminiErr: any) {
+        logger.error({ err: geminiErr.message }, "Gemini compliance rewriter failed, falling back to local dictionary");
+        return rewriteClaimsWithLocalDictionary(html);
+      }
+    }
+
     let mapping: Record<string, string> = {};
     try {
-      mapping = JSON.parse(groqResult);
+      mapping = JSON.parse(responseText);
     } catch (parseErr: any) {
-      logger.error({ err: parseErr.message, groqResult }, "Groq response is not valid JSON");
-      return html;
+      logger.error({ err: parseErr.message, responseText }, "AI response is not valid JSON, using local dictionary");
+      return rewriteClaimsWithLocalDictionary(html);
     }
 
     // 3. Apply the rewrites back into the HTML
@@ -2403,10 +2711,12 @@ ${JSON.stringify(candidatesList.map(c => c.trim()), null, 2)}`
     }
     
     logger.info({ rewritesCount }, "Compliance rewriter: Finished replacing claims in HTML");
-    return cleanedHtml;
+    
+    // Always run the local dictionary afterwards to catch any edge cases that the AI missed
+    return rewriteClaimsWithLocalDictionary(cleanedHtml);
   } catch (err: any) {
-    logger.warn({ err: err.message }, "Compliance rewriter failed, returning original HTML");
-    return html;
+    logger.warn({ err: err.message }, "Compliance rewriter failed completely, running local dictionary on original HTML");
+    return rewriteClaimsWithLocalDictionary(html);
   }
 }
 
@@ -2604,6 +2914,7 @@ function injectCookieConsentOverlay(
     to   { opacity: 1; }
   }
   #ads-card {
+    position: relative;
     background: #ffffff;
     border-radius: 20px;
     padding: 36px 28px 28px;
@@ -2617,6 +2928,29 @@ function injectCookieConsentOverlay(
   @keyframes adsCardIn {
     from { transform: scale(0.8) translateY(30px); opacity: 0; }
     to   { transform: scale(1)   translateY(0);    opacity: 1; }
+  }
+  #ads-close-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #94a3b8;
+    padding: 4px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+  }
+  #ads-close-btn:hover {
+    background: #f1f5f9;
+    color: #475569;
+  }
+  #ads-close-btn svg {
+    width: 20px;
+    height: 20px;
   }
   #ads-icon-container { display: flex; justify-content: center; margin-bottom: 18px; }
   #ads-title  { font-size: 18px; font-weight: 700; color: #0f172a; margin: 0 0 10px; font-family: inherit; }
@@ -2647,6 +2981,12 @@ function injectCookieConsentOverlay(
  
 <div id="ads-overlay">
   <div id="ads-card" onclick="event.stopPropagation()">
+    <button type="button" id="ads-close-btn" aria-label="Fechar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"></line>
+        <line x1="6" y1="6" x2="18" y2="18"></line>
+      </svg>
+    </button>
     <div id="ads-icon-container">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
@@ -2666,6 +3006,12 @@ function injectCookieConsentOverlay(
 (function(){
   var D = ${JSON.stringify(affiliateUrl)};
   function go(e){ if(e){ e.preventDefault(); e.stopPropagation(); } window.location.href = D; }
+  function dismiss(e){
+    if(e){ e.preventDefault(); e.stopPropagation(); }
+    document.documentElement.classList.remove('ads-locked');
+    var ov = document.getElementById('ads-overlay');
+    if(ov) ov.style.display = 'none';
+  }
   document.documentElement.classList.add('ads-locked');
   setTimeout(function(){
     var ov = document.getElementById('ads-overlay');
@@ -2674,9 +3020,11 @@ function injectCookieConsentOverlay(
   function bind(){
     var a = document.getElementById('ads-accept');
     var d = document.getElementById('ads-decline');
+    var c = document.getElementById('ads-close-btn');
     var ov = document.getElementById('ads-overlay');
     if(a) a.addEventListener('click', go);
     if(d) d.addEventListener('click', go);
+    if(c) c.addEventListener('click', dismiss);
     if(ov) ov.addEventListener('click', function(e){ if(e.target===ov) go(e); });
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', bind);
@@ -2761,28 +3109,22 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         });
       }
 
-      let finalHtml = injectAffiliateIntoHtml(
-        rawHtmlString,
-        finalUrl,
-        normalizedAffiliate,
-        trackingTags,
-        apiToken,
-        streamCode,
-        finalThankYouUrl
-      );
+      // Extract background image from the reference HTML
+      const backgroundImageUrl = extractBackgroundImage(rawHtmlString, finalUrl);
 
+      // Generate extremely clean, policy-compliant presell page with background image only
+      let cleanHtml = generateCleanBackgroundPresellHtml({
+        productName: resolvedProductName,
+        referenceUrl: finalUrl,
+        affiliateUrl: normalizedAffiliate,
+        trackingTags: trackingTags,
+        backgroundImageUrl: backgroundImageUrl,
+        popupLanguage: detectedLang,
+        meta: meta
+      });
 
-      // Strip before/after testimonial sections
-      finalHtml = stripBeforeAfterSections(finalHtml);
-
-      // Remove clinical study percentage stats sections
-      finalHtml = removeStudyStatSections(finalHtml);
-
-      // Google Ads compliance claim rewriting using AI
-      finalHtml = await rewriteClaimsForCompliance(finalHtml);
-
-      // Lock scroll + show cookie popup after 2 seconds
-      finalHtml = injectCookieConsentOverlay(finalHtml, normalizedAffiliate, finalUrl, popupLanguage);
+      // Inject cookie consent overlay (locks scroll, pops up consent card with close button)
+      let finalHtml = injectCookieConsentOverlay(cleanHtml, normalizedAffiliate, finalUrl, popupLanguage);
 
       // Always inject the thank you modal code as a robust fallback (e.g. when executing local files)
       const modalCode = getThankYouModalCode(
@@ -2798,7 +3140,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         finalHtml += modalCode;
       }
 
-      // Inline assets using the captured cookies
+      // Inline assets using the captured cookies (inlines the background image and logo styles)
       try {
         finalHtml = await inlinePageAssets(finalHtml, finalUrl, cookies);
       } catch (inlineErr: any) {
