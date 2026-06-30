@@ -2572,28 +2572,10 @@ function generateCleanBackgroundPresellHtml(input: {
       position: relative;
       overflow-x: hidden;
     }
-    
-    /* Ambient blurred background layer */
-    .ambient-bg {
-      position: fixed;
-      inset: 0;
-      background-image: url('${bgUrl}');
-      background-size: cover;
-      background-position: center top;
-      filter: blur(50px);
-      opacity: 0.35;
-      z-index: 0;
-      pointer-events: none;
-    }
-    
     .site-background-container {
-      max-width: 1280px;
-      margin: 0 auto;
       width: 100%;
       position: relative;
       z-index: 1;
-      box-shadow: 0 0 80px rgba(0,0,0,0.1);
-      background-color: #ffffff;
     }
     .site-background-img {
       display: block;
@@ -2609,17 +2591,7 @@ function generateCleanBackgroundPresellHtml(input: {
     .ads-mobile-bg {
       display: none;
     }
-    
     @media (max-width: 768px) {
-      .ambient-bg {
-        background-image: url('${mobileBgUrl}');
-        filter: blur(30px);
-        opacity: 0.45;
-      }
-      .site-background-container {
-        max-width: 100%;
-        box-shadow: none;
-      }
       .ads-desktop-bg {
         display: none;
       }
@@ -2630,7 +2602,6 @@ function generateCleanBackgroundPresellHtml(input: {
   </style>
 </head>
 <body>
-  <div class="ambient-bg"></div>
   <div class="site-background-container">
     ${bgUrl ? `<img class="site-background-img ads-desktop-bg" src="${bgUrl}" alt="desktop background" />` : ""}
     ${mobileBgUrl ? `<img class="site-background-img ads-mobile-bg" src="${mobileBgUrl}" alt="mobile background" />` : ""}
@@ -3227,12 +3198,33 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         });
       }
 
-      // Use the full site screenshot as the background image (with desktop and mobile modes)
-      const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
-      const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
-      const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-      const screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/fullpage/${finalUrl}`;
-      const mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/iphone6plus/fullpage/${finalUrl}`;
+      // Use Microlink screenshot API (high quality, full page, reliable mobile emulation)
+      const encodedFinalUrl = encodeURIComponent(finalUrl);
+      let screenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=true&viewport.width=1920&viewport.height=1080&embed=screenshot.url`;
+      let mobileScreenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=true&screenshot.device=iPhone%2013&embed=screenshot.url`;
+
+      // Check if Microlink works, otherwise fallback to thum.io
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const testRes = await fetch(screenshotUrl, { method: "HEAD", signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (testRes.status !== 200) {
+          logger.warn({ status: testRes.status }, "Microlink checked, status not 200, falling back to thum.io");
+          const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
+          const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
+          const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
+          screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/fullpage/${finalUrl}`;
+          mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/iphone6plus/fullpage/${finalUrl}`;
+        }
+      } catch (err) {
+        logger.warn({ err: (err as Error).message }, "Microlink checked, threw error, falling back to thum.io");
+        const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
+        const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
+        const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
+        screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/fullpage/${finalUrl}`;
+        mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/iphone6plus/fullpage/${finalUrl}`;
+      }
 
       // Generate extremely clean, policy-compliant presell page with background image only
       let cleanHtml = generateCleanBackgroundPresellHtml({
