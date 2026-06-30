@@ -2608,16 +2608,27 @@ function generateCleanBackgroundPresellHtml(input: {
       display: none;
     }
     @media (max-width: 768px) {
+      body {
+        height: 100vh;
+        overflow: hidden;
+      }
       .ambient-bg {
-        background-image: url('${mobileBgUrl}');
-        filter: blur(30px);
-        opacity: 0.45;
+        display: none;
+      }
+      .site-background-container {
+        height: 100vh;
+        width: 100%;
+        overflow: hidden;
+      }
+      .site-background-img.ads-mobile-bg {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center top;
       }
       .ads-desktop-bg {
         display: none;
-      }
-      .ads-mobile-bg {
-        display: block;
       }
     }
   </style>
@@ -3063,6 +3074,8 @@ function injectCookieConsentOverlay(
     padding: 36px 28px 28px;
     max-width: 400px;
     width: calc(100% - 40px);
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
     text-align: center;
     box-shadow: 0 40px 80px -12px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.06);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
