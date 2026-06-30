@@ -902,7 +902,7 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
   }
 
   // Attempt to parse price from HTML
-  const priceRegex = /(?:R\$\s*\d+(?:[.,]\d{2})?|\d+\s*(?:zł|€|\$|lei|Kč|Ft))/gi;
+  const priceRegex = /(?:R\$\s*\d+(?:[.,]\d{2})?|\d+\s*(?:zł|€|\$|lei|Kč|Ft|EUR|eur|Eur|PLN|pln|RON|ron|CZK|czk|лв|BGN|bgn|din|RSD|rsd|HUF|huf))/gi;
   const priceMatches = html.match(priceRegex);
   if (priceMatches && priceMatches.length > 0) {
     const uniquePrices = Array.from(new Set(priceMatches.map(p => p.trim())));
