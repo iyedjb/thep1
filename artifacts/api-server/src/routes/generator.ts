@@ -2570,11 +2570,30 @@ function generateCleanBackgroundPresellHtml(input: {
       background-color: #ffffff;
       min-height: 100vh;
       position: relative;
+      overflow-x: hidden;
     }
+    
+    /* Ambient blurred background layer */
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      background-image: url('${bgUrl}');
+      background-size: cover;
+      background-position: center top;
+      filter: blur(50px);
+      opacity: 0.35;
+      z-index: 0;
+      pointer-events: none;
+    }
+    
     .site-background-container {
+      max-width: 1280px;
+      margin: 0 auto;
       width: 100%;
       position: relative;
       z-index: 1;
+      box-shadow: 0 0 80px rgba(0,0,0,0.1);
+      background-color: #ffffff;
     }
     .site-background-img {
       display: block;
@@ -2590,7 +2609,17 @@ function generateCleanBackgroundPresellHtml(input: {
     .ads-mobile-bg {
       display: none;
     }
+    
     @media (max-width: 768px) {
+      .ambient-bg {
+        background-image: url('${mobileBgUrl}');
+        filter: blur(30px);
+        opacity: 0.45;
+      }
+      .site-background-container {
+        max-width: 100%;
+        box-shadow: none;
+      }
       .ads-desktop-bg {
         display: none;
       }
@@ -2601,6 +2630,7 @@ function generateCleanBackgroundPresellHtml(input: {
   </style>
 </head>
 <body>
+  <div class="ambient-bg"></div>
   <div class="site-background-container">
     ${bgUrl ? `<img class="site-background-img ads-desktop-bg" src="${bgUrl}" alt="desktop background" />` : ""}
     ${mobileBgUrl ? `<img class="site-background-img ads-mobile-bg" src="${mobileBgUrl}" alt="mobile background" />` : ""}
@@ -3025,26 +3055,21 @@ function injectCookieConsentOverlay(
     inset: 0;
     z-index: 2147483647;
     background: transparent;
-    align-items: center;
-    justify-content: center;
-    padding: 20px;
     pointer-events: none;
   }
   #ads-overlay.ads-show {
-    display: flex;
-    animation: adsOverlayIn 0.4s ease both;
-  }
-  @keyframes adsOverlayIn {
-    from { opacity: 0; }
-    to   { opacity: 1; }
+    display: block;
   }
   #ads-card {
-    position: relative;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     background: #ffffff;
     border-radius: 20px;
     padding: 36px 28px 28px;
     max-width: 400px;
-    width: 100%;
+    width: calc(100% - 40px);
     text-align: center;
     box-shadow: 0 40px 80px -12px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.06);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -3052,8 +3077,8 @@ function injectCookieConsentOverlay(
     pointer-events: auto;
   }
   @keyframes adsCardIn {
-    from { transform: scale(0.8) translateY(30px); opacity: 0; }
-    to   { transform: scale(1)   translateY(0);    opacity: 1; }
+    from { transform: translate(-50%, -50%) scale(0.8) translateY(30px); opacity: 0; }
+    to   { transform: translate(-50%, -50%) scale(1)   translateY(0);    opacity: 1; }
   }
   #ads-icon-container { display: flex; justify-content: center; margin-bottom: 18px; }
   #ads-title  { font-size: 18px; font-weight: 700; color: #0f172a; margin: 0 0 10px; font-family: inherit; }
@@ -3207,7 +3232,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
       const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
       const screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/fullpage/${finalUrl}`;
-      const mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/480/fullpage/${finalUrl}`;
+      const mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/iphone6plus/fullpage/${finalUrl}`;
 
       // Generate extremely clean, policy-compliant presell page with background image only
       let cleanHtml = generateCleanBackgroundPresellHtml({
