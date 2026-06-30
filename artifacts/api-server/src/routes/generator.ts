@@ -2252,9 +2252,9 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
     return lang;
   }
 
-  // 1. Try to detect from HTML tag if available
+  // 1. Try to detect from HTML tag if available (optional quotes)
   if (html) {
-    const htmlLangMatch = html.match(/<html\s+[^>]*lang=['"]([a-zA-Z-]{2,5})['"]/i);
+    const htmlLangMatch = html.match(/<html\s+[^>]*lang=['"]?([a-zA-Z-]{2,5})['"]?/i);
     if (htmlLangMatch) {
       const rawLang = htmlLangMatch[1].toLowerCase();
       if (rawLang.startsWith("es")) return "es";
@@ -2285,6 +2285,48 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
       return "ro";
     } else if (urlLower.endsWith(".pl") || urlLower.includes("/pl/")) {
       return "pl";
+    }
+  }
+
+  // 3. Fallback: Robust word frequency / conjunction checking from HTML content
+  if (html) {
+    const textLower = html.toLowerCase();
+    const scores: Record<string, number> = {
+      "pt-BR": 0,
+      "es": 0,
+      "it": 0,
+      "fr": 0,
+      "de": 0,
+      "ro": 0,
+      "pl": 0,
+      "en": 0
+    };
+
+    // Specific unique trigger words/phrases
+    if (/\b(?:preço|desconto|composição|garantia|prazo|entrega|pague na entrega)\b/i.test(textLower)) scores["pt-BR"] += 15;
+    if (/\b(?:precio|descuento|composición|garantía|plazo|contra entrega|pago contrareembolso)\b/i.test(textLower)) scores["es"] += 15;
+    if (/\b(?:prezzo|sconto|composizione|garanzia|consegna|pagamento alla consegna)\b/i.test(textLower)) scores["it"] += 15;
+    if (/\b(?:prix|remise|composition|garantie|livraison|paiement à la livraison)\b/i.test(textLower)) scores["fr"] += 15;
+    if (/\b(?:preis|rabatt|zusammensetzung|garantie|lieferzeit|zahlung bei lieferung)\b/i.test(textLower)) scores["de"] += 15;
+    if (/\b(?:preț|reducere|compoziție|garanție|timp de livrare|plată la livrare)\b/i.test(textLower)) scores["ro"] += 15;
+    if (/\b(?:cena|rabat|skład|gwarancja|czas dostawy|płatność przy odbiorze)\b/i.test(textLower)) scores["pl"] += 15;
+
+    // Split and count high frequency unique words/conjunctions
+    const words = textLower.split(/\s+/);
+    for (const w of words) {
+      if (w === "y" || w === "con" || w === "para" || w === "los" || w === "las" || w === "del") scores["es"]++;
+      if (w === "o" || w === "com" || w === "para" || w === "os" || w === "as" || w === "dos" || w === "das") scores["pt-BR"]++;
+      if (w === "il" || w === "di" || w === "in" || w === "con" || w === "per" || w === "i" || w === "gli") scores["it"]++;
+      if (w === "le" || w === "la" || w === "du" || w === "et" || w === "pour" || w === "avec") scores["fr"]++;
+      if (w === "der" || w === "die" || w === "das" || w === "und" || w === "mit" || w === "für" || w === "von") scores["de"]++;
+      if (w === "și" || w === "în" || w === "cu" || w === "pentru" || w === "din") scores["ro"]++;
+      if (w === "w" || w === "i" || w === "z" || w === "na" || w === "dla") scores["pl"]++;
+      if (w === "the" || w === "and" || w === "of" || w === "with" || w === "for" || w === "to") scores["en"]++;
+    }
+
+    const best = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+    if (best[0][1] > 3) {
+      return best[0][0];
     }
   }
 
@@ -3740,6 +3782,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
 
   // OPTION A: Clone real HTML (same as Option B) — scroll locked, cookie popup appears after 2 seconds
   if (selectedOption === "a") {
+    let detectedLang = popupLanguage;
     try {
       let rawHtmlString = rawHtml;
       let cookies = "";
@@ -3767,7 +3810,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         : { productName: productHint || extractProductName(finalUrl), primaryColor: "#16a34a", productImageUrl: "" };
         
       const resolvedProductName = productHint || meta.productName || extractProductName(finalUrl);
-      const detectedLang = rawHtmlString 
+      detectedLang = rawHtmlString 
         ? detectLandingPageLanguage(rawHtmlString, finalUrl, popupLanguage) 
         : popupLanguage;
 
@@ -3849,7 +3892,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       });
 
       // Inject cookie consent overlay (locks scroll, pops up consent card with close button)
-      let finalHtml = injectCookieConsentOverlay(cleanHtml, normalizedAffiliate, finalUrl, popupLanguage, meta);
+      let finalHtml = injectCookieConsentOverlay(cleanHtml, normalizedAffiliate, finalUrl, detectedLang, meta);
 
       // Always inject the thank you modal code as a robust fallback (e.g. when executing local files)
       const modalCode = getThankYouModalCode(
@@ -3892,13 +3935,13 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
           affiliateUrl: normalizedAffiliate,
           trackingTags,
           productHint,
-          popupLanguage
+          popupLanguage: detectedLang
         });
         res.json({
           html,
           mode: "presell",
           productName: productHint || "Oferta Oficial",
-          language: popupLanguage || "pt-BR",
+          language: detectedLang || "pt-BR",
           designSummary: "Screenshot bridge (site could not be cloned — bot protection detected).",
           research: { enabled: false, results: [] }
         });
