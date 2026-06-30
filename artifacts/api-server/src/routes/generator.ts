@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { logger } from "../lib/logger";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import puppeteer from "puppeteer";
 
 
 const router = Router();
@@ -17,6 +18,106 @@ Cookie consent presell: create one self-contained index.html for Google Ads brid
 const UPSELL_SKILL = `
 Upsell/order form: create one self-contained index.html for affiliate networks such as Dr.Cash/Kiwi. Use a premium order-form layout with product copy, benefits, product image if available, localized GDPR checkbox, cookie banner, privacy/terms/contact modals, countdown to midnight, tracking tags, and Dr.Cash SDK only when token and stream code are provided. All forms must use class orderForm, name and phone fields, and localized consent text.
 `;
+
+async function captureScreenshots(url: string, cookieString: string): Promise<{ desktop: string; mobile: string }> {
+  logger.info({ url }, "Launching Puppeteer for screenshots...");
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox']
+  });
+
+  try {
+    const desktopPage = await browser.newPage();
+    await desktopPage.setViewport({ width: 1920, height: 1080 });
+    
+    // Set User-Agent to standard desktop browser
+    await desktopPage.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+
+    // Inject cookies if available
+    if (cookieString) {
+      try {
+        const hostname = new URL(url).hostname;
+        const cookieObjects = cookieString.split(';').map(c => {
+          const parts = c.trim().split('=');
+          if (parts.length >= 2) {
+            return {
+              name: parts[0],
+              value: parts.slice(1).join('='),
+              domain: hostname,
+              path: '/'
+            };
+          }
+          return null;
+        }).filter(Boolean);
+        if (cookieObjects.length > 0) {
+          await desktopPage.setCookie(...(cookieObjects as any[]));
+        }
+      } catch (cookieErr: any) {
+        logger.warn({ err: cookieErr.message }, "Failed to set cookies in Puppeteer");
+      }
+    }
+
+    logger.info("Navigating desktop page...");
+    await desktopPage.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    
+    // Hide scrollbars before screenshot
+    await desktopPage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
+
+    const desktopBuffer = (await desktopPage.screenshot({ fullPage: true, type: 'png' })) as Buffer;
+    const desktopBase64 = `data:image/png;base64,${desktopBuffer.toString('base64')}`;
+
+    const mobilePage = await browser.newPage();
+    
+    // Set mobile viewport (iPhone 13 aspect ratio and layout width)
+    await mobilePage.setViewport({
+      width: 390,
+      height: 844,
+      isMobile: true,
+      hasTouch: true
+    });
+    
+    // Set standard mobile User-Agent
+    await mobilePage.setUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1");
+
+    // Inject cookies to mobile page
+    if (cookieString) {
+      try {
+        const hostname = new URL(url).hostname;
+        const cookieObjects = cookieString.split(';').map(c => {
+          const parts = c.trim().split('=');
+          if (parts.length >= 2) {
+            return {
+              name: parts[0],
+              value: parts.slice(1).join('='),
+              domain: hostname,
+              path: '/'
+            };
+          }
+          return null;
+        }).filter(Boolean);
+        if (cookieObjects.length > 0) {
+          await mobilePage.setCookie(...(cookieObjects as any[]));
+        }
+      } catch (cookieErr: any) {
+        logger.warn({ err: cookieErr.message }, "Failed to set cookies in Puppeteer");
+      }
+    }
+
+    logger.info("Navigating mobile page...");
+    await mobilePage.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    
+    // Hide scrollbars
+    await mobilePage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
+
+    const mobileBuffer = (await mobilePage.screenshot({ fullPage: true, type: 'png' })) as Buffer;
+    const mobileBase64 = `data:image/png;base64,${mobileBuffer.toString('base64')}`;
+
+    logger.info("Puppeteer screenshots captured successfully!");
+    return { desktop: desktopBase64, mobile: mobileBase64 };
+  } finally {
+    await browser.close();
+  }
+}
 
 function normalizeUrl(url: string) {
   const trimmed = String(url || "").trim();
@@ -3242,32 +3343,44 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         });
       }
 
-      // Use Microlink screenshot API (high quality, full page, reliable mobile emulation)
-      const encodedFinalUrl = encodeURIComponent(finalUrl);
-      let screenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=true&viewport.width=1920&viewport.height=1080&embed=screenshot.url`;
-      let mobileScreenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=true&screenshot.device=iPhone%2013&embed=screenshot.url`;
+      // Capture screenshots using local Puppeteer first, falling back to external APIs on failure
+      let screenshotUrl = "";
+      let mobileScreenshotUrl = "";
+      let puppeteerSuccess = false;
 
-      // Check if Microlink works, otherwise fallback to thum.io
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 15000);
-        const testRes = await fetch(screenshotUrl, { method: "HEAD", signal: controller.signal });
-        clearTimeout(timeoutId);
-        if (testRes.status !== 200) {
-          logger.warn({ status: testRes.status }, "Microlink checked, status not 200, falling back to thum.io");
+        const pScreenshots = await captureScreenshots(finalUrl, cookies);
+        screenshotUrl = pScreenshots.desktop;
+        mobileScreenshotUrl = pScreenshots.mobile;
+        puppeteerSuccess = true;
+      } catch (puppeteerErr: any) {
+        logger.warn({ err: puppeteerErr.message }, "Local Puppeteer screenshot failed, falling back to external APIs");
+        const encodedFinalUrl = encodeURIComponent(finalUrl);
+        screenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=true&viewport.width=1920&viewport.height=1080&embed=screenshot.url`;
+        mobileScreenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=true&screenshot.device=iPhone%2013&embed=screenshot.url`;
+
+        // Check if Microlink works, otherwise fallback to thum.io
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 15000);
+          const testRes = await fetch(screenshotUrl, { method: "HEAD", signal: controller.signal });
+          clearTimeout(timeoutId);
+          if (testRes.status !== 200) {
+            logger.warn({ status: testRes.status }, "Microlink checked, status not 200, falling back to thum.io");
+            const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
+            const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
+            const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
+            screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/fullpage/${finalUrl}`;
+            mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/iphone6plus/fullpage/${finalUrl}`;
+          }
+        } catch (err) {
+          logger.warn({ err: (err as Error).message }, "Microlink checked, threw error/timeout, falling back to thum.io");
           const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
           const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
           const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
           screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/fullpage/${finalUrl}`;
           mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/iphone6plus/fullpage/${finalUrl}`;
         }
-      } catch (err) {
-        logger.warn({ err: (err as Error).message }, "Microlink checked, threw error/timeout, falling back to thum.io");
-        const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
-        const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
-        const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-        screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/fullpage/${finalUrl}`;
-        mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/iphone6plus/fullpage/${finalUrl}`;
       }
 
       // Generate extremely clean, policy-compliant presell page with background image only
