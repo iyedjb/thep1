@@ -2572,8 +2572,24 @@ function generateCleanBackgroundPresellHtml(input: {
       position: relative;
       overflow-x: hidden;
     }
+    
+    /* Ambient blurred background layer */
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      background-image: url('${bgUrl}');
+      background-size: cover;
+      background-position: center top;
+      filter: blur(50px);
+      opacity: 0.35;
+      z-index: 0;
+      pointer-events: none;
+    }
+    
     .site-background-container {
       width: 100%;
+      max-width: 1920px;
+      margin: 0 auto;
       position: relative;
       z-index: 1;
     }
@@ -2592,6 +2608,11 @@ function generateCleanBackgroundPresellHtml(input: {
       display: none;
     }
     @media (max-width: 768px) {
+      .ambient-bg {
+        background-image: url('${mobileBgUrl}');
+        filter: blur(30px);
+        opacity: 0.45;
+      }
       .ads-desktop-bg {
         display: none;
       }
@@ -2602,6 +2623,7 @@ function generateCleanBackgroundPresellHtml(input: {
   </style>
 </head>
 <body>
+  <div class="ambient-bg"></div>
   <div class="site-background-container">
     ${bgUrl ? `<img class="site-background-img ads-desktop-bg" src="${bgUrl}" alt="desktop background" />` : ""}
     ${mobileBgUrl ? `<img class="site-background-img ads-mobile-bg" src="${mobileBgUrl}" alt="mobile background" />` : ""}
