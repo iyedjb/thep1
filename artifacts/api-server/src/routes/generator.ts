@@ -3157,21 +3157,30 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       let finalUrl = normalizedReference;
 
       if (!rawHtmlString) {
-        const fetchResult = await fetchReferenceHtml(normalizedReference);
-        rawHtmlString = fetchResult.html;
-        cookies = fetchResult.cookies;
-        finalUrl = fetchResult.finalUrl;
+        try {
+          const fetchResult = await fetchReferenceHtml(normalizedReference);
+          rawHtmlString = fetchResult.html;
+          cookies = fetchResult.cookies;
+          finalUrl = fetchResult.finalUrl;
+        } catch (fetchErr: any) {
+          logger.warn({ err: fetchErr.message }, "Option A: fetchReferenceHtml failed, using default fallback metadata");
+        }
       } else {
-        finalUrl = await resolveRedirectUrl(normalizedReference);
+        try {
+          finalUrl = await resolveRedirectUrl(normalizedReference);
+        } catch (redirectErr: any) {
+          logger.warn({ err: redirectErr.message }, "Option A: resolveRedirectUrl failed");
+        }
       }
 
-      if (!rawHtmlString) {
-        throw new Error("Could not fetch the reference page HTML.");
-      }
-
-      const meta = extractPageMetadata(rawHtmlString, finalUrl);
+      const meta = rawHtmlString 
+        ? extractPageMetadata(rawHtmlString, finalUrl) 
+        : { productName: productHint || extractProductName(finalUrl), primaryColor: "#16a34a", productImageUrl: "" };
+        
       const resolvedProductName = productHint || meta.productName || extractProductName(finalUrl);
-      const detectedLang = detectLandingPageLanguage(rawHtmlString, finalUrl, popupLanguage);
+      const detectedLang = rawHtmlString 
+        ? detectLandingPageLanguage(rawHtmlString, finalUrl, popupLanguage) 
+        : popupLanguage;
 
       let finalThankYouUrl = thankYouUrl;
       let thankYouFileName = "";
@@ -3206,7 +3215,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       // Check if Microlink works, otherwise fallback to thum.io
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
         const testRes = await fetch(screenshotUrl, { method: "HEAD", signal: controller.signal });
         clearTimeout(timeoutId);
         if (testRes.status !== 200) {
@@ -3218,7 +3227,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
           mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/iphone6plus/fullpage/${finalUrl}`;
         }
       } catch (err) {
-        logger.warn({ err: (err as Error).message }, "Microlink checked, threw error, falling back to thum.io");
+        logger.warn({ err: (err as Error).message }, "Microlink checked, threw error/timeout, falling back to thum.io");
         const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
         const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
         const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
