@@ -705,10 +705,38 @@ interface PageMetadata {
   productName: string;
   primaryColor: string;
   productImageUrl: string;
+  seoDescription?: string;
+  productDetails?: string[];
+  extractedPrice?: string;
+  extractedFormula?: string;
+  extractedOffer?: string;
+}
+
+function cleanHtmlText(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
   let productName = "";
+  let seoDescription = "";
+  const productDetails: string[] = [];
+  let extractedPrice = "";
+  let extractedFormula = "";
+  let extractedOffer = "";
+
+  if (!html) {
+    return { productName: extractProductName(referenceUrl), primaryColor: "#16a34a", productImageUrl: "", seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer };
+  }
+
   // Check og:title
   const ogTitleMatch = html.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i) ||
                        html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:title["']/i);
@@ -833,7 +861,82 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     } catch (_) {}
   }
 
-  return { productName, primaryColor, productImageUrl };
+  // Broad list of words indicating medical claims, weight loss promises, cures, or guarantees
+  const violationFilterRegex = /\b(perdi|perder|lose|weight|peso|kg|kilos|kilo|emagrecer|queimar|fat|gordura|grasa|liposuzione|liposuction|garantido|guaranteed|garantia|cure|cura|curar|trata|treat|elimina|eliminate|diabetes|diabético|hipertens|artrite|arthritis|cancro|câncer|morte|death|morrer|segredo|secret|clinicamente|comprovad[ao]|proven|clinically)\b/i;
+
+  // Extract SEO description and clean it if it contains violating words
+  const metaDescMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
+                        html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i) ||
+                        html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i) ||
+                        html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:description["']/i);
+  if (metaDescMatch && metaDescMatch[1]) {
+    const rawDesc = cleanHtmlText(metaDescMatch[1]);
+    if (!violationFilterRegex.test(rawDesc)) {
+      seoDescription = rawDesc;
+    }
+  }
+
+  // Extract key details (e.g. benefit sentences or headings), FILTERING OUT VIOLATIONS
+  const detailsRegex = /<(?:h2|h3|li|p)[^>]*>[\s\n]*([^<>]{15,120}?)[\s\n]*<\/(?:h2|h3|li|p)>/gi;
+  let dMatch;
+  const seenDetails = new Set<string>();
+
+  while ((dMatch = detailsRegex.exec(html)) !== null && productDetails.length < 5) {
+    const text = cleanHtmlText(dMatch[1]);
+    if (
+      text.length >= 15 &&
+      text.length <= 120 &&
+      !text.includes("<") &&
+      !text.includes(">") &&
+      !violationFilterRegex.test(text) && // Skip any violating lines!
+      !/privacy|terms|contact|cookies|cookie|copyright|política|termos|contato|direitos reservados|sobre nós|about us/i.test(text) &&
+      !seenDetails.has(text.toLowerCase())
+    ) {
+      productDetails.push(text);
+      seenDetails.add(text.toLowerCase());
+    }
+  }
+
+  // Attempt to parse price from HTML
+  const priceRegex = /(?:R\$\s*\d+(?:[.,]\d{2})?|\d+\s*(?:zł|€|\$|lei|Kč|Ft))/gi;
+  const priceMatches = html.match(priceRegex);
+  if (priceMatches && priceMatches.length > 0) {
+    const uniquePrices = Array.from(new Set(priceMatches.map(p => p.trim())));
+    if (uniquePrices.length > 0) {
+      extractedPrice = uniquePrices[0];
+    }
+  }
+
+  // Attempt to parse ingredients/composition from HTML
+  const formulaKeywords = /ingredienti|ingredientes|ingredients|composição|composizione|composición|composition/i;
+  const listItemsRegex = /<li[^>]*>[\s\n]*([^<>]{5,60}?)[\s\n]*<\/li>/gi;
+  let liMatch;
+  const foundIngredients: string[] = [];
+  
+  if (formulaKeywords.test(html)) {
+    const herbKeywords = /extrato|extract|vitamina|vitamin|mineral|ácido|acid|óleo|oil|semente|seed|raiz|root|folha|leaf|zinco|zinc|magnésio|magnesium|calcio|calcium/i;
+    while ((liMatch = listItemsRegex.exec(html)) !== null && foundIngredients.length < 4) {
+      const text = cleanHtmlText(liMatch[1]);
+      if (herbKeywords.test(text) && text.length < 50 && !/peso|perda|emagrecer|queimar/i.test(text)) {
+        foundIngredients.push(text);
+      }
+    }
+  }
+  if (foundIngredients.length > 0) {
+    extractedFormula = foundIngredients.join(", ");
+  }
+
+  // Attempt to parse offer/discount from HTML
+  const offerRegex = /(?:\d+%\s*(?:de\s+)?(?:desconto|off|discount|promo|rabat|reducere|sconto|sconti|remise)|\b(?:desconto|off|discount|rabat|reducere)\s*(?:de\s+)?\d+%|\b(?:compre|buy|pague|pay|paga)\s*\d+\s*(?:leve|get|paghi|prendi|obtenha)\s*\d+|\bcompre\s*\d+\s*(?:grátis|gratis))/gi;
+  const offerMatches = html.match(offerRegex);
+  if (offerMatches && offerMatches.length > 0) {
+    const uniqueOffers = Array.from(new Set(offerMatches.map(o => o.trim())));
+    if (uniqueOffers.length > 0) {
+      extractedOffer = uniqueOffers[0];
+    }
+  }
+
+  return { productName, primaryColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer };
 }
 
 function getThankYouModalCode(
@@ -1924,54 +2027,149 @@ function injectAffiliateIntoHtml(
   return html;
 }
 
-const COOKIE_LOCALIZATION: Record<string, { title: string; desc: string; accept: string; decline: string }> = {
+const COOKIE_LOCALIZATION: Record<string, {
+  title: string;
+  desc: string;
+  accept: string;
+  decline: string;
+  infoBtn: string;
+  infoTitle: string;
+  labelFormula: string;
+  labelEntrega: string;
+  labelPreco: string;
+  labelOferta: string;
+  valFormula: string;
+  valEntrega: string;
+  valPreco: string;
+  valOferta: string;
+}> = {
   "pt-BR": {
     title: "🍪 Política de Cookies",
     desc: "Utilizamos cookies para personalizar sua experiência. Ao continuar, você concorda com nossos termos.",
     accept: "Aceitar",
-    decline: "Recusar"
+    decline: "Recusar",
+    infoBtn: "Detalhes da Oferta",
+    infoTitle: "Detalhes da Oferta",
+    labelFormula: "Fórmula/Composição",
+    labelEntrega: "Prazo de Entrega",
+    labelPreco: "Preço e Condição",
+    labelOferta: "Oferta Especial",
+    valFormula: "Fórmula desenvolvida com compostos e extratos naturais selecionados.",
+    valEntrega: "Envio rápido. Geralmente de 2 a 7 dias úteis com código de rastreamento.",
+    valPreco: "Condições especiais e descontos direto no site oficial do fabricante.",
+    valOferta: "Promoção especial por tempo limitado no canal oficial."
   },
   "es": {
     title: "🍪 Política de Cookies",
     desc: "Utilizamos cookies para personalizar su experiencia. Al continuar, usted acepta nuestros términos.",
     accept: "Aceptar",
-    decline: "Rechazar"
+    decline: "Rechazar",
+    infoBtn: "Detalles de la Oferta",
+    infoTitle: "Detalles de la Oferta",
+    labelFormula: "Fórmula/Composición",
+    labelEntrega: "Plazo de Entrega",
+    labelPreco: "Precio y Condición",
+    labelOferta: "Oferta Especial",
+    valFormula: "Fórmula desarrollada con compuestos y extractos naturales seleccionados.",
+    valEntrega: "Envío rápido. Generalmente de 2 a 7 dias hábiles con código de seguimiento.",
+    valPreco: "Condiciones especiales y descuentos directos en el sitio oficial del fabricante.",
+    valOferta: "Promoción especial por tempo limitado en el canal oficial."
   },
   "en": {
     title: "🍪 Cookie Policy",
     desc: "We use cookies to personalize your experience. By continuing, you agree to our terms.",
     accept: "Accept",
-    decline: "Decline"
+    decline: "Decline",
+    infoBtn: "Offer Details",
+    infoTitle: "Offer Details",
+    labelFormula: "Formula/Ingredients",
+    labelEntrega: "Delivery Time",
+    labelPreco: "Price & Terms",
+    labelOferta: "Special Offer",
+    valFormula: "Formula developed with selected natural compounds and extracts.",
+    valEntrega: "Fast shipping. Usually 2 to 7 business days with tracking number.",
+    valPreco: "Special offers and discounts available directly on the official manufacturer site.",
+    valOferta: "Special limited-time promotion on the official channel."
   },
   "it": {
     title: "🍪 Informativa sui Cookie",
     desc: "Utilizziamo i cookie per personalizzare la tua esperienza. Continuando, acconsenti ai nostri termini.",
     accept: "Accetta",
-    decline: "Rifiuta"
+    decline: "Rifiuta",
+    infoBtn: "Dettagli dell'Offerta",
+    infoTitle: "Dettagli dell'Offerta",
+    labelFormula: "Formula/Composizione",
+    labelEntrega: "Tempi di Consegna",
+    labelPreco: "Prezzo e Condizioni",
+    labelOferta: "Offerta Speciale",
+    valFormula: "Formula sviluppata con composti ed estratti naturali selezionati.",
+    valEntrega: "Spedizione rapida. Geralmente 2-7 giorni lavorativi con codice di tracciamento.",
+    valPreco: "Condizioni speciali e sconti disponibili direttamente sul sito ufficiale del produttore.",
+    valOferta: "Promozione speciale a tempo limitato sul canale ufficiale."
   },
   "fr": {
     title: "🍪 Politique relative aux cookies",
     desc: "Nous utilisons des cookies pour personnaliser votre expérience. En continuant, vous acceptez nos conditions.",
     accept: "Accepter",
-    decline: "Refuser"
+    decline: "Refuser",
+    infoBtn: "Détails de l'offre",
+    infoTitle: "Détails de l'offre",
+    labelFormula: "Formule/Composition",
+    labelEntrega: "Délai de Livraison",
+    labelPreco: "Prix et Conditions",
+    labelOferta: "Offre Spéciale",
+    valFormula: "Formule développée avec des composés et extraits naturels sélectionnés.",
+    valEntrega: "Expédition rapide. Généralement 2 à 7 jours ouvrables avec numéro de suivi.",
+    valPreco: "Remises spéciales et réductions en direct sur le site officiel du fabricant.",
+    valOferta: "Promotion spéciale à durée limitée sur le canal officiel."
   },
   "de": {
     title: "🍪 Cookie-Richtlinie",
     desc: "Wir verwenden Cookies, um Ihre Erfahrung zu personalisieren. Durch die Fortsetzung stimmen Sie unseren Bedingungen zu.",
     accept: "Akzeptieren",
-    decline: "Ablehnen"
+    decline: "Ablehnen",
+    infoBtn: "Angebotsdetails",
+    infoTitle: "Angebotsdetails",
+    labelFormula: "Formel/Zusammensetzung",
+    labelEntrega: "Lieferzeit",
+    labelPreco: "Preis & Konditionen",
+    labelOferta: "Sonderangebot",
+    valFormula: "Formel entwickelt mit ausgewählten natürlichen Verbindungen und Extrakten.",
+    valEntrega: "Schneller Versand. In der Regel 2 bis 7 Werktage mit Sendungsverfolgung.",
+    valPreco: "Besondere Konditionen und Rabatte direkt auf der offiziellen Website des Herstellers.",
+    valOferta: "Sonderaktion für begrenzte Zeit auf dem offiziellen Kanal."
   },
   "ro": {
     title: "🍪 Politica de Cookie-uri",
     desc: "Folosim cookie-uri pentru a vă personaliza experiența. Continuând, sunteți de acord cu termenii noștri.",
     accept: "Acceptă",
-    decline: "Refuză"
+    decline: "Refuză",
+    infoBtn: "Detalii despre ofertă",
+    infoTitle: "Detalii despre ofertă",
+    labelFormula: "Formulă/Compoziție",
+    labelEntrega: "Timp de Livrare",
+    labelPreco: "Preț și Condiții",
+    labelOferta: "Ofertă Specială",
+    valFormula: "Formulă dezvoltată cu compuși și extracte naturale selectate.",
+    valEntrega: "Livrare rapidă. De obicei 2-7 zile lucrătoare cu cod de urmărire.",
+    valPreco: "Condiții speciale și reduceri direct pe site-ul oficial al producătorului.",
+    valOferta: "Promoție specială pe perioadă limitată pe canalul oficial."
   },
   "pl": {
     title: "🍪 Polityka Cookies",
     desc: "Używamy plików cookie, aby spersonalizować Twoje doświadczenie. Kontynuując, zgadzasz się na nasze warunki.",
     accept: "Akceptuję",
-    decline: "Odrzucam"
+    decline: "Odrzucam",
+    infoBtn: "Szczegóły oferty",
+    infoTitle: "Szczegóły oferty",
+    labelFormula: "Formuła/Skład",
+    labelEntrega: "Czas Dostawy",
+    labelPreco: "Cena i Warunki",
+    labelOferta: "Oferta Specjalna",
+    valFormula: "Formuła opracowana z wyselekcjonowanych naturalnych związków i ekstraktów.",
+    valEntrega: "Szybka wysyłka. Zazwyczaj 2 do 7 dni roboczych z numerem śledzenia przesyłki.",
+    valPreco: "Specjalne warunki i rabaty bezpośrednio na oficjalnej stronie producenta.",
+    valOferta: "Specjalna promocja ograniczona czasowo na oficjalnym kanale."
   }
 };
 
@@ -3144,12 +3342,40 @@ function injectCookieConsentOverlay(
   html: string,
   affiliateUrl: string,
   referenceUrl: string,
-  lang: string = "pt-BR"
+  lang: string = "pt-BR",
+  meta?: PageMetadata
 ): string {
   const detectedLang = detectLandingPageLanguage(html, referenceUrl, lang);
 
   const localization = COOKIE_LOCALIZATION[detectedLang] || COOKIE_LOCALIZATION["en"];
   const titleClean = localization.title.replace(/^\u{1F36A}\s?/u, "");
+
+  const productName = meta?.productName || "Produto";
+  
+  // Resolve / generate SEO description if empty
+  let seoDesc = meta?.seoDescription || "";
+  if (!seoDesc) {
+    if (detectedLang === "pt-BR") {
+      seoDesc = `Página informativa oficial sobre o produto ${productName}. Veja os detalhes da oferta e adquira com garantia de originalidade.`;
+    } else if (detectedLang === "es") {
+      seoDesc = `Página informativa oficial sobre el producto ${productName}. Vea los detalles de la oferta y compre con garantía de originalidad.`;
+    } else {
+      seoDesc = `Official informative page about ${productName}. See the offer details and purchase with guarantee of originality.`;
+    }
+  }
+
+  // Resolve formula, price, delivery, and offer values
+  const valFormulaResolved = meta?.extractedFormula || localization.valFormula;
+  const valPrecoResolved = meta?.extractedPrice 
+    ? `${meta.extractedPrice} - ${localization.valPreco}` 
+    : localization.valPreco;
+  const valEntregaResolved = localization.valEntrega;
+  const valOfertaResolved = meta?.extractedOffer
+    ? `${meta.extractedOffer} - ${localization.valOferta}`
+    : localization.valOferta;
+
+  // Additional safe details extracted from the landing page
+  const seoDetails = meta?.productDetails || [];
 
   const overlay = `
 <!-- Ads Intelligence: Cookie Overlay (popup after 2s) -->
@@ -3207,6 +3433,86 @@ function injectCookieConsentOverlay(
   #ads-accept:hover  { filter: brightness(0.9); }
   #ads-decline { background: #dc2626; color: #ffffff; }
   #ads-decline:hover { filter: brightness(0.9); }
+  
+  /* SEO Section Styles */
+  #ads-seo-wrapper {
+    margin-top: 24px;
+    border-top: 1px dashed #e2e8f0;
+    padding-top: 16px;
+    text-align: left;
+  }
+  #ads-seo-toggle {
+    background: none;
+    border: none;
+    color: #16a34a;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    justify-content: center;
+    font-family: inherit;
+    outline: none;
+    padding: 6px 0;
+    transition: color 0.15s;
+  }
+  #ads-seo-toggle:hover {
+    color: #15803d;
+  }
+  #ads-seo-arrow {
+    transition: transform 0.25s ease;
+  }
+  #ads-seo-toggle.ads-active #ads-seo-arrow {
+    transform: rotate(180deg);
+  }
+  #ads-seo-content {
+    display: none;
+    margin-top: 14px;
+    font-size: 12px;
+    color: #475569;
+    line-height: 1.6;
+    max-height: 180px;
+    overflow-y: auto;
+    padding-right: 6px;
+  }
+  #ads-seo-content.ads-show {
+    display: block;
+  }
+  #ads-seo-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0 0 6px;
+    font-family: inherit;
+  }
+  #ads-seo-desc {
+    margin: 0 0 12px;
+    font-weight: 500;
+    color: #334155;
+    font-family: inherit;
+  }
+  .ads-seo-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+  }
+  .ads-seo-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-family: inherit;
+  }
+  .ads-seo-check {
+    color: #16a34a;
+    font-weight: bold;
+    font-size: 14px;
+    line-height: 1.2;
+    user-select: none;
+  }
+  
   @media (max-width: 480px) {
     #ads-card  { padding: 28px 18px 22px; border-radius: 16px; }
     #ads-title { font-size: 16px; }
@@ -3228,6 +3534,45 @@ function injectCookieConsentOverlay(
       <button class="ads-btn" id="ads-decline">${localization.decline}</button>
       <button class="ads-btn" id="ads-accept">${localization.accept}</button>
     </div>
+    
+    <!-- SEO Expandable Information Section -->
+    <div id="ads-seo-wrapper">
+      <button id="ads-seo-toggle" type="button">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" id="ads-seo-arrow">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+        <span>${localization.infoBtn}</span>
+      </button>
+      
+      <div id="ads-seo-content">
+        <h4 id="ads-seo-title">${localization.infoTitle}:</h4>
+        <p id="ads-seo-desc">${seoDesc}</p>
+        <ul class="ads-seo-list">
+          <li class="ads-seo-item">
+            <span class="ads-seo-check">✓</span>
+            <span><strong>${localization.labelFormula}:</strong> ${valFormulaResolved}</span>
+          </li>
+          <li class="ads-seo-item">
+            <span class="ads-seo-check">✓</span>
+            <span><strong>${localization.labelEntrega}:</strong> ${valEntregaResolved}</span>
+          </li>
+          <li class="ads-seo-item">
+            <span class="ads-seo-check">✓</span>
+            <span><strong>${localization.labelPreco}:</strong> ${valPrecoResolved}</span>
+          </li>
+          <li class="ads-seo-item">
+            <span class="ads-seo-check">✓</span>
+            <span><strong>${localization.labelOferta}:</strong> ${valOfertaResolved}</span>
+          </li>
+          ${seoDetails.map(item => `
+            <li class="ads-seo-item">
+              <span class="ads-seo-check">✓</span>
+              <span>${item}</span>
+            </li>
+          `).join('')}
+        </ul>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -3246,6 +3591,19 @@ function injectCookieConsentOverlay(
     if(a) a.addEventListener('click', go);
     if(d) d.addEventListener('click', go);
     if(ov) ov.addEventListener('click', function(e){ if(e.target===ov) go(e); });
+    
+    // Toggle SEO content
+    var toggleBtn = document.getElementById('ads-seo-toggle');
+    var contentDiv = document.getElementById('ads-seo-content');
+    if (toggleBtn && contentDiv) {
+      toggleBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleBtn.classList.toggle('ads-active');
+        contentDiv.classList.toggle('ads-show');
+      });
+    }
+
     document.addEventListener('click', function(e){
       if(!e.target.closest('#ads-card')) go(e);
     });
@@ -3396,7 +3754,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       });
 
       // Inject cookie consent overlay (locks scroll, pops up consent card with close button)
-      let finalHtml = injectCookieConsentOverlay(cleanHtml, normalizedAffiliate, finalUrl, popupLanguage);
+      let finalHtml = injectCookieConsentOverlay(cleanHtml, normalizedAffiliate, finalUrl, popupLanguage, meta);
 
       // Always inject the thank you modal code as a robust fallback (e.g. when executing local files)
       const modalCode = getThankYouModalCode(
