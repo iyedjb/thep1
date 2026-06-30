@@ -710,6 +710,8 @@ interface PageMetadata {
   extractedPrice?: string;
   extractedFormula?: string;
   extractedOffer?: string;
+  originalPrice?: string;
+  promotionalPrice?: string;
 }
 
 function cleanHtmlText(text: string): string {
@@ -732,9 +734,11 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
   let extractedPrice = "";
   let extractedFormula = "";
   let extractedOffer = "";
+  let originalPrice = "";
+  let promotionalPrice = "";
 
   if (!html) {
-    return { productName: extractProductName(referenceUrl), primaryColor: "#16a34a", productImageUrl: "", seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer };
+    return { productName: extractProductName(referenceUrl), primaryColor: "#16a34a", productImageUrl: "", seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice };
   }
 
   // Check og:title
@@ -902,8 +906,32 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
   const priceMatches = html.match(priceRegex);
   if (priceMatches && priceMatches.length > 0) {
     const uniquePrices = Array.from(new Set(priceMatches.map(p => p.trim())));
-    if (uniquePrices.length > 0) {
+    if (uniquePrices.length === 1) {
       extractedPrice = uniquePrices[0];
+      promotionalPrice = uniquePrices[0];
+    } else if (uniquePrices.length >= 2) {
+      const parseVal = (str: string): number => {
+        const m = str.match(/\d+/);
+        return m ? parseInt(m[0], 10) : 0;
+      };
+      const p1 = uniquePrices[0];
+      const p2 = uniquePrices[1];
+      const v1 = parseVal(p1);
+      const v2 = parseVal(p2);
+      
+      if (v1 > 0 && v2 > 0) {
+        if (v1 > v2) {
+          originalPrice = p1;
+          promotionalPrice = p2;
+        } else {
+          originalPrice = p2;
+          promotionalPrice = p1;
+        }
+        extractedPrice = promotionalPrice;
+      } else {
+        extractedPrice = p1;
+        promotionalPrice = p1;
+      }
     }
   }
 
@@ -936,7 +964,7 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     }
   }
 
-  return { productName, primaryColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer };
+  return { productName, primaryColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice };
 }
 
 function getThankYouModalCode(
@@ -2042,6 +2070,11 @@ const COOKIE_LOCALIZATION: Record<string, {
   valEntrega: string;
   valPreco: string;
   valOferta: string;
+  formatPreco: string;
+  ctaOffer: string;
+  descTemplate: string;
+  priceDescFormat: string;
+  priceValFormat: string;
 }> = {
   "pt-BR": {
     title: "🍪 Política de Cookies",
@@ -2057,7 +2090,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     valFormula: "Fórmula desenvolvida com compostos e extratos naturais selecionados.",
     valEntrega: "Envio rápido. Geralmente de 2 a 7 dias úteis com código de rastreamento.",
     valPreco: "Condições especiais e descontos direto no site oficial do fabricante.",
-    valOferta: "Promoção especial por tempo limitado no canal oficial."
+    valOferta: "Promoção especial por tempo limitado no canal oficial.",
+    formatPreco: "De <del>{orig}</del> por apenas <strong>{prom}</strong>",
+    ctaOffer: "Aproveite o desconto! Oferta por tempo limitado.",
+    descTemplate: "Página informativa oficial sobre o produto {prod}. Veja os detalhes da oferta e adquira com garantia de originalidade.",
+    priceDescFormat: " De {orig} por apenas {prom}.",
+    priceValFormat: " (Valor: {val})."
   },
   "es": {
     title: "🍪 Política de Cookies",
@@ -2073,7 +2111,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     valFormula: "Fórmula desarrollada con compuestos y extractos naturales seleccionados.",
     valEntrega: "Envío rápido. Generalmente de 2 a 7 dias hábiles con código de seguimiento.",
     valPreco: "Condiciones especiales y descuentos directos en el sitio oficial del fabricante.",
-    valOferta: "Promoción especial por tempo limitado en el canal oficial."
+    valOferta: "Promoción especial por tempo limitado en el canal oficial.",
+    formatPreco: "De <del>{orig}</del> por solo <strong>{prom}</strong>",
+    ctaOffer: "¡Aprovecha el descuento! Oferta por tiempo limitado.",
+    descTemplate: "Página informativa oficial sobre el producto {prod}. Vea los detalles de la oferta y compre con garantía de originalidad.",
+    priceDescFormat: " De {orig} por solo {prom}.",
+    priceValFormat: " (Valor: {val})."
   },
   "en": {
     title: "🍪 Cookie Policy",
@@ -2089,7 +2132,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     valFormula: "Formula developed with selected natural compounds and extracts.",
     valEntrega: "Fast shipping. Usually 2 to 7 business days with tracking number.",
     valPreco: "Special offers and discounts available directly on the official manufacturer site.",
-    valOferta: "Special limited-time promotion on the official channel."
+    valOferta: "Special limited-time promotion on the official channel.",
+    formatPreco: "From <del>{orig}</del> to only <strong>{prom}</strong>",
+    ctaOffer: "Enjoy the discount! Limited-time offer.",
+    descTemplate: "Official informative page about the product {prod}. See the details of the offer and purchase with guarantee of originality.",
+    priceDescFormat: " From {orig} to only {prom}.",
+    priceValFormat: " (Price: {val})."
   },
   "it": {
     title: "🍪 Informativa sui Cookie",
@@ -2105,7 +2153,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     valFormula: "Formula sviluppata con composti ed estratti naturali selezionati.",
     valEntrega: "Spedizione rapida. Geralmente 2-7 giorni lavorativi con codice di tracciamento.",
     valPreco: "Condizioni speciali e sconti disponibili direttamente sul sito ufficiale del produttore.",
-    valOferta: "Promozione speciale a tempo limitato sul canale ufficiale."
+    valOferta: "Promozione speciale a tempo limitato sul canale ufficiale.",
+    formatPreco: "Da <del>{orig}</del> a soli <strong>{prom}</strong>",
+    ctaOffer: "Approfitta dello sconto! Offerta a tempo limitato.",
+    descTemplate: "Pagina informativa ufficiale sul prodotto {prod}. Vedi i dettagli dell'offerta e acquista con garanzia di originalità.",
+    priceDescFormat: " Da {orig} a soli {prom}.",
+    priceValFormat: " (Valore: {val})."
   },
   "fr": {
     title: "🍪 Politique relative aux cookies",
@@ -2121,7 +2174,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     valFormula: "Formule développée avec des composés et extraits naturels sélectionnés.",
     valEntrega: "Expédition rapide. Généralement 2 à 7 jours ouvrables avec numéro de suivi.",
     valPreco: "Remises spéciales et réductions en direct sur le site officiel du fabricant.",
-    valOferta: "Promotion spéciale à durée limitée sur le canal officiel."
+    valOferta: "Promotion spéciale à durée limitée sur le canal officiel.",
+    formatPreco: "De <del>{orig}</del> à seulement <strong>{prom}</strong>",
+    ctaOffer: "Profitez de la remise ! Offre à durée limitée.",
+    descTemplate: "Page d'information officielle sur le produit {prod}. Consultez les détails de l'offre et achetez avec garantie d'authenticité.",
+    priceDescFormat: " De {orig} à seulement {prom}.",
+    priceValFormat: " (Valeur: {val})."
   },
   "de": {
     title: "🍪 Cookie-Richtlinie",
@@ -2137,7 +2195,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     valFormula: "Formel entwickelt mit ausgewählten natürlichen Verbindungen und Extrakten.",
     valEntrega: "Schneller Versand. In der Regel 2 bis 7 Werktage mit Sendungsverfolgung.",
     valPreco: "Besondere Konditionen und Rabatte direkt auf der offiziellen Website des Herstellers.",
-    valOferta: "Sonderaktion für begrenzte Zeit auf dem offiziellen Kanal."
+    valOferta: "Sonderaktion für begrenzte Zeit auf dem offiziellen Kanal.",
+    formatPreco: "Von <del>{orig}</del> auf nur <strong>{prom}</strong>",
+    ctaOffer: "Nutzen Sie den Rabatt! Zeitlich begrenztes Angebot.",
+    descTemplate: "Offizielle Informationsseite über das Produkt {prod}. Sehen Sie sich die Angebotsdetails an und kaufen Sie mit Originalitätsgarantie.",
+    priceDescFormat: " Von {orig} auf nur {prom}.",
+    priceValFormat: " (Wert: {val})."
   },
   "ro": {
     title: "🍪 Politica de Cookie-uri",
@@ -2153,7 +2216,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     valFormula: "Formulă dezvoltată cu compuși și extracte naturale selectate.",
     valEntrega: "Livrare rapidă. De obicei 2-7 zile lucrătoare cu cod de urmărire.",
     valPreco: "Condiții speciale și reduceri direct pe site-ul oficial al producătorului.",
-    valOferta: "Promoție specială pe perioadă limitată pe canalul oficial."
+    valOferta: "Promoție specială pe perioadă limitată pe canalul oficial.",
+    formatPreco: "De la <del>{orig}</del> la doar <strong>{prom}</strong>",
+    ctaOffer: "Profită de reducere! Ofertă pe timp limitat.",
+    descTemplate: "Pagina oficială de informații despre produsul {prod}. Consultați detaliile ofertei și cumpărați cu garanție de originalitate.",
+    priceDescFormat: " De la {orig} la doar {prom}.",
+    priceValFormat: " (Valoare: {val})."
   },
   "pl": {
     title: "🍪 Polityka Cookies",
@@ -2169,7 +2237,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     valFormula: "Formuła opracowana z wyselekcjonowanych naturalnych związków i ekstraktów.",
     valEntrega: "Szybka wysyłka. Zazwyczaj 2 do 7 dni roboczych z numerem śledzenia przesyłki.",
     valPreco: "Specjalne warunki i rabaty bezpośrednio na oficjalnej stronie producenta.",
-    valOferta: "Specjalna promocja ograniczona czasowo na oficjalnym kanale."
+    valOferta: "Specjalna promocja ograniczona czasowo na oficjalnym kanale.",
+    formatPreco: "Z <del>{orig}</del> na jedyne <strong>{prom}</strong>",
+    ctaOffer: "Skorzystaj z rabatu! Oferta ograniczona czasowo.",
+    descTemplate: "Oficjalna strona informacyjna o produkcie {prod}. Zobacz szczegóły oferty i kupuj z gwarancją oryginalności.",
+    priceDescFormat: " Z {orig} na jedyne {prom}.",
+    priceValFormat: " (Wartość: {val})."
   }
 };
 
@@ -3355,20 +3428,38 @@ function injectCookieConsentOverlay(
   // Resolve / generate SEO description if empty
   let seoDesc = meta?.seoDescription || "";
   if (!seoDesc) {
-    if (detectedLang === "pt-BR") {
-      seoDesc = `Página informativa oficial sobre o produto ${productName}. Veja os detalhes da oferta e adquira com garantia de originalidade.`;
-    } else if (detectedLang === "es") {
-      seoDesc = `Página informativa oficial sobre el producto ${productName}. Vea los detalles de la oferta y compre con garantía de originalidad.`;
-    } else {
-      seoDesc = `Official informative page about ${productName}. See the offer details and purchase with guarantee of originality.`;
-    }
+    seoDesc = localization.descTemplate.replace("{prod}", productName);
+  }
+
+  // Add the price comparison details and CTA directly into the SEO description
+  if (meta?.originalPrice && meta?.promotionalPrice) {
+    const priceText = localization.priceDescFormat
+      .replace("{orig}", meta.originalPrice)
+      .replace("{prom}", meta.promotionalPrice);
+    seoDesc += `${priceText} ${localization.ctaOffer}`;
+  } else if (meta?.extractedPrice) {
+    const priceText = localization.priceValFormat.replace("{val}", meta.extractedPrice);
+    seoDesc += `${priceText} ${localization.ctaOffer}`;
+  } else {
+    seoDesc += ` ${localization.ctaOffer}`;
   }
 
   // Resolve formula, price, delivery, and offer values
   const valFormulaResolved = meta?.extractedFormula || localization.valFormula;
-  const valPrecoResolved = meta?.extractedPrice 
-    ? `${meta.extractedPrice} - ${localization.valPreco}` 
-    : localization.valPreco;
+  
+  let valPrecoResolved = "";
+  if (meta?.originalPrice && meta?.promotionalPrice) {
+    valPrecoResolved = localization.formatPreco
+      .replace("{orig}", meta.originalPrice)
+      .replace("{prom}", meta.promotionalPrice);
+  } else if (meta?.extractedPrice) {
+    valPrecoResolved = `${meta.extractedPrice} - ${localization.valPreco}`;
+  } else {
+    valPrecoResolved = localization.valPreco;
+  }
+  // Append CTA to pricing display as well
+  valPrecoResolved = `${valPrecoResolved} (${localization.ctaOffer})`;
+
   const valEntregaResolved = localization.valEntrega;
   const valOfertaResolved = meta?.extractedOffer
     ? `${meta.extractedOffer} - ${localization.valOferta}`
