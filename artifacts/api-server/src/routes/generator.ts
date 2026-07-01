@@ -3000,10 +3000,14 @@ function generateCleanBackgroundPresellHtml(input: {
   const lang = input.popupLanguage || "pt-BR";
   
   let faviconUrl = "";
-  try {
-    const domain = new URL(input.referenceUrl).hostname;
-    faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
-  } catch (_) {}
+  if (input.meta?.productImageUrl) {
+    faviconUrl = input.meta.productImageUrl;
+  } else {
+    try {
+      const domain = new URL(input.referenceUrl).hostname;
+      faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+    } catch (_) {}
+  }
 
   return `<!DOCTYPE html>
 <html lang="${lang}">
