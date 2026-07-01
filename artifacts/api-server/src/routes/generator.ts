@@ -3911,7 +3911,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         logger.warn({ err: puppeteerErr.message }, "Local Puppeteer screenshot failed, falling back to external APIs");
         const encodedFinalUrl = encodeURIComponent(finalUrl);
         screenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=true&viewport.width=1920&viewport.height=1080&embed=screenshot.url`;
-        mobileScreenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=true&screenshot.device=iPhone%2013&embed=screenshot.url`;
+        mobileScreenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=true&viewport.width=390&viewport.height=844&viewport.isMobile=true&viewport.hasTouch=true&viewport.userAgent=Mozilla%2F5.0+%28iPhone%3B+CPU+iPhone+OS+15_0+like+Mac+OS+X%29+AppleWebKit%2F605.1.15+%28KHTML%2C+like+Gecko%29+Version%2F15.0+Mobile%2F15E148+Safari%2F604.1&embed=screenshot.url`;
 
         // Check if Microlink works, otherwise fallback to thum.io
         try {
@@ -3925,7 +3925,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
             const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
             const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
             screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/fullpage/${finalUrl}`;
-            mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/iphone6plus/fullpage/${finalUrl}`;
+            mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/fullpage/${finalUrl}`;
           }
         } catch (err) {
           logger.warn({ err: (err as Error).message }, "Microlink checked, threw error/timeout, falling back to thum.io");
@@ -3933,7 +3933,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
           const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
           const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
           screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/fullpage/${finalUrl}`;
-          mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/iphone6plus/fullpage/${finalUrl}`;
+          mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/fullpage/${finalUrl}`;
         }
       }
 
