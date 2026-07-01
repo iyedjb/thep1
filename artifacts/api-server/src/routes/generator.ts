@@ -3585,29 +3585,7 @@ function injectCookieConsentOverlay(
     from { transform: translate(-50%, -50%) scale(0.8) translateY(30px); opacity: 0; }
     to   { transform: translate(-50%, -50%) scale(1)   translateY(0);    opacity: 1; }
   }
-  #ads-icon-container { display: flex; justify-content: center; margin-bottom: 14px; }
-  #ads-product-img {
-    width: 68px;
-    height: 68px;
-    object-fit: contain;
-    border-radius: 12px;
-    border: 1px solid rgba(0,0,0,0.08);
-    background: #ffffff;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.04);
-    margin-bottom: 4px;
-  }
-  .ads-product-badge {
-    display: inline-block;
-    font-size: 11px;
-    font-weight: 700;
-    color: ${primaryColor};
-    background: ${primaryColor}12;
-    padding: 4px 10px;
-    border-radius: 99px;
-    margin-bottom: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-  }
+  #ads-icon-container { display: flex; justify-content: center; margin-bottom: 18px; }
   #ads-title  { font-size: 18px; font-weight: 700; color: #0f172a; margin: 0 0 10px; font-family: inherit; }
   #ads-desc   { font-size: 13px; color: #64748b; line-height: 1.65; margin: 0 0 24px; font-family: inherit; }
   #ads-btns   { display: flex; gap: 10px; }
@@ -3717,15 +3695,11 @@ function injectCookieConsentOverlay(
 <div id="ads-overlay">
   <div id="ads-card" onclick="event.stopPropagation()">
     <div id="ads-icon-container">
-      ${meta?.productImageUrl 
-        ? `<img id="ads-product-img" src="${meta.productImageUrl}" alt="${productName}" />`
-        : `<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="${primaryColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            <path d="m9 12 2 2 4-4"/>
-           </svg>`
-      }
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="${primaryColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        <path d="m9 12 2 2 4-4"/>
+      </svg>
     </div>
-    <div class="ads-product-badge">${productName}</div>
     <h3 id="ads-title">${titleClean}</h3>
     <p id="ads-desc">${localization.desc}</p>
     <div id="ads-btns">
