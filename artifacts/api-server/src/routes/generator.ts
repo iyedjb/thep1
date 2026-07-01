@@ -3564,7 +3564,7 @@ function injectCookieConsentOverlay(
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: linear-gradient(180deg, #ffffff 0%, ${primaryColor}08 100%);
+    background: #ffffff;
     border-top: 4px solid ${primaryColor};
     border-radius: 20px;
     padding: 36px 28px 28px;
