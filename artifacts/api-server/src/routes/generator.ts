@@ -114,6 +114,7 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
     // Also try to wait for the body to have meaningful content height
     try {
       await mobilePage.waitForFunction(
+        // @ts-ignore - document is available in the browser-evaluated context of Puppeteer
         () => document.body && document.body.scrollHeight > 100,
         { timeout: 5000 }
       );
