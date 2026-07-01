@@ -18,6 +18,7 @@ declare global {
         id: {
           initialize: (config: any) => void;
           prompt: () => void;
+          renderButton: (parent: HTMLElement, options: any) => void;
         };
       };
     };
@@ -71,32 +72,38 @@ export default function Login() {
     }
   };
 
-  const initGoogleSignIn = (callback: (r: { credential: string }) => void) => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId || !window.google?.accounts?.id) return false;
-    window.google.accounts.id.initialize({
-      client_id: clientId,
-      callback,
-      ux_mode: "popup",
-      cancel_on_tap_outside: false,
-    });
-    return true;
-  };
-
   useEffect(() => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     if (!clientId) return;
 
+    const renderGButton = () => {
+      if (!window.google?.accounts?.id) return;
+      const container = document.getElementById("google-button-container");
+      if (!container) return;
+      
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: handleGoogleCredential,
+      });
+      
+      window.google.accounts.id.renderButton(container, {
+        theme: "outline",
+        size: "large",
+        text: "continue_with",
+        logo_alignment: "center",
+      });
+    };
+
     // If GIS already loaded, init immediately
     if (window.google?.accounts?.id) {
-      initGoogleSignIn(handleGoogleCredential);
+      renderGButton();
       return;
     }
 
     // Otherwise wait for the script to load
     const script = document.querySelector("script[src*='accounts.google.com/gsi/client']");
     if (script) {
-      script.addEventListener("load", () => initGoogleSignIn(handleGoogleCredential));
+      script.addEventListener("load", renderGButton);
     }
   }, []);
 
@@ -110,29 +117,10 @@ export default function Login() {
     });
   };
 
-  const handleGoogleClick = () => {
-    if (!window.google?.accounts?.id) {
-      toast({ title: "Google indisponível", description: "Recarregue a página e tente novamente.", variant: "destructive" });
-      return;
-    }
-    // Re-init to make sure callback is fresh, then prompt
-    initGoogleSignIn(handleGoogleCredential);
-    window.google.accounts.id.prompt();
-  };
-
   return (
     <AuthShell eyebrow="Bem-vindo de volta" title="Entre na sua conta ClickLab" description="Insira seus dados para acessar o painel e gerenciar suas campanhas.">
-      {/* Google OAuth */}
-      <Button
-        type="button"
-        variant="outline"
-        onClick={handleGoogleClick}
-        disabled={googleLoading}
-        className="h-12 w-full rounded-xl border-border/60 bg-white/5 font-semibold text-foreground hover:bg-white/10 hover:border-border transition-all gap-3"
-      >
-        <GoogleIcon />
-        {googleLoading ? "Conectando..." : "Continuar com o Google"}
-      </Button>
+      {/* Google OAuth Official Button */}
+      <div id="google-button-container" className="w-full flex justify-center h-12 mb-2 [&>div]:w-full [&>div]:flex [&>div]:justify-center"></div>
 
       <div className="my-6 flex items-center gap-4">
         <span className="h-px flex-1 bg-border/40" />

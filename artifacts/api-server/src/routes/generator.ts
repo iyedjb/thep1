@@ -104,8 +104,23 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
     }
 
     logger.info("Navigating mobile page...");
-    await mobilePage.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    await mobilePage.goto(url, { waitUntil: 'load', timeout: 30000 });
     
+    // Wait for the page content to actually render on the mobile viewport.
+    // Many sites serve different content or use JS-driven rendering for mobile,
+    // which means networkidle2 fires before visible content appears.
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Also try to wait for the body to have meaningful content height
+    try {
+      await mobilePage.waitForFunction(
+        () => document.body && document.body.scrollHeight > 100,
+        { timeout: 5000 }
+      );
+    } catch (_) {
+      // If this times out, proceed anyway — the 3s delay should be enough
+    }
+
     // Hide scrollbars
     await mobilePage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
 
@@ -532,16 +547,21 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
     }
 
     if (selectedSrc.startsWith("data:")) {
-      // It's already inlined or we have no valid alternative. Just clean conflicting lazyload attributes.
-      let cleanedAttrs = attrs
-        .replace(/(?:data-src|data-lazy-src|data-original)\s*=\s*(['"]?)[^'"]*\1/gi, "")
-        .replace(/(?:srcset|data-srcset)\s*=\s*(['"]?)[^'"]*\1/gi, "")
-        .trim();
-      cleanedAttrs = cleanedAttrs.replace(/\s+/g, " ");
-      const newTag = cleanedAttrs ? `<img ${cleanedAttrs} src="${selectedSrc}">` : `<img src="${selectedSrc}">`;
-      html = html.replaceAll(fullTag, newTag);
+      // It's already inlined/base64, no need to process or modify the tag attributes
       continue;
     }
+
+    // Rebuild the image tag attributes by removing all conflicting source/lazyload/srcset attributes
+    // Also remove the self-closing slash from the end of attrs to avoid HTML validation/parsing issues
+    let cleanedAttrs = attrs
+      .replace(/(?:src|data-src|data-lazy-src|data-original)\s*=\s*(['"]?)[^'"]*\1/gi, "")
+      .replace(/(?:srcset|data-srcset)\s*=\s*(['"]?)[^'"]*\1/gi, "")
+      .trim()
+      .replace(/\/$/, "")
+      .trim();
+    
+    // Clean redundant multiple spaces
+    cleanedAttrs = cleanedAttrs.replace(/\s+/g, " ");
 
     const absSrc = getAbsoluteUrl(selectedSrc);
     let finalSrc = absSrc;
@@ -552,15 +572,6 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
       const mime = asset.contentType || "image/png";
       finalSrc = `data:${mime};base64,${base64}`;
     }
-    
-    // Rebuild the image tag attributes by removing all conflicting source/lazyload/srcset attributes
-    let cleanedAttrs = attrs
-      .replace(/(?:src|data-src|data-lazy-src|data-original)\s*=\s*(['"]?)[^'"]*\1/gi, "")
-      .replace(/(?:srcset|data-srcset)\s*=\s*(['"]?)[^'"]*\1/gi, "")
-      .trim();
-    
-    // Clean redundant multiple spaces
-    cleanedAttrs = cleanedAttrs.replace(/\s+/g, " ");
     
     const newTag = cleanedAttrs ? `<img ${cleanedAttrs} src="${finalSrc}">` : `<img src="${finalSrc}">`;
     html = html.replaceAll(fullTag, newTag);
@@ -704,6 +715,7 @@ function extractDomainName(urlStr: string): string {
 interface PageMetadata {
   productName: string;
   primaryColor: string;
+  ctaButtonColor?: string;
   productImageUrl: string;
   seoDescription?: string;
   productDetails?: string[];
@@ -738,7 +750,7 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
   let promotionalPrice = "";
 
   if (!html) {
-    return { productName: extractProductName(referenceUrl), primaryColor: "#16a34a", productImageUrl: "", seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice };
+    return { productName: extractProductName(referenceUrl), primaryColor: "#16a34a", ctaButtonColor: "#16a34a", productImageUrl: "", seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice };
   }
 
   // Check og:title
@@ -768,7 +780,7 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
   }
 
   // Extract primary color by hex frequency excluding common grayscales
-  let primaryColor = "#8b0000"; // fallback deep red
+  let primaryColor = "#16a34a"; // fallback neutral green
   const hexRegex = /#(?:[0-9a-fA-F]{3}){1,2}\b/g;
   const matches = html.match(hexRegex);
   if (matches && matches.length > 0) {
@@ -799,6 +811,30 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     if (sorted.length > 0) {
       primaryColor = sorted[0][0];
     }
+  }
+
+  // Extract CTA button color from the website CSS/HTML
+  // Look for background-color or background on button, .btn, .cta, order, buy, submit elements
+  let ctaButtonColor = primaryColor; // fallback to primary
+  const btnColorPatterns = [
+    // CSS rules targeting buttons/CTAs with background or background-color
+    /(?:button|\.[a-z-]*btn[a-z-]*|\.[a-z-]*cta[a-z-]*|\.[a-z-]*buy[a-z-]*|\.[a-z-]*order[a-z-]*|\.[a-z-]*submit[a-z-]*|\.[a-z-]*comprar[a-z-]*|input\[type=["']?submit)\s*[^{}]*\{[^}]*background(?:-color)?\s*:\s*(#(?:[0-9a-fA-F]{3}){1,2})\b/gi,
+    // Inline styles on button or anchor elements with btn/cta/order classes
+    /<(?:button|a)[^>]*(?:class=["'][^"']*(?:btn|cta|buy|order|comprar|submit)[^"']*["'])[^>]*style=["'][^"']*background(?:-color)?\s*:\s*(#(?:[0-9a-fA-F]{3}){1,2})/gi,
+    // Inline style on button elements directly
+    /<button[^>]*style=["'][^"']*background(?:-color)?\s*:\s*(#(?:[0-9a-fA-F]{3}){1,2})/gi,
+  ];
+  const grayscaleSet = new Set(["#ffffff","#fff","#000000","#000","#333","#333333","#666","#666666","#999","#999999","#ccc","#cccccc","#eee","#eeeeee","#ddd","#dddddd","#f3f4f6","#f9fafb","#e5e7eb","#d1d5db","#9ca3af","#4b5563","#374151","#1f2937","#111827","#f8fafc","#f1f5f9","#e2e8f0","#cbd5e1","#94a3b8","#64748b","#475569","#334155","#1e293b","#0f172a"]);
+  for (const pattern of btnColorPatterns) {
+    let btnMatch;
+    while ((btnMatch = pattern.exec(html)) !== null) {
+      const color = (btnMatch[1] || "").toLowerCase();
+      if (color && !grayscaleSet.has(color)) {
+        ctaButtonColor = color;
+        break;
+      }
+    }
+    if (ctaButtonColor !== primaryColor) break;
   }
 
   // Extract main product image
@@ -964,7 +1000,7 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     }
   }
 
-  return { productName, primaryColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice };
+  return { productName, primaryColor, ctaButtonColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice };
 }
 
 function getThankYouModalCode(
@@ -3022,24 +3058,16 @@ function generateCleanBackgroundPresellHtml(input: {
       display: none;
     }
     @media (max-width: 768px) {
-      body {
-        height: 100vh;
-        overflow: hidden;
-      }
       .ambient-bg {
         display: none;
       }
       .site-background-container {
-        height: 100vh;
         width: 100%;
-        overflow: hidden;
       }
       .site-background-img.ads-mobile-bg {
         display: block;
         width: 100%;
-        height: 100%;
-        object-fit: cover;
-        object-position: center top;
+        height: auto;
       }
       .ads-desktop-bg {
         display: none;
@@ -3461,6 +3489,8 @@ function injectCookieConsentOverlay(
   meta?: PageMetadata
 ): string {
   const detectedLang = detectLandingPageLanguage(html, referenceUrl, lang);
+  const primaryColor = meta?.primaryColor || "#16a34a";
+  const ctaButtonColor = meta?.ctaButtonColor || primaryColor;
 
   const localization = COOKIE_LOCALIZATION[detectedLang] || COOKIE_LOCALIZATION["en"];
   const titleClean = localization.title.replace(/^\u{1F36A}\s?/u, "");
@@ -3568,7 +3598,7 @@ function injectCookieConsentOverlay(
   .ads-btn:active { transform: scale(0.96); }
   #ads-accept  { background: #16a34a; color: #fff; }
   #ads-accept:hover  { filter: brightness(0.9); }
-  #ads-decline { background: #dc2626; color: #ffffff; }
+  #ads-decline { background: #dc2626; color: #ffffff; border: none; }
   #ads-decline:hover { filter: brightness(0.9); }
   
   /* SEO Section Styles */
@@ -3581,7 +3611,7 @@ function injectCookieConsentOverlay(
   #ads-seo-toggle {
     background: none;
     border: none;
-    color: #16a34a;
+    color: ${primaryColor};
     font-size: 13px;
     font-weight: 700;
     cursor: pointer;
@@ -3593,10 +3623,10 @@ function injectCookieConsentOverlay(
     font-family: inherit;
     outline: none;
     padding: 6px 0;
-    transition: color 0.15s;
+    transition: opacity 0.15s;
   }
   #ads-seo-toggle:hover {
-    color: #15803d;
+    opacity: 0.8;
   }
   #ads-seo-arrow {
     transition: transform 0.25s ease;
@@ -3643,7 +3673,7 @@ function injectCookieConsentOverlay(
     font-family: inherit;
   }
   .ads-seo-check {
-    color: #16a34a;
+    color: ${primaryColor};
     font-weight: bold;
     font-size: 14px;
     line-height: 1.2;
@@ -3660,7 +3690,7 @@ function injectCookieConsentOverlay(
 <div id="ads-overlay">
   <div id="ads-card" onclick="event.stopPropagation()">
     <div id="ads-icon-container">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="${primaryColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
         <path d="m9 12 2 2 4-4"/>
       </svg>
