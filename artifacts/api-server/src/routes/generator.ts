@@ -3620,10 +3620,10 @@ function injectCookieConsentOverlay(
     transition: transform 0.1s, filter 0.15s;
   }
   .ads-btn:active { transform: scale(0.96); }
-  #ads-accept  { background: ${ctaButtonColor}; color: #fff; }
-  #ads-accept:hover  { filter: brightness(0.92); }
-  #ads-decline { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
-  #ads-decline:hover { background: #f1f5f9; color: #475569; }
+  #ads-accept  { background: #16a34a; color: #fff; }
+  #ads-accept:hover  { filter: brightness(0.9); }
+  #ads-decline { background: #dc2626; color: #ffffff; border: none; }
+  #ads-decline:hover { filter: brightness(0.9); }
   
   /* SEO Section Styles */
   #ads-seo-wrapper {
