@@ -970,7 +970,15 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     return m ? parseInt(m[0], 10) : 0;
   };
 
-  const priceMatches = html.match(priceRegex);
+  // Strip head, script, style, and HTML tags so we only match visible page text
+  const cleanTextForPrice = html
+    .replace(/<head>[\s\S]*?<\/head>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ');
+
+  const priceMatches = cleanTextForPrice.match(priceRegex);
   if (priceMatches && priceMatches.length > 0) {
     const uniquePrices = Array.from(new Set(priceMatches.map(p => p.trim())))
       .filter(p => parseVal(p) > 0);
