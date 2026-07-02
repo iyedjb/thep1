@@ -2186,6 +2186,7 @@ const COOKIE_LOCALIZATION: Record<string, {
   valDigital: string;
   valGenericCampaignInfo: string;
   valPrecoGeneric: string;
+  valPrecoGenericCond: string;
   valOfertaGeneric: string;
   labelInfoRelevante: string;
   valInfoRelevante: string;
@@ -2219,6 +2220,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valDigital: "Recursos e materiais informativos de alta qualidade desenvolvidos por especialistas.",
     valGenericCampaignInfo: "Consulte informações nesta campanha.",
     valPrecoGeneric: "Valor promocional disponível no canal oficial do fabricante.",
+    valPrecoGenericCond: "Pagamento seguro processado através do canal oficial.",
     valOfertaGeneric: "Desconto promocional especial disponível nesta campanha.",
     labelInfoRelevante: "Informações Relevantes",
     valInfoRelevante: "Canal oficial informativo da campanha. Os termos de garantia e políticas de reembolso são os estabelecidos pelo site oficial."
@@ -2252,6 +2254,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valDigital: "Recursos y materiales informativos de alta calidad desarrollados por especialistas.",
     valGenericCampaignInfo: "Consulte información en esta campaña.",
     valPrecoGeneric: "Valor promocional disponible en el canal oficial del fabricante.",
+    valPrecoGenericCond: "Pago seguro procesado a través del canal oficial.",
     valOfertaGeneric: "Descuento promocional especial disponible en esta campaña.",
     labelInfoRelevante: "Información Relevante",
     valInfoRelevante: "Canal oficial informativo de la campaña. Los términos de garantía y políticas de reembolso son los establecidos por el sitio oficial."
@@ -2285,6 +2288,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valDigital: "High-quality resources and informative materials developed by experts.",
     valGenericCampaignInfo: "Check information in this campaign.",
     valPrecoGeneric: "Promotional value available on the official manufacturer's channel.",
+    valPrecoGenericCond: "Secure payment processed through the official channel.",
     valOfertaGeneric: "Special promotional discount available in this campaign.",
     labelInfoRelevante: "Relevant Information",
     valInfoRelevante: "Official informative channel for the campaign. Warranty terms and refund policies are those established by the official website."
@@ -2318,6 +2322,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valDigital: "Risorse e materiali informativi di alta qualità sviluppati da esperti.",
     valGenericCampaignInfo: "Consulta le informazioni in questa campagna.",
     valPrecoGeneric: "Valore promozionale disponibile sul canale ufficiale del produttore.",
+    valPrecoGenericCond: "Pagamento sicuro elaborato tramite il canale ufficiale.",
     valOfertaGeneric: "Sconto promozionale speciale disponibile in questa campagna.",
     labelInfoRelevante: "Informazioni Rilevanti",
     valInfoRelevante: "Canale informativo ufficiale della campagna. I termini di garanzia e le politiche di rimborso sono quelli stabiliti dal sito ufficiale."
@@ -2351,6 +2356,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valDigital: "Ressources et supports d'information de haute qualité développés par des experts.",
     valGenericCampaignInfo: "Consultez les informations de cette campagne.",
     valPrecoGeneric: "Valeur promotionnelle disponible sur le canal officiel du fabricant.",
+    valPrecoGenericCond: "Paiement sécurisé traité via le canal officiel.",
     valOfertaGeneric: "Remise promotionnelle spéciale disponible pour cette campagne.",
     labelInfoRelevante: "Informations Pertinentes",
     valInfoRelevante: "Canal d'information officiel de la campagne. Les conditions de garantie et les politiques de remboursement sont celles établies par le site officiel."
@@ -2384,6 +2390,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valDigital: "Hochwertige Ressourcen und Informationsmaterialien von Experten.",
     valGenericCampaignInfo: "Informationen in dieser Kampagne prüfen.",
     valPrecoGeneric: "Werbewert auf dem offiziellen Kanal des Herstellers verfügbar.",
+    valPrecoGenericCond: "Sichere Zahlung über den offiziellen Kanal.",
     valOfertaGeneric: "Spezieller Aktionsrabatt in dieser Kampagne verfügbar.",
     labelInfoRelevante: "Relevante Informationen",
     valInfoRelevante: "Offizieller Informationskanal der Kampagne. Die Garantiebedingungen und Rückerstattungsrichtlinien entsprechen denen der offiziellen Website."
@@ -2417,6 +2424,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valDigital: "Resurse de înaltă calitate și materiale informative dezvoltate de experți.",
     valGenericCampaignInfo: "Consultați informațiile din această campanie.",
     valPrecoGeneric: "Valoare promoțională disponibilă pe canalul oficial al producătorului.",
+    valPrecoGenericCond: "Plată securizată procesată prin canalul oficial.",
     valOfertaGeneric: "Reducere promoțională specială disponibilă în această campanie.",
     labelInfoRelevante: "Informații Relevante",
     valInfoRelevante: "Canal informativ oficial al campaniei. Termenii de garanție și politicile de rambursare sunt cele stabilite de site-ul oficial."
@@ -2450,6 +2458,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valDigital: "Wysokiej jakości zasoby i materiały informacyjne opracowane przez ekspertów.",
     valGenericCampaignInfo: "Sprawdź informacje w tej kampanii.",
     valPrecoGeneric: "Wartość promocyjna dostępna na oficjalnym kanale producenta.",
+    valPrecoGenericCond: "Bezpieczna płatność realizowana za pośrednictwem oficjalnego kanału.",
     valOfertaGeneric: "Specjalny rabat promocyjny dostępny w tej kampanii.",
     labelInfoRelevante: "Istotne Informacje",
     valInfoRelevante: "Oficjalny kanał informacyjny kampanii. Warunki gwarancji i zasady zwrotów są zgodne z określonymi na oficjalnej stronie."
@@ -3704,7 +3713,7 @@ function injectCookieConsentOverlay(
     seoDesc += ` ${localization.ctaOffer}`;
   }
   
-  const defaultValPreco = meta?.isCod ? localization.valPrecoCOD : localization.valPrecoOnline;
+  const defaultValPreco = localization.valPrecoGenericCond;
   
   let valPrecoResolved = "";
   if (meta?.originalPrice && meta?.promotionalPrice) {
