@@ -727,6 +727,7 @@ interface PageMetadata {
   promotionalPrice?: string;
   isGadget?: boolean;
   isDigital?: boolean;
+  isCod?: boolean;
 }
 
 function cleanHtmlText(text: string): string {
@@ -1045,6 +1046,9 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     }
   }
 
+  const codKeywords = /pague na entrega|pague ao receber|contra entrega|contra-entrega|pago contra entrega|cash on delivery|pagamento na entrega|pagamento ao receber|\bcod\b|paghi alla consegna|pagamento alla consegna|paiement à la livraison|zahlung bei lieferung|plată la livrare|płatność przy odbiorze/i;
+  const isCod = codKeywords.test(html) || referenceUrl.toLowerCase().includes("cod");
+
   if (!seoDescription && productDetails.length > 0) {
     seoDescription = productDetails.slice(0, 3).join(". ");
   }
@@ -1053,7 +1057,7 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     seoDescription = filterNonCompliantSentences(seoDescription);
   }
 
-  return { productName, primaryColor, ctaButtonColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice, isGadget, isDigital };
+  return { productName, primaryColor, ctaButtonColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice, isGadget, isDigital, isCod };
 }
 
 function getThankYouModalCode(
@@ -2157,7 +2161,8 @@ const COOKIE_LOCALIZATION: Record<string, {
   labelOferta: string;
   valFormula: string;
   valEntrega: string;
-  valPreco: string;
+  valPrecoCOD: string;
+  valPrecoOnline: string;
   valOferta: string;
   formatPreco: string;
   ctaOffer: string;
@@ -2182,7 +2187,8 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelOferta: "Oferta Especial",
     valFormula: "Fórmula desenvolvida com compostos e extratos naturais selecionados.",
     valEntrega: "Envio rápido. Geralmente de 2 a 7 dias úteis com código de rastreamento.",
-    valPreco: "Pagamento na Entrega (pague apenas ao receber o produto).",
+    valPrecoCOD: "Pagamento na Entrega (pague apenas ao receber o produto).",
+    valPrecoOnline: "Pagamento Seguro Online (Cartão de Crédito, Boleto ou PIX).",
     valOferta: "Promoção especial por tempo limitado no canal oficial.",
     formatPreco: "De <del>{orig}</del> por apenas <strong>{prom}</strong>",
     ctaOffer: "Aproveite o desconto! Oferta por tempo limitado.",
@@ -2207,7 +2213,8 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelOferta: "Oferta Especial",
     valFormula: "Fórmula desarrollada con compuestos y extractos naturales seleccionados.",
     valEntrega: "Envío rápido. Generalmente de 2 a 7 dias hábiles con código de seguimiento.",
-    valPreco: "Pago Contra Entrega (pague solo al recibir el producto).",
+    valPrecoCOD: "Pago Contra Entrega (pague solo al recibir el producto).",
+    valPrecoOnline: "Pago Seguro Online (Tarjeta de Crédito, PayPal o métodos locales).",
     valOferta: "Promoción especial por tempo limitado en el canal oficial.",
     formatPreco: "De <del>{orig}</del> por solo <strong>{prom}</strong>",
     ctaOffer: "¡Aprovecha el descuento! Oferta por tiempo limitado.",
@@ -2232,7 +2239,8 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelOferta: "Special Offer",
     valFormula: "Formula developed with selected natural compounds and extracts.",
     valEntrega: "Fast shipping. Usually 2 to 7 business days with tracking number.",
-    valPreco: "Cash on Delivery (pay only upon receiving the product).",
+    valPrecoCOD: "Cash on Delivery (pay only upon receiving the product).",
+    valPrecoOnline: "Secure Online Payment (Credit Card, PayPal or local payment methods).",
     valOferta: "Special limited-time promotion on the official channel.",
     formatPreco: "From <del>{orig}</del> to only <strong>{prom}</strong>",
     ctaOffer: "Enjoy the discount! Limited-time offer.",
@@ -2257,7 +2265,8 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelOferta: "Offerta Speciale",
     valFormula: "Formula sviluppata con composti ed estratti naturali selezionati.",
     valEntrega: "Spedizione rapida. Geralmente 2-7 giorni lavorativi con codice di tracciamento.",
-    valPreco: "Pagamento alla Consegna (paghi solo alla ricezione del prodotto).",
+    valPrecoCOD: "Pagamento alla Consegna (paghi solo alla ricezione del prodotto).",
+    valPrecoOnline: "Pagamento Online Sicuro (Carta di Credito, PayPal o metodi locali).",
     valOferta: "Promozione speciale a tempo limitato sul canale ufficiale.",
     formatPreco: "Da <del>{orig}</del> a soli <strong>{prom}</strong>",
     ctaOffer: "Approfitta dello sconto! Offerta a tempo limitato.",
@@ -2282,7 +2291,8 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelOferta: "Offre Spéciale",
     valFormula: "Formule développée avec des composés et extraits naturels sélectionnés.",
     valEntrega: "Expédition rapide. Généralement 2 à 7 jours ouvrables avec numéro de suivi.",
-    valPreco: "Paiement à la Livraison (payez uniquement à la réception du produit).",
+    valPrecoCOD: "Paiement à la Livraison (payez uniquement à la réception du produit).",
+    valPrecoOnline: "Paiement en ligne sécurisé (Carte de crédit, PayPal ou moyens locaux).",
     valOferta: "Promotion spéciale à durée limitée sur le canal officiel.",
     formatPreco: "De <del>{orig}</del> à seulement <strong>{prom}</strong>",
     ctaOffer: "Profitez de la remise ! Offre à durée limitée.",
@@ -2307,7 +2317,8 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelOferta: "Sonderangebot",
     valFormula: "Formel entwickelt mit ausgewählten natürlichen Verbindungen und Extrakten.",
     valEntrega: "Schneller Versand. In der Regel 2 bis 7 Werktage mit Sendungsverfolgung.",
-    valPreco: "Zahlung bei Lieferung (zahlen Sie erst bei Erhalt des Produkts).",
+    valPrecoCOD: "Zahlung bei Lieferung (zahlen Sie erst bei Erhalt des Produkts).",
+    valPrecoOnline: "Sichere Online-Zahlung (Kreditkarte, PayPal oder lokale Methoden).",
     valOferta: "Sonderaktion für begrenzte Zeit auf dem offiziellen Kanal.",
     formatPreco: "Von <del>{orig}</del> auf nur <strong>{prom}</strong>",
     ctaOffer: "Nutzen Sie den Rabatt! Zeitlich begrenztes Angebot.",
@@ -2332,7 +2343,8 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelOferta: "Ofertă Specială",
     valFormula: "Formulă dezvoltată cu compuși și extracte naturale selectate.",
     valEntrega: "Livrare rapidă. De obicei 2-7 zile lucrătoare cu cod de urmărire.",
-    valPreco: "Plată la Livrare (plătiți doar la primirea produsului).",
+    valPrecoCOD: "Plată la Livrare (plătiți doar la primirea produsului).",
+    valPrecoOnline: "Plată Online Securizată (Card de Credit, PayPal sau metode locale).",
     valOferta: "Promoție specială pe perioadă limitată pe canalul oficial.",
     formatPreco: "De la <del>{orig}</del> la doar <strong>{prom}</strong>",
     ctaOffer: "Profită de reducere! Ofertă pe timp limitat.",
@@ -2357,7 +2369,8 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelOferta: "Oferta Specjalna",
     valFormula: "Formuła opracowana z wyselekcjonowanych naturalnych związków i ekstraktów.",
     valEntrega: "Szybka wysyłka. Zazwyczaj 2 do 7 dni roboczych z numerem śledzenia przesyłki.",
-    valPreco: "Płatność przy Odbiorze (płać tylko przy odbiorze produktu).",
+    valPrecoCOD: "Płatność przy Odbiorze (płać tylko przy odbiorze produktu).",
+    valPrecoOnline: "Bezpieczna Płatność Online (Karta Kredytowa, PayPal lub lokalne metody).",
     valOferta: "Specjalna promocja ograniczona czasowo na oficjalnym kanale.",
     formatPreco: "Z <del>{orig}</del> na jedyne <strong>{prom}</strong>",
     ctaOffer: "Skorzystaj z rabatu! Oferta ograniczona czasowo.",
@@ -3621,19 +3634,21 @@ function injectCookieConsentOverlay(
     seoDesc += ` ${localization.ctaOffer}`;
   }
   
+  const defaultValPreco = meta?.isCod ? localization.valPrecoCOD : localization.valPrecoOnline;
+  
   let valPrecoResolved = "";
   if (meta?.originalPrice && meta?.promotionalPrice) {
     const mainPriceText = localization.formatPreco
       .replace("{orig}", meta.originalPrice)
       .replace("{prom}", meta.promotionalPrice);
-    valPrecoResolved = `${mainPriceText} - ${localization.valPreco}`;
+    valPrecoResolved = `${mainPriceText} - ${defaultValPreco}`;
   } else if (meta?.extractedPrice) {
-    valPrecoResolved = `${meta.extractedPrice} - ${localization.valPreco}`;
+    valPrecoResolved = `${meta.extractedPrice} - ${defaultValPreco}`;
   } else {
     const baseOffer = meta?.extractedOffer || "";
     valPrecoResolved = baseOffer
-      ? `${baseOffer} - ${localization.valPreco}`
-      : localization.valPreco;
+      ? `${baseOffer} - ${defaultValPreco}`
+      : defaultValPreco;
   }
   // Append CTA to pricing display as well
   valPrecoResolved = `${valPrecoResolved} (${localization.ctaOffer})`;
