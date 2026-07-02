@@ -965,17 +965,20 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
 
   // Attempt to parse price from HTML
   const priceRegex = /(?:(?:R\$|\$|€|£|¥|S\/\.?|PEN|MXN|COP|CLP|ARS|EUR|PLN|RON|CZK|HUF)\s*\d+(?:[.,]\d{2})?|\d+(?:[.,]\d{2})?\s*(?:zł|€|\$|£|¥|lei|Kč|Ft|EUR|eur|Eur|PLN|pln|RON|ron|CZK|czk|лв|BGN|bgn|din|RSD|rsd|HUF|huf|PEN|pen|S\/\.?))/gi;
+  const parseVal = (str: string): number => {
+    const m = str.match(/\d+/);
+    return m ? parseInt(m[0], 10) : 0;
+  };
+
   const priceMatches = html.match(priceRegex);
   if (priceMatches && priceMatches.length > 0) {
-    const uniquePrices = Array.from(new Set(priceMatches.map(p => p.trim())));
+    const uniquePrices = Array.from(new Set(priceMatches.map(p => p.trim())))
+      .filter(p => parseVal(p) > 0);
+
     if (uniquePrices.length === 1) {
       extractedPrice = uniquePrices[0];
       promotionalPrice = uniquePrices[0];
     } else if (uniquePrices.length >= 2) {
-      const parseVal = (str: string): number => {
-        const m = str.match(/\d+/);
-        return m ? parseInt(m[0], 10) : 0;
-      };
       const p1 = uniquePrices[0];
       const p2 = uniquePrices[1];
       const v1 = parseVal(p1);
@@ -2187,6 +2190,7 @@ const COOKIE_LOCALIZATION: Record<string, {
   valGenericCampaignInfo: string;
   valPrecoGeneric: string;
   valPrecoGenericCond: string;
+  valPrecoGenericFallback: string;
   valOfertaGeneric: string;
   labelInfoRelevante: string;
   valInfoRelevante: string;
@@ -2221,6 +2225,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valGenericCampaignInfo: "Consulte informações nesta campanha.",
     valPrecoGeneric: "Valor promocional disponível no canal oficial do fabricante.",
     valPrecoGenericCond: "Pagamento seguro processado através do canal oficial.",
+    valPrecoGenericFallback: "Veja os detalhes da oferta.",
     valOfertaGeneric: "Desconto promocional especial disponível nesta campanha.",
     labelInfoRelevante: "Informações Relevantes",
     valInfoRelevante: "Canal oficial informativo da campanha. Os termos de garantia e políticas de reembolso são os estabelecidos pelo site oficial."
@@ -2255,6 +2260,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valGenericCampaignInfo: "Consulte información en esta campaña.",
     valPrecoGeneric: "Valor promocional disponible en el canal oficial del fabricante.",
     valPrecoGenericCond: "Pago seguro procesado a través del canal oficial.",
+    valPrecoGenericFallback: "Vea los detalles de la oferta.",
     valOfertaGeneric: "Descuento promocional especial disponible en esta campaña.",
     labelInfoRelevante: "Información Relevante",
     valInfoRelevante: "Canal oficial informativo de la campaña. Los términos de garantía y políticas de reembolso son los establecidos por el sitio oficial."
@@ -2289,6 +2295,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valGenericCampaignInfo: "Check information in this campaign.",
     valPrecoGeneric: "Promotional value available on the official manufacturer's channel.",
     valPrecoGenericCond: "Secure payment processed through the official channel.",
+    valPrecoGenericFallback: "See the details of the offer.",
     valOfertaGeneric: "Special promotional discount available in this campaign.",
     labelInfoRelevante: "Relevant Information",
     valInfoRelevante: "Official informative channel for the campaign. Warranty terms and refund policies are those established by the official website."
@@ -2323,6 +2330,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valGenericCampaignInfo: "Consulta le informazioni in questa campagna.",
     valPrecoGeneric: "Valore promozionale disponibile sul canale ufficiale del produttore.",
     valPrecoGenericCond: "Pagamento sicuro elaborato tramite il canale ufficiale.",
+    valPrecoGenericFallback: "Vedi i dettagli dell'offerta.",
     valOfertaGeneric: "Sconto promozionale speciale disponibile in questa campagna.",
     labelInfoRelevante: "Informazioni Rilevanti",
     valInfoRelevante: "Canale informativo ufficiale della campagna. I termini di garanzia e le politiche di rimborso sono quelli stabiliti dal sito ufficiale."
@@ -2357,6 +2365,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valGenericCampaignInfo: "Consultez les informations de cette campagne.",
     valPrecoGeneric: "Valeur promotionnelle disponible sur le canal officiel du fabricant.",
     valPrecoGenericCond: "Paiement sécurisé traité via le canal officiel.",
+    valPrecoGenericFallback: "Consultez les détails de l'offre.",
     valOfertaGeneric: "Remise promotionnelle spéciale disponible pour cette campagne.",
     labelInfoRelevante: "Informations Pertinentes",
     valInfoRelevante: "Canal d'information officiel de la campagne. Les conditions de garantie et les politiques de remboursement sont celles établies par le site officiel."
@@ -2391,6 +2400,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valGenericCampaignInfo: "Informationen in dieser Kampagne prüfen.",
     valPrecoGeneric: "Werbewert auf dem offiziellen Kanal des Herstellers verfügbar.",
     valPrecoGenericCond: "Sichere Zahlung über den offiziellen Kanal.",
+    valPrecoGenericFallback: "Siehe die Details des Angebots.",
     valOfertaGeneric: "Spezieller Aktionsrabatt in dieser Kampagne verfügbar.",
     labelInfoRelevante: "Relevante Informationen",
     valInfoRelevante: "Offizieller Informationskanal der Kampagne. Die Garantiebedingungen und Rückerstattungsrichtlinien entsprechen denen der offiziellen Website."
@@ -2425,6 +2435,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valGenericCampaignInfo: "Consultați informațiile din această campanie.",
     valPrecoGeneric: "Valoare promoțională disponibilă pe canalul oficial al producătorului.",
     valPrecoGenericCond: "Plată securizată procesată prin canalul oficial.",
+    valPrecoGenericFallback: "Vedeți detaliile ofertei.",
     valOfertaGeneric: "Reducere promoțională specială disponibilă în această campanie.",
     labelInfoRelevante: "Informații Relevante",
     valInfoRelevante: "Canal informativ oficial al campaniei. Termenii de garanție și politicile de rambursare sunt cele stabilite de site-ul oficial."
@@ -2459,6 +2470,7 @@ const COOKIE_LOCALIZATION: Record<string, {
     valGenericCampaignInfo: "Sprawdź informacje w tej kampanii.",
     valPrecoGeneric: "Wartość promocyjna dostępna na oficjalnym kanale producenta.",
     valPrecoGenericCond: "Bezpieczna płatność realizowana za pośrednictwem oficjalnego kanału.",
+    valPrecoGenericFallback: "Zobacz szczegóły oferty.",
     valOfertaGeneric: "Specjalny rabat promocyjny dostępny w tej kampanii.",
     labelInfoRelevante: "Istotne Informacje",
     valInfoRelevante: "Oficjalny kanał informacyjny kampanii. Warunki gwarancji i zasady zwrotów są zgodne z określonymi na oficjalnej stronie."
@@ -3700,29 +3712,40 @@ function injectCookieConsentOverlay(
     labelFormulaResolved = localization.labelDigital;
   }
 
+  const isValidPriceString = (priceStr: string | undefined | null): boolean => {
+    if (!priceStr) return false;
+    const numMatch = priceStr.match(/\d+/);
+    if (!numMatch) return false;
+    const val = parseInt(numMatch[0], 10);
+    return val > 0;
+  };
+
+  const hasValidPromoPrice = isValidPriceString(meta?.originalPrice) && isValidPriceString(meta?.promotionalPrice);
+  const hasValidExtractedPrice = isValidPriceString(meta?.extractedPrice);
+
   // Add the price comparison details and CTA directly into the SEO description
-  if (meta?.originalPrice && meta?.promotionalPrice) {
+  if (hasValidPromoPrice) {
     const priceText = localization.priceDescFormat
-      .replace("{orig}", meta.originalPrice)
-      .replace("{prom}", meta.promotionalPrice);
+      .replace("{orig}", meta!.originalPrice!)
+      .replace("{prom}", meta!.promotionalPrice!);
     seoDesc += `${priceText} ${localization.ctaOffer}`;
-  } else if (meta?.extractedPrice) {
-    const priceText = localization.priceValFormat.replace("{val}", meta.extractedPrice);
+  } else if (hasValidExtractedPrice) {
+    const priceText = localization.priceValFormat.replace("{val}", meta!.extractedPrice!);
     seoDesc += `${priceText} ${localization.ctaOffer}`;
   } else {
-    seoDesc += ` ${localization.ctaOffer}`;
+    seoDesc += ` ${localization.valPrecoGenericFallback}`;
   }
   
   const defaultValPreco = localization.valPrecoGenericCond;
   
   let valPrecoResolved = "";
-  if (meta?.originalPrice && meta?.promotionalPrice) {
+  if (hasValidPromoPrice) {
     const mainPriceText = localization.formatPreco
-      .replace("{orig}", meta.originalPrice)
-      .replace("{prom}", meta.promotionalPrice);
+      .replace("{orig}", meta!.originalPrice!)
+      .replace("{prom}", meta!.promotionalPrice!);
     valPrecoResolved = `${mainPriceText} - ${defaultValPreco}`;
-  } else if (meta?.extractedPrice) {
-    valPrecoResolved = `${meta.extractedPrice} - ${defaultValPreco}`;
+  } else if (hasValidExtractedPrice) {
+    valPrecoResolved = `${meta!.extractedPrice!} - ${defaultValPreco}`;
   } else {
     valPrecoResolved = `${localization.valPrecoGeneric} - ${defaultValPreco}`;
   }
