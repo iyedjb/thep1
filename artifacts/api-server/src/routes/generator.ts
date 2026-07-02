@@ -726,6 +726,7 @@ interface PageMetadata {
   originalPrice?: string;
   promotionalPrice?: string;
   isGadget?: boolean;
+  isDigital?: boolean;
 }
 
 function cleanHtmlText(text: string): string {
@@ -994,15 +995,18 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     }
   }
 
-  // Attempt to parse ingredients/composition or tech specifications from HTML
+  // Attempt to parse ingredients/composition, specs or digital content from HTML
   const gadgetKeywords = /dispositivo|aparelho|tecnologia|ar condicionado|cooler|ventilador|aquecedor|gadget|device|technology|air conditioner|heater|fan|led|lamp|lampada|light|camera|tool|ferramenta|massager|massageador|mini|portátil|portable|ultrassônico|ultrasonic/i;
   const isGadget = gadgetKeywords.test(html) || referenceUrl.toLowerCase().includes("coolcove") || html.toLowerCase().includes("coolcove");
+
+  const digitalKeywords = /e-book|ebook|curso|course|treinamento|training|software|app|aplicativo|plataforma|platform|inscrição|subscription|assinatura|serviço|service|ebooks|cursos|programas|program|pdf|guia|guide/i;
+  const isDigital = !isGadget && (digitalKeywords.test(html) || digitalKeywords.test(referenceUrl));
 
   const listItemsRegex = /<li[^>]*>[\s\n]*([^<>]{5,60}?)[\s\n]*<\/li>/gi;
   let liMatch;
   const foundIngredients: string[] = [];
 
-  if (isGadget) {
+  if (isGadget || isDigital) {
     while ((liMatch = listItemsRegex.exec(html)) !== null && foundIngredients.length < 4) {
       const text = cleanHtmlText(liMatch[1]);
       if (
@@ -1049,7 +1053,7 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     seoDescription = filterNonCompliantSentences(seoDescription);
   }
 
-  return { productName, primaryColor, ctaButtonColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice, isGadget };
+  return { productName, primaryColor, ctaButtonColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice, isGadget, isDigital };
 }
 
 function getThankYouModalCode(
@@ -2162,6 +2166,8 @@ const COOKIE_LOCALIZATION: Record<string, {
   priceValFormat: string;
   labelGadget: string;
   valGadget: string;
+  labelDigital: string;
+  valDigital: string;
 }> = {
   "pt-BR": {
     title: "🍪 Política de Cookies",
@@ -2184,7 +2190,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     priceDescFormat: " De {orig} por apenas {prom}.",
     priceValFormat: " (Valor: {val}).",
     labelGadget: "Especificações Técnicas",
-    valGadget: "Especificações e recursos de alta tecnologia desenvolvidos pelo fabricante."
+    valGadget: "Especificações e recursos de alta tecnologia desenvolvidos pelo fabricante.",
+    labelDigital: "Conteúdo / Recursos",
+    valDigital: "Recursos e materiais informativos de alta qualidade desenvolvidos por especialistas."
   },
   "es": {
     title: "🍪 Política de Cookies",
@@ -2207,7 +2215,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     priceDescFormat: " De {orig} por solo {prom}.",
     priceValFormat: " (Valor: {val}).",
     labelGadget: "Especificaciones Técnicas",
-    valGadget: "Especificaciones y características de alta tecnología desarrolladas por el fabricante."
+    valGadget: "Especificaciones y características de alta tecnología desarrolladas por el fabricante.",
+    labelDigital: "Contenido / Recursos",
+    valDigital: "Recursos y materiales informativos de alta calidad desarrollados por especialistas."
   },
   "en": {
     title: "🍪 Cookie Policy",
@@ -2230,7 +2240,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     priceDescFormat: " From {orig} to only {prom}.",
     priceValFormat: " (Price: {val}).",
     labelGadget: "Technical Specifications",
-    valGadget: "High-tech specifications and features developed by the manufacturer."
+    valGadget: "High-tech specifications and features developed by the manufacturer.",
+    labelDigital: "Content / Features",
+    valDigital: "High-quality resources and informative materials developed by experts."
   },
   "it": {
     title: "🍪 Informativa sui Cookie",
@@ -2253,7 +2265,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     priceDescFormat: " Da {orig} a soli {prom}.",
     priceValFormat: " (Valore: {val}).",
     labelGadget: "Specifiche Tecniche",
-    valGadget: "Specifiche e caratteristiche high-tech sviluppate dal produttore."
+    valGadget: "Specifiche e caratteristiche high-tech sviluppate dal produttore.",
+    labelDigital: "Contenuto / Caratteristiche",
+    valDigital: "Risorse e materiali informativi di alta qualità sviluppati da esperti."
   },
   "fr": {
     title: "🍪 Politique relative aux cookies",
@@ -2276,7 +2290,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     priceDescFormat: " De {orig} à seulement {prom}.",
     priceValFormat: " (Valeur: {val}).",
     labelGadget: "Spécifications Techniques",
-    valGadget: "Spécifications et fonctionnalités de haute technologie développées par le fabricant."
+    valGadget: "Spécifications et fonctionnalités de haute technologie développées par le fabricant.",
+    labelDigital: "Contenu / Caractéristiques",
+    valDigital: "Ressources et supports d'information de haute qualité développés par des experts."
   },
   "de": {
     title: "🍪 Cookie-Richtlinie",
@@ -2299,7 +2315,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     priceDescFormat: " Von {orig} auf nur {prom}.",
     priceValFormat: " (Wert: {val}).",
     labelGadget: "Technische Spezifikationen",
-    valGadget: "Vom Hersteller entwickelte High-Tech-Spezifikationen und -Funktionen."
+    valGadget: "Vom Hersteller entwickelte High-Tech-Spezifikationen und -Funktionen.",
+    labelDigital: "Inhalt / Funktionen",
+    valDigital: "Hochwertige Ressourcen und Informationsmaterialien von Experten."
   },
   "ro": {
     title: "🍪 Politica de Cookie-uri",
@@ -2322,7 +2340,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     priceDescFormat: " De la {orig} la doar {prom}.",
     priceValFormat: " (Valoare: {val}).",
     labelGadget: "Specificații Tehnice",
-    valGadget: "Specificații și caracteristici de înaltă tehnologie dezvoltate de producător."
+    valGadget: "Specificații și caracteristici de înaltă tehnologie dezvoltate de producător.",
+    labelDigital: "Conținut / Caracteristici",
+    valDigital: "Resurse de înaltă calitate și materiale informative dezvoltate de experți."
   },
   "pl": {
     title: "🍪 Polityka Cookies",
@@ -2345,7 +2365,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     priceDescFormat: " Z {orig} na jedyne {prom}.",
     priceValFormat: " (Wartość: {val}).",
     labelGadget: "Specyfikacje Techniczne",
-    valGadget: "Zaawansowane technicznie specyfikacje i funkcje opracowane przez producenta."
+    valGadget: "Zaawansowane technicznie specyfikacje i funkcje opracowane przez producenta.",
+    labelDigital: "Zawartość / Funkcje",
+    valDigital: "Wysokiej jakości zasoby i materiały informacyjne opracowane przez ekspertów."
   }
 };
 
@@ -3574,6 +3596,18 @@ function injectCookieConsentOverlay(
     seoDesc = localization.descTemplate.replace("{prod}", productName);
   }
 
+  // Resolve formula/spec/digital label and value
+  let labelFormulaResolved = localization.labelFormula;
+  let valFormulaResolved = meta?.extractedFormula || localization.valFormula;
+
+  if (meta?.isGadget) {
+    labelFormulaResolved = localization.labelGadget;
+    valFormulaResolved = meta?.extractedFormula || localization.valGadget;
+  } else if (meta?.isDigital) {
+    labelFormulaResolved = localization.labelDigital;
+    valFormulaResolved = meta?.extractedFormula || localization.valDigital;
+  }
+
   // Add the price comparison details and CTA directly into the SEO description
   if (meta?.originalPrice && meta?.promotionalPrice) {
     const priceText = localization.priceDescFormat
@@ -3586,10 +3620,6 @@ function injectCookieConsentOverlay(
   } else {
     seoDesc += ` ${localization.ctaOffer}`;
   }
-
-  // Resolve formula/spec label and value
-  const labelFormulaResolved = meta?.isGadget ? localization.labelGadget : localization.labelFormula;
-  const valFormulaResolved = meta?.extractedFormula || (meta?.isGadget ? localization.valGadget : localization.valFormula);
   
   let valPrecoResolved = "";
   if (meta?.originalPrice && meta?.promotionalPrice) {
