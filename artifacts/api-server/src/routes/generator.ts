@@ -3794,6 +3794,11 @@ function injectCookieConsentOverlay(
   #ads-decline { background: #dc2626; color: #ffffff; border: none; }
   #ads-decline:hover { filter: brightness(0.9); }
   
+  #ads-card del {
+    text-decoration: line-through !important;
+    opacity: 0.7;
+  }
+  
   /* SEO Section Styles */
   #ads-seo-wrapper {
     margin-top: 24px;
