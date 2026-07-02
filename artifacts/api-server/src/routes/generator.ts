@@ -739,6 +739,27 @@ function cleanHtmlText(text: string): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
+function filterNonCompliantSentences(text: string): string {
+  if (!text) return "";
+  
+  // Split into sentences using punctuation (. ! ?)
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  
+  const promiseClaimRegex = /\b(?:100%|garanti[ad]o?|guaranteed|garantito|garantita|result[as]o?|result|results|cura?r?|cure|guarire|sanar|trata?r?|treat|treatment|tratamiento|trattamento|médic[oa]s?|doctor?s?|medici?|milagre?s?|miracle?s?|milagro?s?|miracolo?i?|rápido?a?|rapidamente|fast|quickly|rápidamente|rapido|eficaz|eficiente|effective|efficient|efficace|provad[oa]|comprovad[oa]|testad[oa]|proven|tested|probad[oa]|provato|elimina?r?|acaba?r?|remove?r?|eliminate|rimuovere|best|mejor|melhor|migliore|únic[oa]|exclusiv[oa]|unique|exclusive|unico|esclusivo)\b/i;
+  
+  const safeSentences = sentences
+    .map(s => s.trim())
+    .filter(s => {
+      if (s.length < 10) return false;
+      return !promiseClaimRegex.test(s);
+    });
+    
+  let result = safeSentences.join(" ");
+  if (result && !result.endsWith(".")) {
+    result += ".";
+  }
+  return result;
+}
 
 function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
   let productName = "";
@@ -1003,9 +1024,10 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
 
   if (!seoDescription && productDetails.length > 0) {
     seoDescription = productDetails.slice(0, 3).join(". ");
-    if (seoDescription && !seoDescription.endsWith(".")) {
-      seoDescription += ".";
-    }
+  }
+
+  if (seoDescription) {
+    seoDescription = filterNonCompliantSentences(seoDescription);
   }
 
   return { productName, primaryColor, ctaButtonColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice };
