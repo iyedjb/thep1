@@ -725,6 +725,7 @@ interface PageMetadata {
   extractedOffer?: string;
   originalPrice?: string;
   promotionalPrice?: string;
+  isGadget?: boolean;
 }
 
 function cleanHtmlText(text: string): string {
@@ -993,21 +994,39 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     }
   }
 
-  // Attempt to parse ingredients/composition from HTML
-  const formulaKeywords = /ingredienti|ingredientes|ingredients|composição|composizione|composición|composition/i;
+  // Attempt to parse ingredients/composition or tech specifications from HTML
+  const gadgetKeywords = /dispositivo|aparelho|tecnologia|ar condicionado|cooler|ventilador|aquecedor|gadget|device|technology|air conditioner|heater|fan|led|lamp|lampada|light|camera|tool|ferramenta|massager|massageador|mini|portátil|portable|ultrassônico|ultrasonic/i;
+  const isGadget = gadgetKeywords.test(html) || referenceUrl.toLowerCase().includes("coolcove") || html.toLowerCase().includes("coolcove");
+
   const listItemsRegex = /<li[^>]*>[\s\n]*([^<>]{5,60}?)[\s\n]*<\/li>/gi;
   let liMatch;
   const foundIngredients: string[] = [];
-  
-  if (formulaKeywords.test(html)) {
-    const herbKeywords = /extrato|extract|vitamina|vitamin|mineral|ácido|acid|óleo|oil|semente|seed|raiz|root|folha|leaf|zinco|zinc|magnésio|magnesium|calcio|calcium/i;
+
+  if (isGadget) {
     while ((liMatch = listItemsRegex.exec(html)) !== null && foundIngredients.length < 4) {
       const text = cleanHtmlText(liMatch[1]);
-      if (herbKeywords.test(text) && text.length < 50 && !/peso|perda|emagrecer|queimar/i.test(text)) {
+      if (
+        text.length > 10 && 
+        text.length < 60 && 
+        !/preço|desconto|comprar|garantia|entreg|site|oficial|promoc|polít|privac|cookies|termo/i.test(text) &&
+        !violationFilterRegex.test(text)
+      ) {
         foundIngredients.push(text);
       }
     }
+  } else {
+    const formulaKeywords = /ingredienti|ingredientes|ingredients|composição|composizione|composición|composition/i;
+    if (formulaKeywords.test(html)) {
+      const herbKeywords = /extrato|extract|vitamina|vitamin|mineral|ácido|acid|óleo|oil|semente|seed|raiz|root|folha|leaf|zinco|zinc|magnésio|magnesium|calcio|calcium/i;
+      while ((liMatch = listItemsRegex.exec(html)) !== null && foundIngredients.length < 4) {
+        const text = cleanHtmlText(liMatch[1]);
+        if (herbKeywords.test(text) && text.length < 50 && !/peso|perda|emagrecer|queimar/i.test(text)) {
+          foundIngredients.push(text);
+        }
+      }
+    }
   }
+
   if (foundIngredients.length > 0) {
     extractedFormula = foundIngredients.join(", ");
   }
@@ -1030,7 +1049,7 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     seoDescription = filterNonCompliantSentences(seoDescription);
   }
 
-  return { productName, primaryColor, ctaButtonColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice };
+  return { productName, primaryColor, ctaButtonColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice, isGadget };
 }
 
 function getThankYouModalCode(
@@ -2141,6 +2160,8 @@ const COOKIE_LOCALIZATION: Record<string, {
   descTemplate: string;
   priceDescFormat: string;
   priceValFormat: string;
+  labelGadget: string;
+  valGadget: string;
 }> = {
   "pt-BR": {
     title: "🍪 Política de Cookies",
@@ -2161,7 +2182,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     ctaOffer: "Aproveite o desconto! Oferta por tempo limitado.",
     descTemplate: "Página informativa oficial sobre o produto {prod}. Veja os detalhes da oferta e adquira com garantia de originalidade.",
     priceDescFormat: " De {orig} por apenas {prom}.",
-    priceValFormat: " (Valor: {val})."
+    priceValFormat: " (Valor: {val}).",
+    labelGadget: "Especificações Técnicas",
+    valGadget: "Especificações e recursos de alta tecnologia desenvolvidos pelo fabricante."
   },
   "es": {
     title: "🍪 Política de Cookies",
@@ -2182,7 +2205,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     ctaOffer: "¡Aprovecha el descuento! Oferta por tiempo limitado.",
     descTemplate: "Página informativa oficial sobre el producto {prod}. Vea los detalles de la oferta y compre con garantía de originalidad.",
     priceDescFormat: " De {orig} por solo {prom}.",
-    priceValFormat: " (Valor: {val})."
+    priceValFormat: " (Valor: {val}).",
+    labelGadget: "Especificaciones Técnicas",
+    valGadget: "Especificaciones y características de alta tecnología desarrolladas por el fabricante."
   },
   "en": {
     title: "🍪 Cookie Policy",
@@ -2203,7 +2228,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     ctaOffer: "Enjoy the discount! Limited-time offer.",
     descTemplate: "Official informative page about the product {prod}. See the details of the offer and purchase with guarantee of originality.",
     priceDescFormat: " From {orig} to only {prom}.",
-    priceValFormat: " (Price: {val})."
+    priceValFormat: " (Price: {val}).",
+    labelGadget: "Technical Specifications",
+    valGadget: "High-tech specifications and features developed by the manufacturer."
   },
   "it": {
     title: "🍪 Informativa sui Cookie",
@@ -2224,7 +2251,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     ctaOffer: "Approfitta dello sconto! Offerta a tempo limitato.",
     descTemplate: "Pagina informativa ufficiale sul prodotto {prod}. Vedi i dettagli dell'offerta e acquista con garanzia di originalità.",
     priceDescFormat: " Da {orig} a soli {prom}.",
-    priceValFormat: " (Valore: {val})."
+    priceValFormat: " (Valore: {val}).",
+    labelGadget: "Specifiche Tecniche",
+    valGadget: "Specifiche e caratteristiche high-tech sviluppate dal produttore."
   },
   "fr": {
     title: "🍪 Politique relative aux cookies",
@@ -2245,7 +2274,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     ctaOffer: "Profitez de la remise ! Offre à durée limitée.",
     descTemplate: "Page d'information officielle sur le produit {prod}. Consultez les détails de l'offre et achetez avec garantie d'authenticité.",
     priceDescFormat: " De {orig} à seulement {prom}.",
-    priceValFormat: " (Valeur: {val})."
+    priceValFormat: " (Valeur: {val}).",
+    labelGadget: "Spécifications Techniques",
+    valGadget: "Spécifications et fonctionnalités de haute technologie développées par le fabricant."
   },
   "de": {
     title: "🍪 Cookie-Richtlinie",
@@ -2266,7 +2297,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     ctaOffer: "Nutzen Sie den Rabatt! Zeitlich begrenztes Angebot.",
     descTemplate: "Offizielle Informationsseite über das Produkt {prod}. Sehen Sie sich die Angebotsdetails an und kaufen Sie mit Originalitätsgarantie.",
     priceDescFormat: " Von {orig} auf nur {prom}.",
-    priceValFormat: " (Wert: {val})."
+    priceValFormat: " (Wert: {val}).",
+    labelGadget: "Technische Spezifikationen",
+    valGadget: "Vom Hersteller entwickelte High-Tech-Spezifikationen und -Funktionen."
   },
   "ro": {
     title: "🍪 Politica de Cookie-uri",
@@ -2287,7 +2320,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     ctaOffer: "Profită de reducere! Ofertă pe timp limitat.",
     descTemplate: "Pagina oficială de informații despre produsul {prod}. Consultați detaliile ofertei și cumpărați cu garanție de originalitate.",
     priceDescFormat: " De la {orig} la doar {prom}.",
-    priceValFormat: " (Valoare: {val})."
+    priceValFormat: " (Valoare: {val}).",
+    labelGadget: "Specificații Tehnice",
+    valGadget: "Specificații și caracteristici de înaltă tehnologie dezvoltate de producător."
   },
   "pl": {
     title: "🍪 Polityka Cookies",
@@ -2308,7 +2343,9 @@ const COOKIE_LOCALIZATION: Record<string, {
     ctaOffer: "Skorzystaj z rabatu! Oferta ograniczona czasowo.",
     descTemplate: "Oficjalna strona informacyjna o produkcie {prod}. Zobacz szczegóły oferty i kupuj z gwarancją oryginalności.",
     priceDescFormat: " Z {orig} na jedyne {prom}.",
-    priceValFormat: " (Wartość: {val})."
+    priceValFormat: " (Wartość: {val}).",
+    labelGadget: "Specyfikacje Techniczne",
+    valGadget: "Zaawansowane technicznie specyfikacje i funkcje opracowane przez producenta."
   }
 };
 
@@ -3550,8 +3587,9 @@ function injectCookieConsentOverlay(
     seoDesc += ` ${localization.ctaOffer}`;
   }
 
-  // Resolve formula, price, delivery, and offer values
-  const valFormulaResolved = meta?.extractedFormula || localization.valFormula;
+  // Resolve formula/spec label and value
+  const labelFormulaResolved = meta?.isGadget ? localization.labelGadget : localization.labelFormula;
+  const valFormulaResolved = meta?.extractedFormula || (meta?.isGadget ? localization.valGadget : localization.valFormula);
   
   let valPrecoResolved = "";
   if (meta?.originalPrice && meta?.promotionalPrice) {
@@ -3755,7 +3793,7 @@ function injectCookieConsentOverlay(
         <ul class="ads-seo-list">
           <li class="ads-seo-item">
             <span class="ads-seo-check">✓</span>
-            <span><strong>${localization.labelFormula}:</strong> ${valFormulaResolved}</span>
+            <span><strong>${labelFormulaResolved}:</strong> ${valFormulaResolved}</span>
           </li>
           <li class="ads-seo-item">
             <span class="ads-seo-check">✓</span>
