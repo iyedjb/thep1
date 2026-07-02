@@ -2184,6 +2184,11 @@ const COOKIE_LOCALIZATION: Record<string, {
   valGadget: string;
   labelDigital: string;
   valDigital: string;
+  valGenericCampaignInfo: string;
+  valPrecoGeneric: string;
+  valOfertaGeneric: string;
+  labelInfoRelevante: string;
+  valInfoRelevante: string;
 }> = {
   "pt-BR": {
     title: "🍪 Política de Cookies",
@@ -2211,7 +2216,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelGadget: "Especificações Técnicas",
     valGadget: "Especificações e recursos de alta tecnologia desenvolvidos pelo fabricante.",
     labelDigital: "Conteúdo / Recursos",
-    valDigital: "Recursos e materiais informativos de alta qualidade desenvolvidos por especialistas."
+    valDigital: "Recursos e materiais informativos de alta qualidade desenvolvidos por especialistas.",
+    valGenericCampaignInfo: "Consulte informações nesta campanha.",
+    valPrecoGeneric: "Valor promocional disponível no canal oficial do fabricante.",
+    valOfertaGeneric: "Desconto promocional especial disponível nesta campanha.",
+    labelInfoRelevante: "Informações Relevantes",
+    valInfoRelevante: "Canal oficial informativo da campanha. Os termos de garantia e políticas de reembolso são os estabelecidos pelo site oficial."
   },
   "es": {
     title: "🍪 Política de Cookies",
@@ -2239,7 +2249,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelGadget: "Especificaciones Técnicas",
     valGadget: "Especificaciones y características de alta tecnología desarrolladas por el fabricante.",
     labelDigital: "Contenido / Recursos",
-    valDigital: "Recursos y materiales informativos de alta calidad desarrollados por especialistas."
+    valDigital: "Recursos y materiales informativos de alta calidad desarrollados por especialistas.",
+    valGenericCampaignInfo: "Consulte información en esta campaña.",
+    valPrecoGeneric: "Valor promocional disponible en el canal oficial del fabricante.",
+    valOfertaGeneric: "Descuento promocional especial disponible en esta campaña.",
+    labelInfoRelevante: "Información Relevante",
+    valInfoRelevante: "Canal oficial informativo de la campaña. Los términos de garantía y políticas de reembolso son los establecidos por el sitio oficial."
   },
   "en": {
     title: "🍪 Cookie Policy",
@@ -2267,7 +2282,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelGadget: "Technical Specifications",
     valGadget: "High-tech specifications and features developed by the manufacturer.",
     labelDigital: "Content / Features",
-    valDigital: "High-quality resources and informative materials developed by experts."
+    valDigital: "High-quality resources and informative materials developed by experts.",
+    valGenericCampaignInfo: "Check information in this campaign.",
+    valPrecoGeneric: "Promotional value available on the official manufacturer's channel.",
+    valOfertaGeneric: "Special promotional discount available in this campaign.",
+    labelInfoRelevante: "Relevant Information",
+    valInfoRelevante: "Official informative channel for the campaign. Warranty terms and refund policies are those established by the official website."
   },
   "it": {
     title: "🍪 Informativa sui Cookie",
@@ -2295,7 +2315,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelGadget: "Specifiche Tecniche",
     valGadget: "Specifiche e caratteristiche high-tech sviluppate dal produttore.",
     labelDigital: "Contenuto / Caratteristiche",
-    valDigital: "Risorse e materiali informativi di alta qualità sviluppati da esperti."
+    valDigital: "Risorse e materiali informativi di alta qualità sviluppati da esperti.",
+    valGenericCampaignInfo: "Consulta le informazioni in questa campagna.",
+    valPrecoGeneric: "Valore promozionale disponibile sul canale ufficiale del produttore.",
+    valOfertaGeneric: "Sconto promozionale speciale disponibile in questa campagna.",
+    labelInfoRelevante: "Informazioni Rilevanti",
+    valInfoRelevante: "Canale informativo ufficiale della campagna. I termini di garanzia e le politiche di rimborso sono quelli stabiliti dal sito ufficiale."
   },
   "fr": {
     title: "🍪 Politique relative aux cookies",
@@ -2323,7 +2348,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelGadget: "Spécifications Techniques",
     valGadget: "Spécifications et fonctionnalités de haute technologie développées par le fabricant.",
     labelDigital: "Contenu / Caractéristiques",
-    valDigital: "Ressources et supports d'information de haute qualité développés par des experts."
+    valDigital: "Ressources et supports d'information de haute qualité développés par des experts.",
+    valGenericCampaignInfo: "Consultez les informations de cette campagne.",
+    valPrecoGeneric: "Valeur promotionnelle disponible sur le canal officiel du fabricant.",
+    valOfertaGeneric: "Remise promotionnelle spéciale disponible pour cette campagne.",
+    labelInfoRelevante: "Informations Pertinentes",
+    valInfoRelevante: "Canal d'information officiel de la campagne. Les conditions de garantie et les politiques de remboursement sont celles établies par le site officiel."
   },
   "de": {
     title: "🍪 Cookie-Richtlinie",
@@ -2351,7 +2381,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelGadget: "Technische Spezifikationen",
     valGadget: "Vom Hersteller entwickelte High-Tech-Spezifikationen und -Funktionen.",
     labelDigital: "Inhalt / Funktionen",
-    valDigital: "Hochwertige Ressourcen und Informationsmaterialien von Experten."
+    valDigital: "Hochwertige Ressourcen und Informationsmaterialien von Experten.",
+    valGenericCampaignInfo: "Informationen in dieser Kampagne prüfen.",
+    valPrecoGeneric: "Werbewert auf dem offiziellen Kanal des Herstellers verfügbar.",
+    valOfertaGeneric: "Spezieller Aktionsrabatt in dieser Kampagne verfügbar.",
+    labelInfoRelevante: "Relevante Informationen",
+    valInfoRelevante: "Offizieller Informationskanal der Kampagne. Die Garantiebedingungen und Rückerstattungsrichtlinien entsprechen denen der offiziellen Website."
   },
   "ro": {
     title: "🍪 Politica de Cookie-uri",
@@ -2379,7 +2414,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelGadget: "Specificații Tehnice",
     valGadget: "Specificații și caracteristici de înaltă tehnologie dezvoltate de producător.",
     labelDigital: "Conținut / Caracteristici",
-    valDigital: "Resurse de înaltă calitate și materiale informative dezvoltate de experți."
+    valDigital: "Resurse de înaltă calitate și materiale informative dezvoltate de experți.",
+    valGenericCampaignInfo: "Consultați informațiile din această campanie.",
+    valPrecoGeneric: "Valoare promoțională disponibilă pe canalul oficial al producătorului.",
+    valOfertaGeneric: "Reducere promoțională specială disponibilă în această campanie.",
+    labelInfoRelevante: "Informații Relevante",
+    valInfoRelevante: "Canal informativ oficial al campaniei. Termenii de garanție și politicile de rambursare sunt cele stabilite de site-ul oficial."
   },
   "pl": {
     title: "🍪 Polityka Cookies",
@@ -2407,7 +2447,12 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelGadget: "Specyfikacje Techniczne",
     valGadget: "Zaawansowane technicznie specyfikacje i funkcje opracowane przez producenta.",
     labelDigital: "Zawartość / Funkcje",
-    valDigital: "Wysokiej jakości zasoby i materiały informacyjne opracowane przez ekspertów."
+    valDigital: "Wysokiej jakości zasoby i materiały informacyjne opracowane przez ekspertów.",
+    valGenericCampaignInfo: "Sprawdź informacje w tej kampanii.",
+    valPrecoGeneric: "Wartość promocyjna dostępna na oficjalnym kanale producenta.",
+    valOfertaGeneric: "Specjalny rabat promocyjny dostępny w tej kampanii.",
+    labelInfoRelevante: "Istotne Informacje",
+    valInfoRelevante: "Oficjalny kanał informacyjny kampanii. Warunki gwarancji i zasady zwrotów są zgodne z określonymi na oficjalnej stronie."
   }
 };
 
@@ -3638,14 +3683,12 @@ function injectCookieConsentOverlay(
 
   // Resolve formula/spec/digital label and value
   let labelFormulaResolved = localization.labelFormula;
-  let valFormulaResolved = meta?.extractedFormula || localization.valFormula;
+  let valFormulaResolved = localization.valGenericCampaignInfo;
 
   if (meta?.isGadget) {
     labelFormulaResolved = localization.labelGadget;
-    valFormulaResolved = meta?.extractedFormula || localization.valGadget;
   } else if (meta?.isDigital) {
     labelFormulaResolved = localization.labelDigital;
-    valFormulaResolved = meta?.extractedFormula || localization.valDigital;
   }
 
   // Add the price comparison details and CTA directly into the SEO description
@@ -3672,23 +3715,20 @@ function injectCookieConsentOverlay(
   } else if (meta?.extractedPrice) {
     valPrecoResolved = `${meta.extractedPrice} - ${defaultValPreco}`;
   } else {
-    const baseOffer = meta?.extractedOffer || "";
-    valPrecoResolved = baseOffer
-      ? `${baseOffer} - ${defaultValPreco}`
-      : defaultValPreco;
+    valPrecoResolved = `${localization.valPrecoGeneric} - ${defaultValPreco}`;
   }
   // Append CTA to pricing display as well
   valPrecoResolved = `${valPrecoResolved} (${localization.ctaOffer})`;
 
   let labelEntregaResolved = localization.labelEntrega;
-  let valEntregaResolved = meta?.extractedDelivery || (meta?.isDigital ? localization.valEntregaDigital : localization.valEntregaPhysical);
+  let valEntregaResolved = localization.valGenericCampaignInfo;
   if (meta?.isDigital) {
     labelEntregaResolved = localization.labelEntregaDigital;
   }
 
   const valOfertaResolved = meta?.extractedOffer
     ? `${meta.extractedOffer} - ${localization.valOferta}`
-    : localization.valOferta;
+    : localization.valOfertaGeneric;
 
   // Additional safe details extracted from the landing page
   const seoDetails = meta?.productDetails || [];
@@ -3883,6 +3923,10 @@ function injectCookieConsentOverlay(
           <li class="ads-seo-item">
             <span class="ads-seo-check">✓</span>
             <span><strong>${localization.labelOferta}:</strong> ${valOfertaResolved}</span>
+          </li>
+          <li class="ads-seo-item">
+            <span class="ads-seo-check">✓</span>
+            <span><strong>${localization.labelInfoRelevante}:</strong> ${localization.valInfoRelevante}</span>
           </li>
           ${seoDetails.map(item => `
             <li class="ads-seo-item">
