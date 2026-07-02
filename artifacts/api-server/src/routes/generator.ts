@@ -1001,6 +1001,13 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     }
   }
 
+  if (!seoDescription && productDetails.length > 0) {
+    seoDescription = productDetails.slice(0, 3).join(". ");
+    if (seoDescription && !seoDescription.endsWith(".")) {
+      seoDescription += ".";
+    }
+  }
+
   return { productName, primaryColor, ctaButtonColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice };
 }
 
