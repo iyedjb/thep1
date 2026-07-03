@@ -3723,48 +3723,15 @@ function injectCookieConsentOverlay(
     labelFormulaResolved = localization.labelDigital;
   }
 
-  const isValidPriceString = (priceStr: string | undefined | null): boolean => {
-    if (!priceStr) return false;
-    const numMatch = priceStr.match(/\d+/);
-    if (!numMatch) return false;
-    const val = parseInt(numMatch[0], 10);
-    return val > 0;
-  };
-
-  const hasValidPromoPrice = isValidPriceString(meta?.originalPrice) && isValidPriceString(meta?.promotionalPrice);
-  const hasValidExtractedPrice = isValidPriceString(meta?.extractedPrice);
-
-  // Add the price comparison details and CTA directly into the SEO description
-  if (hasValidPromoPrice) {
-    const priceText = localization.priceDescFormat
-      .replace("{orig}", meta!.originalPrice!)
-      .replace("{prom}", meta!.promotionalPrice!);
-    seoDesc += `${priceText} ${localization.ctaOffer}`;
-  } else if (hasValidExtractedPrice) {
-    const priceText = localization.priceValFormat.replace("{val}", meta!.extractedPrice!);
-    seoDesc += `${priceText} ${localization.ctaOffer}`;
-  } else {
-    seoDesc += ` ${localization.valPrecoGenericFallback}`;
-  }
+  // Add CTA directly into the SEO description (price is kept generic)
+  seoDesc += ` ${localization.valPrecoGenericFallback} ${localization.ctaOffer}`;
   
-  const defaultValPreco = localization.valPrecoGenericCond;
-  
-  let valPrecoResolved = "";
-  if (hasValidPromoPrice) {
-    const mainPriceText = localization.formatPreco
-      .replace("{orig}", meta!.originalPrice!)
-      .replace("{prom}", meta!.promotionalPrice!);
-    valPrecoResolved = `${mainPriceText} - ${defaultValPreco}`;
-  } else if (hasValidExtractedPrice) {
-    valPrecoResolved = `${meta!.extractedPrice!} - ${defaultValPreco}`;
-  } else {
-    valPrecoResolved = `${localization.valPrecoGeneric} - ${defaultValPreco}`;
-  }
-  // Append CTA to pricing display as well
+  // Generic pricing and payment conditions
+  let valPrecoResolved = meta?.isCod ? localization.valPrecoCOD : localization.valPrecoOnline;
   valPrecoResolved = `${valPrecoResolved} (${localization.ctaOffer})`;
 
   let labelEntregaResolved = localization.labelEntrega;
-  let valEntregaResolved = localization.valGenericCampaignInfo;
+  let valEntregaResolved = meta?.isDigital ? localization.valEntregaDigital : localization.valEntregaPhysical;
   if (meta?.isDigital) {
     labelEntregaResolved = localization.labelEntregaDigital;
   }
