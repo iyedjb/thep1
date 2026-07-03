@@ -266,10 +266,18 @@ export default function Trends() {
 
   const handleGeoChange = (newGeo: string) => {
     setGeo(newGeo);
+    if (searchInput.trim()) {
+      setActiveKeyword(searchInput.trim());
+      setKeyword(searchInput.trim());
+    }
   };
 
   const handleTimeRangeChange = (newRange: string) => {
     setTimeRange(newRange);
+    if (searchInput.trim()) {
+      setActiveKeyword(searchInput.trim());
+      setKeyword(searchInput.trim());
+    }
   };
 
   const fetchKeywordsByTheme = async (themeName: string) => {
