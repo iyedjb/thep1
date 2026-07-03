@@ -63,7 +63,7 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
     // Hide scrollbars before screenshot
     await desktopPage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
 
-    const desktopBuffer = (await desktopPage.screenshot({ fullPage: true, type: 'png' })) as Buffer;
+    const desktopBuffer = (await desktopPage.screenshot({ fullPage: false, type: 'png' })) as Buffer;
     const desktopBase64 = `data:image/png;base64,${desktopBuffer.toString('base64')}`;
 
     const mobilePage = await browser.newPage();
@@ -125,7 +125,7 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
     // Hide scrollbars
     await mobilePage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
 
-    const mobileBuffer = (await mobilePage.screenshot({ fullPage: true, type: 'png' })) as Buffer;
+    const mobileBuffer = (await mobilePage.screenshot({ fullPage: false, type: 'png' })) as Buffer;
     const mobileBase64 = `data:image/png;base64,${mobileBuffer.toString('base64')}`;
 
     logger.info("Puppeteer screenshots captured successfully!");
@@ -3222,12 +3222,11 @@ function generateCleanBackgroundPresellHtml(input: {
   ${input.trackingTags}
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
+    html, body {
+      height: 100%;
+      overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: #ffffff;
-      min-height: 100vh;
-      position: relative;
-      overflow-x: hidden;
     }
     
     /* Ambient blurred background layer */
@@ -3244,16 +3243,18 @@ function generateCleanBackgroundPresellHtml(input: {
     }
     
     .site-background-container {
-      width: 100%;
-      max-width: 1920px;
-      margin: 0 auto;
-      position: relative;
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
       z-index: 1;
     }
     .site-background-img {
       display: block;
-      width: 100%;
-      height: auto;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
       pointer-events: none;
       -webkit-user-drag: none;
       user-select: none;
@@ -3269,12 +3270,14 @@ function generateCleanBackgroundPresellHtml(input: {
         display: none;
       }
       .site-background-container {
-        width: 100%;
+        width: 100vw;
+        height: 100vh;
       }
       .site-background-img.ads-mobile-bg {
         display: block;
-        width: 100%;
-        height: auto;
+        width: 100vw;
+        height: 100vh;
+        object-fit: cover;
       }
       .ads-desktop-bg {
         display: none;
@@ -4170,8 +4173,8 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       } catch (puppeteerErr: any) {
         logger.warn({ err: puppeteerErr.message }, "Local Puppeteer screenshot failed, falling back to external APIs");
         const encodedFinalUrl = encodeURIComponent(finalUrl);
-        screenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=true&viewport.width=1920&viewport.height=1080&embed=screenshot.url`;
-        mobileScreenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=true&viewport.width=390&viewport.height=844&viewport.isMobile=true&viewport.hasTouch=true&viewport.userAgent=Mozilla%2F5.0+%28iPhone%3B+CPU+iPhone+OS+15_0+like+Mac+OS+X%29+AppleWebKit%2F605.1.15+%28KHTML%2C+like+Gecko%29+Version%2F15.0+Mobile%2F15E148+Safari%2F604.1&embed=screenshot.url`;
+        screenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=false&viewport.width=1920&viewport.height=1080&embed=screenshot.url`;
+        mobileScreenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=false&viewport.width=390&viewport.height=844&viewport.isMobile=true&viewport.hasTouch=true&viewport.userAgent=Mozilla%2F5.0+%28iPhone%3B+CPU+iPhone+OS+15_0+like+Mac+OS+X%29+AppleWebKit%2F605.1.15+%28KHTML%2C+like+Gecko%29+Version%2F15.0+Mobile%2F15E148+Safari%2F604.1&embed=screenshot.url`;
 
         // Check if Microlink works, otherwise fallback to thum.io
         try {
@@ -4184,16 +4187,16 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
             const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
             const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
             const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-            screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/fullpage/${finalUrl}`;
-            mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/fullpage/${finalUrl}`;
+            screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/${finalUrl}`;
+            mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/${finalUrl}`;
           }
         } catch (err) {
           logger.warn({ err: (err as Error).message }, "Microlink checked, threw error/timeout, falling back to thum.io");
           const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
           const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
           const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-          screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/fullpage/${finalUrl}`;
-          mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/fullpage/${finalUrl}`;
+          screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/${finalUrl}`;
+          mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/${finalUrl}`;
         }
       }
       
