@@ -3186,7 +3186,7 @@ async function extractBackgroundImage(html: string, referenceUrl: string, cookie
   return "";
 }
 
-function generateCleanBackgroundPresellHtml(input: {
+async function generateCleanBackgroundPresellHtml(input: {
   productName: string;
   referenceUrl: string;
   affiliateUrl: string;
@@ -3195,7 +3195,7 @@ function generateCleanBackgroundPresellHtml(input: {
   mobileBackgroundImageUrl?: string;
   popupLanguage: string;
   meta: PageMetadata;
-}): string {
+}): Promise<string> {
   const product = input.productName || "Oferta Oficial";
   const bgUrl = input.backgroundImageUrl;
   const mobileBgUrl = input.mobileBackgroundImageUrl || bgUrl;
@@ -3209,6 +3209,16 @@ function generateCleanBackgroundPresellHtml(input: {
       const domain = new URL(input.referenceUrl).hostname;
       faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
     } catch (_) {}
+  }
+
+  // Inline favicon as base64 to prevent external domain loading compliance flags
+  if (faviconUrl && faviconUrl.startsWith("http")) {
+    try {
+      faviconUrl = await downloadAsBase64(faviconUrl);
+    } catch (_) {
+      // Safe fallback SVG favicon to keep it self-contained
+      faviconUrl = "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>";
+    }
   }
 
   return `<!DOCTYPE html>
@@ -4192,6 +4202,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
           screenshotUrl = await downloadAsBase64(screenshotUrl);
         } catch (err: any) {
           logger.error({ err: err.message }, "Failed to inline fallback desktop screenshot");
+          throw new Error("Failed to download and inline fallback desktop screenshot: " + err.message);
         }
 
         try {
@@ -4199,11 +4210,17 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
           mobileScreenshotUrl = await downloadAsBase64(mobileScreenshotUrl);
         } catch (err: any) {
           logger.error({ err: err.message }, "Failed to inline fallback mobile screenshot");
+          throw new Error("Failed to download and inline fallback mobile screenshot: " + err.message);
         }
       }
 
+      // Ensure that under no circumstances can an external screenshot URL leak into the HTML
+      if (!screenshotUrl.startsWith("data:image/") || !mobileScreenshotUrl.startsWith("data:image/")) {
+        throw new Error("Screenshots are not inlined as base64 data URLs");
+      }
+
       // Generate extremely clean, policy-compliant presell page with background image only
-      let cleanHtml = generateCleanBackgroundPresellHtml({
+      let cleanHtml = await generateCleanBackgroundPresellHtml({
         productName: resolvedProductName,
         referenceUrl: finalUrl,
         affiliateUrl: normalizedAffiliate,
