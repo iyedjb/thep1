@@ -213,6 +213,7 @@ export default function Trends() {
   const [customEndDate, setCustomEndDate] = useState("2026-07-02");
   const [searchInput, setSearchInput] = useState("marketing digital");
   const [activeKeyword, setActiveKeyword] = useState("marketing digital");
+  const [countrySearch, setCountrySearch] = useState("");
 
   // Theme search states
   const [themeInput, setThemeInput] = useState("");
@@ -227,6 +228,9 @@ export default function Trends() {
 
   const computedTimeRange = timeRange === "custom" ? `${customStartDate} ${customEndDate}` : timeRange;
   const demographics = getDemographicsForKeyword(activeKeyword);
+  const filteredCountries = Object.keys(COUNTRY_CODES).filter((c) =>
+    c.toLowerCase().includes(countrySearch.toLowerCase())
+  );
 
   const PRESET_THEMES = [
     { id: "Saúde", label: "Saúde", icon: Heart, description: "Nutrição, fitness, dietas e bem-estar", color: "text-red-500 bg-red-500/10 border-red-500/20" },
@@ -390,14 +394,30 @@ export default function Trends() {
               <div className="flex items-center gap-2">
                 <Globe className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium text-muted-foreground">Localização:</span>
-                <Select value={geo} onValueChange={handleGeoChange}>
+                <Select value={geo} onValueChange={handleGeoChange} onOpenChange={(open) => { if (!open) setCountrySearch(""); }}>
                   <SelectTrigger className="w-40 h-9 rounded-xl border-border/60">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px] overflow-y-auto">
-                    {Object.keys(COUNTRY_CODES).map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
+                    <div className="p-2 sticky top-0 bg-popover z-10 border-b border-border/40">
+                      <Input
+                        placeholder="Pesquisar país..."
+                        value={countrySearch}
+                        onChange={(e) => setCountrySearch(e.target.value)}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        className="h-8 text-xs rounded-lg focus-visible:ring-primary"
+                      />
+                    </div>
+                    {filteredCountries.length > 0 ? (
+                      filteredCountries.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))
+                    ) : (
+                      <div className="p-3 text-xs text-muted-foreground text-center">
+                        Nenhum país encontrado
+                      </div>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
