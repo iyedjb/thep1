@@ -71,6 +71,48 @@ declare global {
   }
 }
 
+const COUNTRY_CODES: Record<string, string> = {
+  "Global": "",
+  "Brasil": "BR",
+  "Peru": "PE",
+  "Portugal": "PT",
+  "Espanha": "ES",
+  "Itália": "IT",
+  "Alemanha": "DE",
+  "México": "MX",
+  "Colômbia": "CO",
+  "Estados Unidos": "US",
+  "Argentina": "AR",
+  "Chile": "CL",
+  "Equador": "EC",
+  "Bolívia": "BO",
+  "Paraguai": "PY",
+  "Uruguai": "UY",
+  "Venezuela": "VE",
+  "Panamá": "PA",
+  "Costa Rica": "CR",
+  "Guatemala": "GT",
+  "Honduras": "HN",
+  "Reino Unido": "GB",
+  "França": "FR",
+  "Canadá": "CA",
+  "Romênia": "RO",
+  "Bulgária": "BG",
+  "Polônia": "PL",
+  "Chéquia": "CZ",
+  "Hungria": "HU",
+  "Eslováquia": "SK",
+  "Rússia": "RU",
+  "Índia": "IN",
+  "Japão": "JP",
+  "Austrália": "AU",
+  "Nova Zelândia": "NZ",
+  "África do Sul": "ZA",
+  "Nigéria": "NG",
+  "Egito": "EG",
+  "Marrocos": "MA"
+};
+
 interface WidgetProps {
   keyword: string;
   geo: string;
@@ -88,16 +130,7 @@ function GoogleTrendsWidget({ keyword, geo, timeRange, type }: WidgetProps) {
       containerRef.current.innerHTML = "";
     }
 
-    const geoCode = geo === "Global" ? "" :
-                    geo === "Brasil" ? "BR" :
-                    geo === "Peru" ? "PE" :
-                    geo === "Portugal" ? "PT" :
-                    geo === "Espanha" ? "ES" :
-                    geo === "Itália" ? "IT" :
-                    geo === "Alemanha" ? "DE" :
-                    geo === "México" ? "MX" :
-                    geo === "Colômbia" ? "CO" :
-                    geo === "Estados Unidos" ? "US" : "";
+    const geoCode = COUNTRY_CODES[geo] || "";
     const timeCode = timeRange === "12m" ? "today 12-m" :
                      timeRange === "30d" ? "today 1-m" :
                      timeRange === "7d" ? "now 7-d" :
@@ -361,17 +394,10 @@ export default function Trends() {
                   <SelectTrigger className="w-40 h-9 rounded-xl border-border/60">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Global">Global</SelectItem>
-                    <SelectItem value="Brasil">Brasil</SelectItem>
-                    <SelectItem value="Peru">Peru</SelectItem>
-                    <SelectItem value="Portugal">Portugal</SelectItem>
-                    <SelectItem value="Espanha">Espanha</SelectItem>
-                    <SelectItem value="Itália">Itália</SelectItem>
-                    <SelectItem value="Alemanha">Alemanha</SelectItem>
-                    <SelectItem value="México">México</SelectItem>
-                    <SelectItem value="Colômbia">Colômbia</SelectItem>
-                    <SelectItem value="Estados Unidos">Estados Unidos</SelectItem>
+                  <SelectContent className="max-h-[300px] overflow-y-auto">
+                    {Object.keys(COUNTRY_CODES).map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
