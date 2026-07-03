@@ -136,9 +136,21 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
 }
 
 function normalizeUrl(url: string) {
-  const trimmed = String(url || "").trim();
+  let trimmed = String(url || "").trim();
   if (!trimmed) return "";
-  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  
+  if (!/^https?:\/\//i.test(trimmed)) {
+    trimmed = `https://${trimmed}`;
+  }
+  
+  if (trimmed.startsWith("http://")) {
+    const isLocal = /http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)/i.test(trimmed);
+    if (!isLocal) {
+      trimmed = trimmed.replace(/^http:\/\//i, "https://");
+    }
+  }
+  
+  return trimmed;
 }
 
 function getAttributeValue(attrs: string, name: string): string | null {
