@@ -30,20 +30,31 @@ function getDemographicsForKeyword(keyword: string) {
     { name: "Desconhecido", value: unknown },
   ];
 
-  const age18 = 15 + (hash % 15);
-  const age25 = 25 + ((hash >> 2) % 20);
-  const age35 = 15 + ((hash >> 4) % 15);
-  const age45 = 10 + ((hash >> 6) % 10);
-  const age55 = 5 + ((hash >> 8) % 8);
-  const age65 = 100 - (age18 + age25 + age35 + age45 + age55);
+  // Generate raw weights for ages
+  const w18 = 10 + (hash % 15);
+  const w25 = 20 + ((hash >> 2) % 20);
+  const w35 = 15 + ((hash >> 4) % 15);
+  const w45 = 10 + ((hash >> 6) % 15);
+  const w55 = 5 + ((hash >> 8) % 10);
+  const w65 = 5 + ((hash >> 10) % 10);
+  
+  const totalWeight = w18 + w25 + w35 + w45 + w55 + w65;
+  
+  // Distribute 100% proportionally
+  const age18 = Math.round((w18 / totalWeight) * 100);
+  const age25 = Math.round((w25 / totalWeight) * 100);
+  const age35 = Math.round((w35 / totalWeight) * 100);
+  const age45 = Math.round((w45 / totalWeight) * 100);
+  const age55 = Math.round((w55 / totalWeight) * 100);
+  const age65 = 100 - (age18 + age25 + age35 + age45 + age55); // Adjust last one for exact 100%
   
   const ages = [
-    { age: "18-24", percentage: age18 },
+    { age: "18-24", percentage: age65 < 0 ? 0 : age18 },
     { age: "25-34", percentage: age25 },
     { age: "35-44", percentage: age35 },
     { age: "45-54", percentage: age45 },
     { age: "55-64", percentage: age55 },
-    { age: "65+", percentage: age65 },
+    { age: "65+", percentage: age65 < 0 ? 0 : age65 },
   ];
 
   const mobileBase = 45 + (hash % 35); // 45% to 80%
