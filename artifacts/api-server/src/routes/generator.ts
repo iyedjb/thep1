@@ -3727,7 +3727,7 @@ function injectCookieConsentOverlay(
   seoDesc += ` ${localization.valPrecoGenericFallback} ${localization.ctaOffer}`;
   
   // Generic pricing and payment conditions
-  let valPrecoResolved = meta?.isCod ? localization.valPrecoCOD : localization.valPrecoOnline;
+  let valPrecoResolved = localization.valPrecoGenericCond;
   valPrecoResolved = `${valPrecoResolved} (${localization.ctaOffer})`;
 
   let labelEntregaResolved = localization.labelEntrega;
