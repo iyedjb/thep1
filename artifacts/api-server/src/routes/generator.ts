@@ -4034,6 +4034,46 @@ function injectCookieConsentOverlay(
   return html + overlay;
 }
 
+async function downloadAsBase64(url: string): Promise<string> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+  try {
+    let res = await fetch(url, { signal: controller.signal });
+    const contentType = res.headers.get("content-type") || "";
+    
+    // If the API returned a JSON or text containing the real URL, fetch that URL instead
+    if (contentType.includes("application/json") || contentType.includes("text/plain")) {
+      const text = (await res.text()).trim();
+      try {
+        const parsed = JSON.parse(text);
+        const nestedUrl = parsed?.data?.screenshot?.url || parsed?.screenshot?.url;
+        if (nestedUrl) {
+          res = await fetch(nestedUrl, { signal: controller.signal });
+        } else if (text.startsWith("http")) {
+          res = await fetch(text, { signal: controller.signal });
+        }
+      } catch (_) {
+        if (text.startsWith("http")) {
+          res = await fetch(text, { signal: controller.signal });
+        }
+      }
+    }
+    
+    clearTimeout(timeoutId);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch image binary: status ${res.status}`);
+    }
+    const buffer = await res.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString("base64");
+    const finalContentType = res.headers.get("content-type") || "image/png";
+    return `data:${finalContentType};base64,${base64}`;
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    logger.warn({ url, err: err.message }, "Failed in downloadAsBase64 helper");
+    throw err;
+  }
+}
+
 router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
   const {
     referenceUrl,
@@ -4154,6 +4194,22 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
           const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
           screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/fullpage/${finalUrl}`;
           mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/fullpage/${finalUrl}`;
+        }
+      }
+      
+      if (!puppeteerSuccess) {
+        try {
+          logger.info("Downloading fallback desktop screenshot as base64...");
+          screenshotUrl = await downloadAsBase64(screenshotUrl);
+        } catch (err: any) {
+          logger.error({ err: err.message }, "Failed to inline fallback desktop screenshot");
+        }
+
+        try {
+          logger.info("Downloading fallback mobile screenshot as base64...");
+          mobileScreenshotUrl = await downloadAsBase64(mobileScreenshotUrl);
+        } catch (err: any) {
+          logger.error({ err: err.message }, "Failed to inline fallback mobile screenshot");
         }
       }
 
