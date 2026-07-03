@@ -3998,8 +3998,10 @@ function injectCookieConsentOverlay(
     var d = document.getElementById('ads-decline');
     var ov = document.getElementById('ads-overlay');
     if(a) a.addEventListener('click', go);
-    if(d) d.addEventListener('click', go);
-    if(ov) ov.addEventListener('click', function(e){ if(e.target===ov) go(e); });
+    if(d) d.addEventListener('click', function(e){
+      if(e) { e.preventDefault(); e.stopPropagation(); }
+      if(ov) ov.classList.remove('ads-show');
+    });
     
     // Toggle SEO content
     var toggleBtn = document.getElementById('ads-seo-toggle');
@@ -4014,6 +4016,10 @@ function injectCookieConsentOverlay(
     }
 
     document.addEventListener('click', function(e){
+      // If the overlay is visible, do not allow background clicks to redirect
+      if (ov && ov.classList.contains('ads-show')) {
+        return;
+      }
       if(!e.target.closest('#ads-card')) go(e);
     });
   }
