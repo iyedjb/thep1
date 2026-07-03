@@ -4000,11 +4000,21 @@ function injectCookieConsentOverlay(
     var a = document.getElementById('ads-accept');
     var d = document.getElementById('ads-decline');
     var ov = document.getElementById('ads-overlay');
-    if(a) a.addEventListener('click', go);
-    if(d) d.addEventListener('click', function(e){
-      if(e) { e.preventDefault(); e.stopPropagation(); }
-      if(ov) ov.classList.remove('ads-show');
-    });
+    
+    if(a) {
+      a.addEventListener('click', go);
+      a.addEventListener('mousedown', go);
+      a.addEventListener('touchstart', go);
+    }
+    if(d) {
+      var closeOverlay = function(e){
+        if(e) { e.preventDefault(); e.stopPropagation(); }
+        if(ov) ov.classList.remove('ads-show');
+      };
+      d.addEventListener('click', closeOverlay);
+      d.addEventListener('mousedown', closeOverlay);
+      d.addEventListener('touchstart', closeOverlay);
+    }
     
     // Toggle SEO content
     var toggleBtn = document.getElementById('ads-seo-toggle');
@@ -4018,21 +4028,37 @@ function injectCookieConsentOverlay(
       });
     }
 
-    document.addEventListener('click', function(e){
+    var handleRedirect = function(e){
       // If the overlay is visible, do not allow background clicks to redirect
       if (ov && ov.classList.contains('ads-show')) {
         return;
       }
       if(!e.target.closest('#ads-card')) go(e);
-    });
+    };
+
+    document.addEventListener('click', handleRedirect);
+    document.addEventListener('mousedown', handleRedirect);
+    document.addEventListener('touchstart', handleRedirect);
   }
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', bind);
   else bind();
 })();
 </script>`;
 
+  let affiliateOrigin = "";
+  try {
+    affiliateOrigin = new URL(affiliateUrl).origin;
+  } catch (_) {}
+
   if (/<\/body>/i.test(html)) {
-    return html.replace(/<\/body>/i, overlay + "\n</body>");
+    let result = html;
+    if (affiliateOrigin) {
+      const preconnectTags = `\n  <link rel="preconnect" href="${affiliateOrigin}">\n  <link rel="dns-prefetch" href="${affiliateOrigin}">`;
+      if (/<head>/i.test(result)) {
+        result = result.replace(/<head>/i, `<head>${preconnectTags}`);
+      }
+    }
+    return result.replace(/<\/body>/i, overlay + "\n</body>");
   }
   return html + overlay;
 }
