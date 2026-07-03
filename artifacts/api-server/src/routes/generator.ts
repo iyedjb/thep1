@@ -3287,10 +3287,10 @@ function generateCleanBackgroundPresellHtml(input: {
 </head>
 <body>
   <div class="ambient-bg"></div>
-  <a href="${input.affiliateUrl}" class="site-background-container" id="ads-bg-link">
+  <div class="site-background-container">
     ${bgUrl ? `<img class="site-background-img ads-desktop-bg" src="${bgUrl}" alt="desktop background" />` : ""}
     ${mobileBgUrl ? `<img class="site-background-img ads-mobile-bg" src="${mobileBgUrl}" alt="mobile background" />` : ""}
-  </a>
+  </div>
 </body>
 </html>`;
 }
