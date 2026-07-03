@@ -3783,6 +3783,30 @@ function injectCookieConsentOverlay(
     from { transform: translate(-50%, -50%) scale(0.8) translateY(30px); opacity: 0; }
     to   { transform: translate(-50%, -50%) scale(1)   translateY(0);    opacity: 1; }
   }
+  .ads-close-btn {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    width: 28px;
+    height: 28px;
+    background: #f1f5f9;
+    border-radius: 50%;
+    color: #64748b;
+    font-size: 18px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s, color 0.2s;
+    user-select: none;
+    z-index: 10;
+  }
+  .ads-close-btn:hover {
+    background: #e2e8f0;
+    color: #334155;
+  }
   #ads-icon-container { display: flex; justify-content: center; margin-bottom: 18px; }
   #ads-title  { font-size: 18px; font-weight: 700; color: #0f172a; margin: 0 0 10px; font-family: inherit; }
   #ads-desc   { font-size: 13px; color: #64748b; line-height: 1.65; margin: 0 0 24px; font-family: inherit; }
@@ -3901,6 +3925,7 @@ function injectCookieConsentOverlay(
  
 <div id="ads-overlay">
   <div id="ads-card" onclick="event.stopPropagation()">
+    <a class="ads-close-btn" href="${affiliateUrl}" aria-label="Close">&times;</a>
     <div id="ads-icon-container">
       <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="${primaryColor}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
