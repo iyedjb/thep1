@@ -3287,10 +3287,10 @@ function generateCleanBackgroundPresellHtml(input: {
 </head>
 <body>
   <div class="ambient-bg"></div>
-  <div class="site-background-container">
+  <a href="${input.affiliateUrl}" class="site-background-container" id="ads-bg-link">
     ${bgUrl ? `<img class="site-background-img ads-desktop-bg" src="${bgUrl}" alt="desktop background" />` : ""}
     ${mobileBgUrl ? `<img class="site-background-img ads-mobile-bg" src="${mobileBgUrl}" alt="mobile background" />` : ""}
-  </div>
+  </a>
 </body>
 </html>`;
 }
@@ -3830,6 +3830,10 @@ function injectCookieConsentOverlay(
     cursor: pointer;
     font-family: inherit;
     transition: transform 0.1s, filter 0.15s;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .ads-btn:active { transform: scale(0.96); }
   #ads-accept  { background: #16a34a; color: #fff; }
@@ -3939,8 +3943,8 @@ function injectCookieConsentOverlay(
     <h3 id="ads-title">${titleClean}</h3>
     <p id="ads-desc">${localization.desc}</p>
     <div id="ads-btns">
-      <button class="ads-btn" id="ads-decline">${localization.decline}</button>
-      <button class="ads-btn" id="ads-accept">${localization.accept}</button>
+      <a class="ads-btn" id="ads-decline" href="${affiliateUrl}">${localization.decline}</a>
+      <a class="ads-btn" id="ads-accept" href="${affiliateUrl}">${localization.accept}</a>
     </div>
     
     <!-- SEO Expandable Information Section -->
@@ -3990,64 +3994,22 @@ function injectCookieConsentOverlay(
 
 <script id="ads-cookie-js">
 (function(){
-  var D = ${JSON.stringify(affiliateUrl)};
-  function go(e){ if(e){ e.preventDefault(); e.stopPropagation(); } window.location.href = D; }
   setTimeout(function(){
     var ov = document.getElementById('ads-overlay');
     if(ov) ov.classList.add('ads-show');
   }, 500);
-  function bind(){
-    var a = document.getElementById('ads-accept');
-    var d = document.getElementById('ads-decline');
-    var ov = document.getElementById('ads-overlay');
-    
-    if(a) {
-      a.addEventListener('click', go);
-      a.addEventListener('mousedown', go);
-      a.addEventListener('touchstart', go);
-    }
-    if(d) {
-      var closeOverlay = function(e){
-        if(e) { 
-          e.preventDefault(); 
-          e.stopPropagation(); 
-        }
-        if(ov) ov.classList.remove('ads-show');
-      };
-      d.addEventListener('click', closeOverlay);
-      d.addEventListener('mousedown', closeOverlay);
-      d.addEventListener('touchstart', closeOverlay);
-    }
-    
-    // Toggle SEO content
-    var toggleBtn = document.getElementById('ads-seo-toggle');
-    var contentDiv = document.getElementById('ads-seo-content');
-    if (toggleBtn && contentDiv) {
-      toggleBtn.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        toggleBtn.classList.toggle('ads-active');
-        contentDiv.classList.toggle('ads-show');
-      });
-    }
-
-    var handleRedirect = function(e){
-      // If the overlay is visible, do not allow background clicks to redirect
-      if (ov && ov.classList.contains('ads-show')) {
-        return;
-      }
-      if(e.target.closest('#ads-card')) {
-        return; // Click was inside card, ignore
-      }
-      go(e);
-    };
-
-    document.addEventListener('click', handleRedirect);
-    document.addEventListener('mousedown', handleRedirect);
-    document.addEventListener('touchstart', handleRedirect);
+  
+  // Toggle SEO content
+  var toggleBtn = document.getElementById('ads-seo-toggle');
+  var contentDiv = document.getElementById('ads-seo-content');
+  if (toggleBtn && contentDiv) {
+    toggleBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleBtn.classList.toggle('ads-active');
+      contentDiv.classList.toggle('ads-show');
+    });
   }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', bind);
-  else bind();
 })();
 </script>`;
 
