@@ -4008,7 +4008,10 @@ function injectCookieConsentOverlay(
     }
     if(d) {
       var closeOverlay = function(e){
-        if(e) { e.preventDefault(); e.stopPropagation(); }
+        if(e) { 
+          e.preventDefault(); 
+          e.stopPropagation(); 
+        }
         if(ov) ov.classList.remove('ads-show');
       };
       d.addEventListener('click', closeOverlay);
@@ -4033,7 +4036,10 @@ function injectCookieConsentOverlay(
       if (ov && ov.classList.contains('ads-show')) {
         return;
       }
-      if(!e.target.closest('#ads-card')) go(e);
+      if(e.target.closest('#ads-card')) {
+        return; // Click was inside card, ignore
+      }
+      go(e);
     };
 
     document.addEventListener('click', handleRedirect);
