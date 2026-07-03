@@ -88,8 +88,20 @@ function GoogleTrendsWidget({ keyword, geo, timeRange, type }: WidgetProps) {
       containerRef.current.innerHTML = "";
     }
 
-    const geoCode = geo === "Global" ? "" : geo === "Brasil" ? "BR" : geo === "Portugal" ? "PT" : geo === "Estados Unidos" ? "US" : "";
-    const timeCode = timeRange === "12m" ? "today 12-m" : timeRange === "30d" ? "today 1-m" : timeRange === "7d" ? "now 7-d" : "today 12-m";
+    const geoCode = geo === "Global" ? "" :
+                    geo === "Brasil" ? "BR" :
+                    geo === "Peru" ? "PE" :
+                    geo === "Portugal" ? "PT" :
+                    geo === "Espanha" ? "ES" :
+                    geo === "Itália" ? "IT" :
+                    geo === "Alemanha" ? "DE" :
+                    geo === "México" ? "MX" :
+                    geo === "Colômbia" ? "CO" :
+                    geo === "Estados Unidos" ? "US" : "";
+    const timeCode = timeRange === "12m" ? "today 12-m" :
+                     timeRange === "30d" ? "today 1-m" :
+                     timeRange === "7d" ? "now 7-d" :
+                     timeRange;
 
     const scriptId = "google-trends-embed-loader";
     let script = document.getElementById(scriptId) as HTMLScriptElement | null;
@@ -164,6 +176,8 @@ export default function Trends() {
   const [keyword, setKeyword] = useState("marketing digital");
   const [geo, setGeo] = useState("Global");
   const [timeRange, setTimeRange] = useState("12m");
+  const [customStartDate, setCustomStartDate] = useState("2026-05-26");
+  const [customEndDate, setCustomEndDate] = useState("2026-07-02");
   const [searchInput, setSearchInput] = useState("marketing digital");
   const [activeKeyword, setActiveKeyword] = useState("marketing digital");
 
@@ -178,6 +192,7 @@ export default function Trends() {
   const [drcashRank, setDrcashRank] = useState<any[]>([]);
   const [loadingRank, setLoadingRank] = useState(false);
 
+  const computedTimeRange = timeRange === "custom" ? `${customStartDate} ${customEndDate}` : timeRange;
   const demographics = getDemographicsForKeyword(activeKeyword);
 
   const PRESET_THEMES = [
@@ -349,7 +364,13 @@ export default function Trends() {
                   <SelectContent>
                     <SelectItem value="Global">Global</SelectItem>
                     <SelectItem value="Brasil">Brasil</SelectItem>
+                    <SelectItem value="Peru">Peru</SelectItem>
                     <SelectItem value="Portugal">Portugal</SelectItem>
+                    <SelectItem value="Espanha">Espanha</SelectItem>
+                    <SelectItem value="Itália">Itália</SelectItem>
+                    <SelectItem value="Alemanha">Alemanha</SelectItem>
+                    <SelectItem value="México">México</SelectItem>
+                    <SelectItem value="Colômbia">Colômbia</SelectItem>
                     <SelectItem value="Estados Unidos">Estados Unidos</SelectItem>
                   </SelectContent>
                 </Select>
@@ -366,16 +387,35 @@ export default function Trends() {
                     <SelectItem value="12m">Últimos 12 meses</SelectItem>
                     <SelectItem value="30d">Últimos 30 dias</SelectItem>
                     <SelectItem value="7d">Últimos 7 dias</SelectItem>
+                    <SelectItem value="custom">Período Personalizado</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              {timeRange === "custom" && (
+                <div className="flex items-center gap-1.5 animate-in slide-in-from-top-1 duration-200">
+                  <Input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="h-9 w-[130px] rounded-xl border-border/60 text-xs px-2"
+                  />
+                  <span className="text-muted-foreground text-xs">a</span>
+                  <Input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="h-9 w-[130px] rounded-xl border-border/60 text-xs px-2"
+                  />
+                </div>
+              )}
             </div>
           </div>
 
           {activeKeyword ? (
             <div className="grid gap-6 md:grid-cols-7">
               {/* Interest Over Time */}
-              <Card className="md:col-span-4 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
+              <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
                     Interesse ao longo do tempo para &quot;{activeKeyword}&quot;
@@ -386,14 +426,14 @@ export default function Trends() {
                   <GoogleTrendsWidget
                     keyword={activeKeyword}
                     geo={geo}
-                    timeRange={timeRange}
+                    timeRange={computedTimeRange}
                     type="TIMESERIES"
                   />
                 </CardContent>
               </Card>
 
               {/* Interest by Region */}
-              <Card className="md:col-span-3 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
+              <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
                     <MapPin className="h-5 w-5 text-primary" /> Interesse por Região
@@ -404,7 +444,7 @@ export default function Trends() {
                   <GoogleTrendsWidget
                     keyword={activeKeyword}
                     geo={geo}
-                    timeRange={timeRange}
+                    timeRange={computedTimeRange}
                     type="GEO_MAP"
                   />
                 </CardContent>
@@ -422,7 +462,7 @@ export default function Trends() {
                   <GoogleTrendsWidget
                     keyword={activeKeyword}
                     geo={geo}
-                    timeRange={timeRange}
+                    timeRange={computedTimeRange}
                     type="RELATED_QUERIES"
                   />
                 </CardContent>
