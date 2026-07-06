@@ -3352,22 +3352,75 @@ async function queryGemini(systemPrompt: string, userPrompt: string, jsonMode = 
 function rewriteClaimsWithLocalDictionary(html: string): string {
   // Regex mapping of known violating patterns to safe compliance terminology
   const mapping: Array<{ regex: RegExp; replacement: string }> = [
-    { regex: /\b(comprovou sua eficácia|comprovado clinicamente|clinicamente comprovado|eficácia clínica comprovada)\b/gi, replacement: "Fórmula com ingredientes estudados" },
-    { regex: /\b(cura a diabetes|cura o diabetes|controla a glicemia|reduzir os níveis de açúcar no sangue|reduz o açúcar no sangue)\b/gi, replacement: "apoia o equilíbrio metabólico saudável" },
-    { regex: /\b(cura a hipertensão|cura a pressão alta|controla a pressão arterial|previne infartos)\b/gi, replacement: "promove a saúde cardiovascular" },
-    { regex: /\b(elimina parasitas|mata vermes|elimina toxinas|desintoxicação total)\b/gi, replacement: "auxilia no equilíbrio da flora intestinal e suporte digestivo" },
-    { regex: /\b(cura artrite|elimina a dor nas juntas|elimina a dor nas articulações)\b/gi, replacement: "promove o bem-estar e mobilidade articular" },
-    { regex: /\b(perdi \d+\s*(?:kg|kilos|kilos em \d+ dias))\b/gi, replacement: "me sinto mais leve e com mais disposição" },
-    { regex: /\b(emagreça rápido|queima de gordura garantida|perda de peso garantida)\b/gi, replacement: "auxilia na digestão e controle de peso saudável" },
-    { regex: /\b(apenas \d+ unidades restantes|últimas \d+ unidades no estoque)\b/gi, replacement: "Aproveite a condição de lançamento" },
-    { regex: /\b(o melhor do mundo|fórmula secreta|segredo que os médicos escondem)\b/gi, replacement: "Fórmula exclusiva com ingredientes de origem natural" },
-    { regex: /\b(se não tratar pode levar à morte|risco de mortalidade alto)\b/gi, replacement: "Mantenha seus exames em dia e sua rotina saudável" },
-    { regex: /\b(sem efeitos colaterais|100% livre de efeitos colaterais)\b/gi, replacement: "Fórmula suave desenvolvida com ingredientes naturais" }
+    // --- PORTUGUESE PATTERNS ---
+    { regex: /\b(dor\s+e\s+restaurar\s+lagoas|dor\s+nas\s+lagoas)\b/gi, replacement: "conforto e bem-estar corporal" },
+    { regex: /\b(restaurar\s+)?(lagoas)\b/gi, replacement: "flexibilidade corporal" },
+    { regex: /\b(?:doença|doenca)\s+de\s+dentro\s+para\s+fora\b/gi, replacement: "desconforto de forma natural" },
+    { regex: /(?:dentro de|após apenas|apos apenas|em|após|apos)\s+\d+(?:\s+a\s+\d+)?\s*(?:dias|semanas)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "com o uso regular" },
+    { regex: /\b(?:remove(?:r)?|elimina(?:r)?|combate(?:r)?|trata(?:r)?|previne|alivia(?:r)?)\s+(?:o|a|os|as)?\s*(?:ignição|ignicao|inflamação|inflamacao|inchaço|inchaco|vermelhidão|vermelhidao)(?:\s*(?:,\s*|e\s+|ou\s+)(?:ignição|ignicao|inflamação|inflamacao|inchaço|inchaco|vermelhidão|vermelhidao))*/gi, replacement: "auxilia no alívio e conforto" },
+    { regex: /\b(?:remove(?:r)?|elimina(?:r)?|combate(?:r)?|trata(?:r)?|previne|alivia(?:r)?)\s+(?:e\s+previne\s+)?(?:deposição|deposicao)\s+de\s+sal(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "auxilia no conforto articular" },
+    { regex: /\b(?:reconstrói|reconstroi|regenera|recupera|restaura|restaurar)\s+(?:o|a|os|as)?\s*(?:exausto\s+)?(?:tecido cartilaginoso|cartilagem)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "auxilia na manutenção articular" },
+    { regex: /\b(?:restaura|restaurar)\s+(?:o|a|os|as)?\s*mobilidade(?:\s*(?:de|das|dos)?\s*articulações)?(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "auxilia na movimentação das articulações" },
+    
+    // --- POLISH PATTERNS ---
+    // Joints/Pain/Mobility/Cartilage (Polish)
+    { regex: /\b(pozbądź\s+się\s+bólu|pozbadz\s+sie\s+bolu|zlikwiduj\s+ból|usuwa\s+ból|ból\s+stawów|bol\s+stawow)(?![a-zA-Z0-9ąęćłńóśźżĄĘĆŁŃÓŚŹŻ])/gi, replacement: "komfort i dobre samopoczucie stawów" },
+    { regex: /\b(?:usuwa|eliminuje|zwalcza|leczy|zapobiega)\s+(?:zapalenie|obrzęk|obrzek|zaczerwienienie)(?:\s*(?:,\s*|i\s+|lub\s+)(?:zapalenie|obrzęk|obrzek|zaczerwienienie))*/gi, replacement: "pomaga łagodzić dyskomfort" },
+    { regex: /\b(?:usuwa|eliminuje|zapobiega)\s+(?:i\s+zapobiega\s+)?(?:odkładaniu\s+się\s+soli|odkladaniu\s+sie\s+soli)(?![a-zA-Z0-9ąęćłńóśźżĄĘĆŁŃÓŚŹŻ])/gi, replacement: "wspiera ruchomość stawów" },
+    { regex: /\b(?:odbudowuje|regeneruje|przywraca|przywróć|przywroc|odbudować|regenerować|przywrócić)\s+(?:wycieńczoną\s+|wycienczona\s+)?(?:tkankę\s+chrzęstną|chrząstkę|stawy|tkanke\s+chrzestna|chrzastke)(?![a-zA-Z0-9ąęćłńóśźżĄĘĆŁŃÓŚŹŻ])/gi, replacement: "wspiera regenerację stawów" },
+    { regex: /\b(?:przywraca|przywróć|przywroc)\s+(?:ruchomość|ruchomosc)(?:\s+stawów|\s+stawow)?(?![a-zA-Z0-9ąęćłńóśźżĄĘĆŁŃÓŚŹŻ])/gi, replacement: "wspomaga elastyczność i ruchomość" },
+    { regex: /\b(?:choroby|choroba)\s+od\s+wewnątrz/gi, replacement: "dyskomfortu w naturalny sposób" },
+    
+    // Timelines & Scarcity (Polish)
+    { regex: /(?:w ciągu|w ciagu|za|po|już po|juz po)\s+\d+(?:\s*-\s*\d+)?\s*(?:dni|tygodni|dniach)(?![a-zA-Z0-9ąęćłńóśźżĄĘĆŁŃÓŚŹŻ])/gi, replacement: "przy regularnym stosowaniu" },
+    { regex: /\b(?:tylko|zostało|ostatnie)\s+\d+\s*(?:sztuk|opakowań|opakowaniach|miejsc)(?![a-zA-Z0-9ąęćłńóśźżĄĘĆŁŃÓŚŹŻ])/gi, replacement: "Skorzystaj z oferty specjalnej" },
+    { regex: /\b(?:cena\s+wzrośnie|oferta\s+wygasa)\s+(?:jutro|dzisiaj|wkrótce)(?![a-zA-Z0-9ąęćłńóśźżĄĘĆŁŃÓŚŹŻ])/gi, replacement: "Skorzystaj z oferty premierowej" },
+
+    // Superlatives/Promises (Polish)
+    { regex: /\b(najlepszy\s+na\s+świecie|sekretna\s+formuła|sekret,\s+który\s+lekarze\s+ukrywają|rewolucyjne\s+odkrycie|cudowna\s+formuła|cudowne\s+lekarstwo)(?![a-zA-Z0-9ąęćłńóśźżĄĘĆŁŃÓŚŹŻ])/gi, replacement: "Wyjątkowa formuła z naturalnymi składnikami" },
+    { regex: /\b(bez\s+skutków\s+ubocznych|bez\s+skutkow\s+ubocznych|100%\s+naturalny\s+i\s+bezpieczny|brak\s+przeciwwskazań)(?![a-zA-Z0-9ąęćłńóśźżĄĘĆŁŃÓŚŹŻ])/gi, replacement: "Łagodna formuła oparta na naturalnych składnikami" },
+    { regex: /\b(gwarantowany\s+wynik|gwarancja\s+satysfakcji|zerowe\s+ryzyko|gwarantowane\s+rezultaty)(?![a-zA-Z0-9ąęćłńóśźżĄĘĆŁŃÓŚŹŻ])/gi, replacement: "Dla najlepszych rezultatów stosuj regularnie" },
+
+    // --- SPANISH PATTERNS ---
+    { regex: /\b(cura(?:r)?|controla(?:r)?|reduz(?:ir)?|regula(?:r)?|estabiliza(?:r)?|normaliza(?:r)?)\s+(?:el|la|los|las\s+)?(?:presión|presion|hipertensión|hipertension|presión arterial|presion arterial)(?![a-zA-Z0-9á-úÁ-ÚñÑíÍóÓéÉáÁúÚãõÃÕçÇ])/gi, replacement: "apoya la salud cardiovascular" },
+    { regex: /\b(previene|evita|elimina|cura(?:r)?|revierte(?:r)?)\s+(?:el|la|los|las\s+)?(?:infarto|infartos|derrame|derrames|avc|cardiopatía|cardiopatias)(?![a-zA-Z0-9á-úÁ-ÚñÑíÍóÓéÉáÁúÚãõÃÕçÇ])/gi, replacement: "ayuda a mantener la salud del corazón" },
+    { regex: /\b(cura(?:r)?|revierte(?:r)?|controla(?:r)?|reduz(?:ir)?|regula(?:r)?|estabiliza(?:r)?|normaliza(?:r)?)\s+(?:el|la|los|las\s+)?(?:diabetes|glucosa|glucemia|azúcar en la sangre|azucar en la sangre)(?![a-zA-Z0-9á-úÁ-ÚñÑíÍóÓéÉáÁúÚãõÃÕçÇ])/gi, replacement: "apoya el equilibrio metabólico saludable" },
+    { regex: /\b(elimina|matar|mata|expulsa|limpa|combate)\s+(?:el|la|los|las\s+)?(?:parasitos|parásitos|lombrices|vermes|toxinas|bacterias|hongos)(?![a-zA-Z0-9á-úÁ-ÚñÑíÍóÓéÉáÁúÚãõÃÕçÇ])/gi, replacement: "ayuda al equilibrio de la flora intestinal" },
+    { regex: /\b(cura(?:r)?|elimina(?:r)?|alivia(?:r)?|acaba(?:r)? con)\s+(?:el|la|los|las\s+)?(?:artritis|artrosis|dolor de articulaciones|dolor articular|reumatismo)(?![a-zA-Z0-9á-úÁ-ÚñÑíÍóÓéÉáÁúÚãõÃÕçÇ])/gi, replacement: "promove el bienestar y la movilidad articular" },
+    { regex: /\b(elimina|alivia|reduce)\s+(?:el|la|los|las\s+)?(?:inflamación|inflamacion|hinchazón|hinchazon|enrojecimiento)(?:\s*(?:,\s*|y\s+|o\s+)(?:inflamación|inflamacion|hinchazón|hinchazon|enrojecimiento))*/gi, replacement: "ayuda al alivio y confort" },
+    { regex: /\b(elimina|combate|previene)\s+(?:el|la|los|las\s+)?(?:depósito de sal|depósitos de sal|depositos de sal)(?![a-zA-Z0-9á-úÁ-ÚñÑíÍóÓéÉáÁúÚãõÃÕçÇ])/gi, replacement: "apoya el confort articular" },
+    { regex: /\b(reconstruye|regenera|recupera|restaura|restaurar)\s+(?:el|la|los|las\s+)?(?:tejido cartilaginoso|cartílago|articulaciones)(?![a-zA-Z0-9á-úÁ-ÚñÑíÍóÓéÉáÁúÚãõÃÕçÇ])/gi, replacement: "ayuda al mantenimiento articular" },
+    { regex: /\b(restaura|restaurar)\s+(?:el|la|los|las\s+)?(?:movilidad)(?![a-zA-Z0-9á-úÁ-ÚñÑíÍóÓéÉáÁúÚãõÃÕçÇ])/gi, replacement: "apoya la movilidad de las articulaciones" },
+    { regex: /(?:dentro de|en|después de|despues de|después de solo)\s+\d+(?:\s*-\s*\d+)?\s*(?:días|dia|semanas|dias)(?![a-zA-Z0-9á-úÁ-ÚñÑíÍóÓéÉáÁúÚãõÃÕçÇ])/gi, replacement: "con el uso regular" },
+    { regex: /\b(?:solo|quedan|últimas|ultimas)\s+\d+\s*(?:unidades|frascos|kits|cupos)(?![a-zA-Z0-9á-úÁ-ÚñÑíÍóÓéÉáÁúÚãõÃÕçÇ])/gi, replacement: "Aproveche la oferta de lanzamiento" },
+    { regex: /(?:el precio sube|la oferta expira)\s+(?:mañana|hoy|pronto|en breve)/gi, replacement: "Aproveche la condición especial de lanzamiento" },
+    { regex: /\b(el mejor del mundo|fórmula secreta|secreto que los médicos escondem|descubrimiento revolucionario|fórmula milagrosa|cura milagrosa)(?![a-zA-Z0-9á-úÁ-ÚñÑíÍóÓéÉáÁúÚãõÃÕçÇ])/gi, replacement: "Fórmula exclusiva con ingredientes de origen natural" },
+    { regex: /\b(sin efectos secundarios|100% natural y sin contraindicaciones|libre de efectos secundarios|no tiene contraindicaciones)(?![a-zA-Z0-9á-úÁ-ÚñÑíÍóÓéÉáÁúÚãõÃÕçÇ])/gi, replacement: "Fórmula suave desarrollada con ingredientes de origen natural" },
+    { regex: /\b(resultado garantido|satisfacción garantida o su dinero de vuelta|risco zero|garantía blindada)(?![a-zA-Z0-9á-úÁ-ÚñÑíÍóÓéÉáÁúÚãõÃÕçÇ])/gi, replacement: "Para mejores resultados, use de manera regular" },
+
+    // --- PORTUGUESE BASELINE FALLBACK ---
+    { regex: /\b(cura(?:r)?|controla(?:r)?|reduz(?:ir)?|regula(?:r)?|estabiliza(?:r)?|normaliza(?:r)?)\s+(?:(?:o|a|os|as)\s+)?(?:pressão|pressao|hipertensão|hipertensao|pressão arterial|pressao arterial)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "apoia a saúde cardiovascular" },
+    { regex: /\b(previne|evita|elimina|cura(?:r)?|reverte(?:r)?)\s+(?:(?:o|a|os|as)\s+)?(?:infarto|infartos|derrame|derrames|avc|cardiopatia|cardiopatias)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "auxilia na manutenção da saúde do coração" },
+    { regex: /\b(cura(?:r)?|reverte(?:r)?|controla(?:r)?|reduz(?:ir)?|regula(?:r)?|estabiliza(?:r)?|normaliza(?:r)?)\s+(?:(?:o|a|os|as)\s+)?(?:diabetes|glicose|glicemia|açúcar no sangue|acucar no sangue)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "apoia o equilíbrio metabólico saudável" },
+    { regex: /\b(fim da|acabe com a|adeus ao|adeus à|adeus a)\s+(?:diabetes|glicose alta|glicemia alta|pressão alta|hipertensão)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "suporte natural para uma rotina saudável" },
+    { regex: /\b(elimina|matar|mata|expulsa|limpa|combate)\s+(?:(?:o|a|os|as)\s+)?(?:parasitas|vermes|toxinas|bactérias ruins|fungos)(?:\s+(?:e|ou)\s+(?:parasitas|vermes|toxinas|bactérias ruins|fungos))?(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "auxilia no equilíbrio da flora intestinal e suporte digestivo" },
+    { regex: /\b(desintoxicação total|detox completo|limpeza do organismo)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "suporte ao bem-estar digestivo" },
+    { regex: /\b(cura(?:r)?|elimina(?:r)?|alivia(?:r)?|acaba(?:r)? com)\s+(?:(?:o|a|os|as)\s+)?(?:artrite|artrose|dor nas juntas|dor nas articulações|dores nas juntas|dores nas articulações|reumatismo)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "promove o bem-estar e mobilidade articular" },
+    { regex: /\b(emagreça|emagreca|perca|perder|queime|queimar)\s+(?:rápido|rapido|fácil|facil|garantido|de vez|urgente)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "auxilia no controle de peso saudável" },
+    { regex: /\b(queima de gordura garantida|perda de peso garantida|emagrecimento garantido|emagreça de forma rápida)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "auxilia na digestão e controle de peso saudável" },
+    { regex: /\bperdi\s+\d+\s*(?:kg|kilos|quilos|kilos em \d+ dias|kg em \d+ dias|quilos em \d+ dias)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "me sinto mais leve e com mais disposição" },
+    { regex: /\b(?:apenas|restam|últimas|ultimas)\s+\d+\s*(?:unidades|frascos|kits|vagas)(?:\s+restantes|\s+no estoque)?(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "Aproveite a condição de lançamento" },
+    { regex: /(?:o preço|o valor|a oferta)\s+(?:sobe|vai subir|expira|termina)\s+(?:amanhã|hoje|em breve|em poucas horas)/gi, replacement: "Aproveite enquanto a condição de lançamento está ativa" },
+    { regex: /\b(o melhor do mundo|fórmula secreta|segredo que os médicos escondem|descoberta revolucionária|fórmula milagrosa|cura milagrosa)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "Fórmula exclusiva com ingredientes de origem natural" },
+    { regex: /\b(sem efeitos colaterais|100% natural e sem contraindicações|livre de efeitos colaterais|não tem contraindicação)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "Fórmula suave desenvolvida com ingredientes de origem natural" },
+    { regex: /\b(resultado garantido|satisfação garantida ou seu dinheiro de volta|risco zero|garantia blindada)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "Para melhores resultados, utilize o produto de forma regular" },
+    { regex: /\b(se não tratar pode levar à morte|risco de mortalidade alto|silenciosa e mortal|pode te matar|morte silenciosa)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "Mantenha seus exames em dia e sua rotina saudável" },
+    { regex: /\b(comprovou sua eficácia|comprovado clinicamente|clinicamente comprovado|eficácia clínica comprovada)\b/gi, replacement: "Fórmula com ingredientes estudados" }
   ];
 
   let cleaned = html;
   for (const item of mapping) {
-    cleaned = cleaned.replace(item.regex, item.replacement);
+    cleaned = cleaned.replaceAll(item.regex, item.replacement);
   }
   return cleaned;
 }
@@ -3402,7 +3455,7 @@ async function queryGroq(messages: any[], jsonMode = false) {
 }
 
 
-async function rewriteClaimsForCompliance(html: string): Promise<string> {
+async function rewriteClaimsForCompliance(html: string): Promise<{ html: string; aiFailed: boolean }> {
   try {
     // 1. Find potential policy violating text segments inside typical content tags.
     // We match text between tags that contains no nested HTML tags.
@@ -3431,7 +3484,7 @@ async function rewriteClaimsForCompliance(html: string): Promise<string> {
 
     if (candidates.size === 0) {
       logger.info("Compliance rewriter: No suspicious claims found in text nodes.");
-      return html;
+      return { html, aiFailed: false };
     }
 
     const candidatesList = Array.from(candidates);
@@ -3522,7 +3575,7 @@ ${JSON.stringify(candidatesList.map(c => c.trim()), null, 2)}`
         responseText = await queryGemini(COMPLIANCE_SYSTEM_PROMPT, userMessage.content, true);
       } catch (geminiErr: any) {
         logger.error({ err: geminiErr.message }, "Gemini compliance rewriter failed, falling back to local dictionary");
-        return rewriteClaimsWithLocalDictionary(html);
+        return { html: rewriteClaimsWithLocalDictionary(html), aiFailed: true };
       }
     }
 
@@ -3531,7 +3584,7 @@ ${JSON.stringify(candidatesList.map(c => c.trim()), null, 2)}`
       mapping = JSON.parse(responseText);
     } catch (parseErr: any) {
       logger.error({ err: parseErr.message, responseText }, "AI response is not valid JSON, using local dictionary");
-      return rewriteClaimsWithLocalDictionary(html);
+      return { html: rewriteClaimsWithLocalDictionary(html), aiFailed: true };
     }
 
     // 3. Apply the rewrites back into the HTML
@@ -3549,10 +3602,10 @@ ${JSON.stringify(candidatesList.map(c => c.trim()), null, 2)}`
     logger.info({ rewritesCount }, "Compliance rewriter: Finished replacing claims in HTML");
     
     // Always run the local dictionary afterwards to catch any edge cases that the AI missed
-    return rewriteClaimsWithLocalDictionary(cleanedHtml);
+    return { html: rewriteClaimsWithLocalDictionary(cleanedHtml), aiFailed: false };
   } catch (err: any) {
     logger.warn({ err: err.message }, "Compliance rewriter failed completely, running local dictionary on original HTML");
-    return rewriteClaimsWithLocalDictionary(html);
+    return { html: rewriteClaimsWithLocalDictionary(html), aiFailed: true };
   }
 }
 
@@ -4389,7 +4442,8 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
 
     // Google Ads compliance claim rewriting using AI
     // Remaining violating copy (hero headlines, CTAs, bullets) is rewritten with compliant alternatives
-    finalHtml = await rewriteClaimsForCompliance(finalHtml);
+    const complianceResult = await rewriteClaimsForCompliance(finalHtml);
+    finalHtml = complianceResult.html;
 
     // Inline assets using the captured cookies
     try {
@@ -4398,12 +4452,17 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       logger.warn({ err: inlineErr.message }, "Option B: Asset inlining failed, keeping raw URLs");
     }
 
+    let finalDesignSummary = "Direct HTML clone of the original page — all CTAs redirect to affiliate URL.";
+    if (complianceResult.aiFailed) {
+      finalDesignSummary += "\n\n⚠️ AVISO: As APIs do Groq e Gemini falharam. O texto foi adaptado utilizando apenas o dicionário de compliance local limitado (verifique suas chaves de API no arquivo .env).";
+    }
+
     res.json({
       html: finalHtml,
       mode: "presell" as BridgeMode,
       productName: resolvedProductName,
       language: "auto",
-      designSummary: "Direct HTML clone of the original page — all CTAs redirect to affiliate URL.",
+      designSummary: finalDesignSummary,
       research: { enabled: false, results: [] },
       thankYouHtml,
       thankYouFileName
