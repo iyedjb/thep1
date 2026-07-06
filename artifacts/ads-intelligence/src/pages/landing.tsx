@@ -12,7 +12,7 @@ export default function LandingPage() {
             C
           </div>
           <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
-            Cortex Ads
+            ClicqLab
           </span>
         </div>
         <div className="flex items-center gap-4">
@@ -97,7 +97,7 @@ export default function LandingPage() {
             Uso de Dados & Conexão com Google Ads API
           </h3>
           <p className="text-slate-400 text-xs leading-relaxed mb-0">
-            A Cortex Ads solicita acesso aos dados de sua conta do Google Ads unicamente para exibir relatórios de desempenho consolidados e gerenciar termos de campanhas. A conexão é segura, criptografada via OAuth 2.0 oficial do Google, e a qualquer momento você pode revogar as permissões concedidas diretamente nas configurações da sua Conta do Google. Nós respeitamos estritamente a política de Uso Limitado de dados do usuário do Google.
+            A ClicqLab solicita acesso aos dados de sua conta do Google Ads unicamente para exibir relatórios de desempenho consolidados e gerenciar termos de campanhas. A conexão é segura, criptografada via OAuth 2.0 oficial do Google, e a qualquer momento você pode revogar as permissões concedidas diretamente nas configurações da sua Conta do Google. Nós respeitamos estritamente a política de Uso Limitado de dados do usuário do Google.
           </p>
         </section>
       </main>
@@ -106,7 +106,7 @@ export default function LandingPage() {
       <footer className="border-t border-slate-900 bg-slate-950/80 py-8 px-6 mt-16">
         <div className="max-w-7xl mx-auto w-full flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-500">
           <div>
-            &copy; 2026 Cortex Ads. Todos os direitos reservados.
+            &copy; 2026 ClicqLab. Todos os direitos reservados.
           </div>
           <div className="flex gap-6">
             <a href="/privacy.html" className="hover:text-slate-300 underline">
