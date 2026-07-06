@@ -13,6 +13,7 @@ import Reports from "@/pages/reports";
 import Trends from "@/pages/trends";
 import Creator from "@/pages/creator";
 import DrCash from "@/pages/drcash";
+import LandingPage from "@/pages/landing";
 import { GoogleAdsGate } from "@/components/google-ads/google-ads-gate";
 
 const queryClient = new QueryClient({
@@ -55,7 +56,7 @@ function Router() {
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
-      <Route path="/" component={() => <Redirect to="/dashboard" />} />
+      <Route path="/" component={LandingPage} />
       <ProtectedRoute path="/dashboard" component={Dashboard} requiresGoogleAds />
       <ProtectedRoute path="/campaigns" component={Campaigns} requiresGoogleAds />
       <ProtectedRoute path="/keywords" component={Keywords} requiresGoogleAds />
