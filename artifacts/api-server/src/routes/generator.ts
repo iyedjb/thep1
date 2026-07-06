@@ -2541,7 +2541,12 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
 
   // 3. Fallback: Robust word frequency / conjunction checking from HTML content
   if (html) {
-    const textLower = html.toLowerCase();
+    const cleanText = html
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .toLowerCase();
+
     const scores: Record<string, number> = {
       "pt-BR": 0,
       "es": 0,
@@ -2554,16 +2559,16 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
     };
 
     // Specific unique trigger words/phrases
-    if (/\b(?:preço|desconto|composição|garantia|prazo|entrega|pague na entrega)\b/i.test(textLower)) scores["pt-BR"] += 15;
-    if (/\b(?:precio|descuento|composición|garantía|plazo|contra entrega|pago contrareembolso)\b/i.test(textLower)) scores["es"] += 15;
-    if (/\b(?:prezzo|sconto|composizione|garanzia|consegna|pagamento alla consegna)\b/i.test(textLower)) scores["it"] += 15;
-    if (/\b(?:prix|remise|composition|garantie|livraison|paiement à la livraison)\b/i.test(textLower)) scores["fr"] += 15;
-    if (/\b(?:preis|rabatt|zusammensetzung|garantie|lieferzeit|zahlung bei lieferung)\b/i.test(textLower)) scores["de"] += 15;
-    if (/\b(?:preț|reducere|compoziție|garanție|timp de livrare|plată la livrare)\b/i.test(textLower)) scores["ro"] += 15;
-    if (/\b(?:cena|rabat|skład|gwarancja|czas dostawy|płatność przy odbiorze)\b/i.test(textLower)) scores["pl"] += 15;
+    if (/\b(?:preço|desconto|composição|garantia|prazo|entrega|pague na entrega)\b/i.test(cleanText)) scores["pt-BR"] += 15;
+    if (/\b(?:precio|descuento|composición|garantía|plazo|contra entrega|pago contrareembolso)\b/i.test(cleanText)) scores["es"] += 15;
+    if (/\b(?:prezzo|sconto|composizione|garanzia|consegna|pagamento alla consegna)\b/i.test(cleanText)) scores["it"] += 15;
+    if (/\b(?:prix|remise|composition|garantie|livraison|paiement à la livraison)\b/i.test(cleanText)) scores["fr"] += 15;
+    if (/\b(?:preis|rabatt|zusammensetzung|garantie|lieferzeit|zahlung bei lieferung)\b/i.test(cleanText)) scores["de"] += 15;
+    if (/\b(?:preț|reducere|compoziție|garanție|timp de livrare|plată la livrare)\b/i.test(cleanText)) scores["ro"] += 15;
+    if (/\b(?:cena|rabat|skład|gwarancja|czas dostawy|płatność przy odbiorze)\b/i.test(cleanText)) scores["pl"] += 15;
 
     // Split and count high frequency unique words/conjunctions
-    const words = textLower.split(/\s+/);
+    const words = cleanText.split(/\s+/);
     for (const w of words) {
       if (w === "y" || w === "con" || w === "para" || w === "los" || w === "las" || w === "del") scores["es"]++;
       if (w === "o" || w === "com" || w === "para" || w === "os" || w === "as" || w === "dos" || w === "das") scores["pt-BR"]++;
