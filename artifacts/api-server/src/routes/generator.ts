@@ -208,6 +208,42 @@ function extractCleanCookies(headers: Headers): string {
 }
 
 export async function fetchReferenceHtml(referenceUrl: string): Promise<{ html: string; cookies: string; finalUrl: string }> {
+  // Try rendering via Puppeteer first to support React/Next/Nuxt dynamic SPAs and hydrated components
+  try {
+    logger.info({ referenceUrl }, "Attempting dynamic page fetch using Puppeteer...");
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    try {
+      const page = await browser.newPage();
+      await page.setViewport({ width: 1920, height: 1080 });
+      await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+      
+      await page.goto(referenceUrl, { waitUntil: 'load', timeout: 25000 });
+      // Wait 4 seconds for JS rendering, API fetches and hydration to complete
+      await new Promise(resolve => setTimeout(resolve, 4000));
+      
+      const html = await page.content();
+      const finalUrl = page.url();
+      const pageCookies = await page.cookies();
+      const cookies = pageCookies.map(c => `${c.name}=${c.value}`).join("; ");
+      
+      logger.info({ finalUrl, cookiesCount: pageCookies.length }, "Puppeteer dynamic page fetch successful!");
+      await browser.close();
+      return {
+        html: html.slice(0, 800000), // Larger limit to hold fully-hydrated markup
+        cookies,
+        finalUrl
+      };
+    } catch (err: any) {
+      await browser.close();
+      logger.warn({ err: err.message }, "Puppeteer dynamic page fetch failed, falling back to static fetch");
+    }
+  } catch (launchErr: any) {
+    logger.warn({ err: launchErr.message }, "Failed to launch Puppeteer for dynamic fetch, falling back to static fetch");
+  }
+
   try {
     let currentUrl = referenceUrl;
     const cookieMap = new Map<string, string>();
@@ -280,7 +316,7 @@ export async function fetchReferenceHtml(referenceUrl: string): Promise<{ html: 
       logger.info({ finalUrl: currentUrl, cookiesCount: cookieMap.size }, "Stateful reference fetch complete");
       
       return { 
-        html: html.slice(0, 150000), 
+        html: html.slice(0, 800000), 
         cookies, 
         finalUrl: currentUrl 
       };
@@ -2060,6 +2096,12 @@ function injectAffiliateIntoHtml(
     ""
   );
 
+  // Step 4.5: Strip framework scripts and link preloads to prevent hydration breaking the rendered DOM
+  // Remove modulepreload links for framework assets
+  html = html.replace(/<link\b[^>]*rel=["'](?:modulepreload|prefetch)["'][^>]*href=["']?[^"']*(?:_nuxt|_next|chunks|webpack|vendor)[^"']*["']?[^>]*>/gi, "");
+  // Remove framework script bundles
+  html = html.replace(/<script\b[^>]*src=["']?[^"']*\/(?:_nuxt|_next|chunks|webpack|vendor|entry|app)\b[^"']*["']?[^>]*><\/script>/gi, "");
+
   // Step 5: Inject tracking tags into <head>
   if (trackingTags && trackingTags.trim()) {
     html = html.replace(/<head([^>]*)>/i, `<head$1>\n  ${trackingTags}`);
@@ -2147,11 +2189,30 @@ function injectAffiliateIntoHtml(
     THANKS_PAGE = '#obrigado';
   }
   
-  // Intercept clicks on navigational elements (excluding elements inside active Dr.Cash forms)
+  // Intercept clicks on navigational elements (excluding elements inside active Dr.Cash forms and local/legal anchors)
   document.addEventListener('click', function(e) {
     var el = e.target.closest('a, button, [onclick], input[type="submit"], input[type="button"]');
     if (!el) return;
     if (DR_CASH_ACTIVE && el.closest('form')) return;
+    
+    // Do not intercept if it's a link to a local page (e.g. terms, privacy, same-domain anchors)
+    if (el.tagName === 'A') {
+      var href = el.getAttribute('href') || '';
+      if (href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:')) {
+        return;
+      }
+      var url;
+      try {
+        url = new URL(el.href);
+        if (url.origin === window.location.origin) {
+          var path = url.pathname.toLowerCase();
+          if (path.indexOf('privacy') !== -1 || path.indexOf('terms') !== -1 || path.indexOf('condicoes') !== -1 || path.indexOf('politica') !== -1) {
+            return;
+          }
+        }
+      } catch(_) {}
+    }
+    
     if (el.tagName === 'A' && el.href && el.href.indexOf(AFFILIATE) === 0) return;
     
     e.preventDefault();
