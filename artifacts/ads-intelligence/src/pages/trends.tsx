@@ -90,6 +90,8 @@ const COUNTRY_CODES: Record<string, string> = {
   "Espanha": "ES",
   "Itália": "IT",
   "Alemanha": "DE",
+  "Áustria": "AT",
+  "Suíça": "CH",
   "México": "MX",
   "Colômbia": "CO",
   "Estados Unidos": "US",
@@ -100,6 +102,7 @@ const COUNTRY_CODES: Record<string, string> = {
   "Paraguai": "PY",
   "Uruguai": "UY",
   "Venezuela": "VE",
+  "República Dominicana": "DO",
   "Panamá": "PA",
   "Costa Rica": "CR",
   "Guatemala": "GT",
@@ -158,6 +161,7 @@ function GoogleTrendsWidget({ keyword, geo, timeRange, type }: WidgetProps) {
             exploreParams.push(`geo=${geoCode}`);
           }
           exploreParams.push(`date=${encodeURIComponent(timeCode)}`);
+          exploreParams.push(`hl=pt-BR`);
           const exploreQuery = exploreParams.join("&");
 
           window.trends.embed.renderExploreWidgetTo(
@@ -170,7 +174,9 @@ function GoogleTrendsWidget({ keyword, geo, timeRange, type }: WidgetProps) {
             },
             {
               exploreQuery,
-              guestPath: "https://trends.google.com:443/trends/embed/"
+              guestPath: "https://trends.google.com:443/trends/embed/",
+              hl: "pt-BR",
+              tz: new Date().getTimezoneOffset()
             }
           );
         } catch (err) {
@@ -202,7 +208,7 @@ function GoogleTrendsWidget({ keyword, geo, timeRange, type }: WidgetProps) {
   }, [keyword, geo, timeRange, type]);
 
   return (
-    <div className="w-full overflow-hidden rounded-xl bg-white p-1 border border-border/20 shadow-inner flex items-center justify-center min-h-[360px]">
+    <div className="w-full overflow-hidden rounded-xl bg-white p-1 border border-border/20 shadow-inner min-h-[360px]">
       <div ref={containerRef} className="w-full min-h-[350px]" />
     </div>
   );
@@ -220,8 +226,14 @@ export default function Trends() {
   const [keyword, setKeyword] = useState("marketing digital");
   const [geo, setGeo] = useState("Global");
   const [timeRange, setTimeRange] = useState("12m");
-  const [customStartDate, setCustomStartDate] = useState("2026-05-26");
-  const [customEndDate, setCustomEndDate] = useState("2026-07-02");
+  const [customStartDate, setCustomStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split("T")[0];
+  });
+  const [customEndDate, setCustomEndDate] = useState(() => {
+    return new Date().toISOString().split("T")[0];
+  });
   const [searchInput, setSearchInput] = useState("marketing digital");
   const [activeKeyword, setActiveKeyword] = useState("marketing digital");
   const [countrySearch, setCountrySearch] = useState("");
@@ -894,6 +906,7 @@ export default function Trends() {
                             MX: { name: "México", flag: "🇲🇽" },
                             BG: { name: "Bulgária", flag: "🇧🇬" },
                             CO: { name: "Colômbia", flag: "🇨🇴" },
+                            DO: { name: "República Dominicana", flag: "🇩🇴" },
                             RO: { name: "Romênia", flag: "🇷🇴" },
                             RU: { name: "Rússia", flag: "🇷🇺" },
                             PL: { name: "Polônia", flag: "🇵🇱" },
