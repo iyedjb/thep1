@@ -3677,7 +3677,7 @@ ${JSON.stringify(candidatesList.map(c => c.trim()), null, 2)}`
 
 function stripBeforeAfterSections(html: string): string {
   try {
-    // 1. Find opening tags of containers (section, div, li)
+    // 1. Find opening tags of containers (section, div, li) by class/ID keywords
     const targetTagRegex = /<(section|div|li)(\s+[^>]*)?>/gi;
     
     let match;
@@ -3750,7 +3750,88 @@ function stripBeforeAfterSections(html: string): string {
       iterations++;
     }
 
-    // 2. Remove any stray images containing before/after/bef-aft/befaft keywords in their src
+    // 1.5. Semantic Reviews/Testimonials Section Stripping (targeting only <section> tags)
+    // Matches heading tags containing testimonial/review/trust-related vocabulary in multiple languages
+    const reviewHeadingKeywords = /\b(depoimento|depoimentos|avaliaç|testemunho|opinio|comentari|review|testimonial|feedback|rating|opinion|testimonio|reseña|resena|avis|temoignage|témoignage|bewertung|rezension|erfahrungsbericht|vertrauen uns|erfahrung|erfolgsgeschichte|customer stories|histórias de sucesso|opiniones|comentarios|testimonios|vertrauen)\b/i;
+    const sectionTagRegex = /<section(\s+[^>]*)?>/gi;
+    let sectionMatch;
+    let semanticIterations = 0;
+
+    while (semanticIterations < 10) {
+      sectionTagRegex.lastIndex = 0;
+      let foundSectionStartIndex = -1;
+      let foundFullStartTag = "";
+
+      while ((sectionMatch = sectionTagRegex.exec(html)) !== null) {
+        const startIndex = sectionMatch.index;
+        const fullStartTag = sectionMatch[0];
+
+        // Balance the section
+        const balanceRegex = /<(?:section(?:\s[^>]*)?|\/section)>/gi;
+        balanceRegex.lastIndex = startIndex;
+
+        let openCount = 0;
+        let endIndex = -1;
+        let bm;
+        while ((bm = balanceRegex.exec(html)) !== null) {
+          if (bm[0].startsWith('</')) openCount--;
+          else openCount++;
+          if (openCount === 0) {
+            endIndex = bm.index + bm[0].length;
+            break;
+          }
+        }
+
+        if (endIndex === -1) continue;
+
+        const blockText = html.substring(startIndex, endIndex);
+        const headings = blockText.match(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/gi) || [];
+        let isReviewSection = false;
+        for (const h of headings) {
+          const text = h.replace(/<[^>]+>/g, "").trim().toLowerCase();
+          if (reviewHeadingKeywords.test(text)) {
+            isReviewSection = true;
+            break;
+          }
+        }
+
+        if (isReviewSection) {
+          foundSectionStartIndex = startIndex;
+          foundFullStartTag = fullStartTag;
+          break;
+        }
+      }
+
+      if (foundSectionStartIndex === -1) break;
+
+      // Balance and strip
+      let openTagsCount = 0;
+      const tagBalanceRegex = /<(?:section(?:\s[^>]*)?|\/section)>/gi;
+      tagBalanceRegex.lastIndex = foundSectionStartIndex;
+
+      let balanceMatch;
+      let tagEndIndex = -1;
+      while ((balanceMatch = tagBalanceRegex.exec(html)) !== null) {
+        const foundTag = balanceMatch[0];
+        if (foundTag.startsWith('</')) openTagsCount--;
+        else openTagsCount++;
+
+        if (openTagsCount === 0) {
+          tagEndIndex = balanceMatch.index + foundTag.length;
+          break;
+        }
+      }
+
+      if (tagEndIndex !== -1) {
+        logger.info({ tagStartIndex: foundSectionStartIndex, tagEndIndex }, "Stripping semantic reviews section from HTML");
+        html = html.substring(0, foundSectionStartIndex) + html.substring(tagEndIndex);
+      } else {
+        break;
+      }
+      semanticIterations++;
+    }
+
+    // 2. Remove any stray images containing before/after/bef-aft/bef_aft/befaft keywords in their src
     html = html.replace(/<img\s+[^>]*src=['"][^'"]*(?:before|after|bef-aft|bef_aft|befaft)[^'"]*['"][^>]*>/gi, "");
     
     return html;
