@@ -4446,18 +4446,21 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       // Inject cookie consent overlay (locks scroll, pops up consent card with close button)
       let finalHtml = injectCookieConsentOverlay(cleanHtml, normalizedAffiliate, finalUrl, detectedLang, meta);
 
-      // Always inject the thank you modal code as a robust fallback (e.g. when executing local files)
-      const modalCode = getThankYouModalCode(
-        resolvedProductName,
-        meta.primaryColor || "#16a34a",
-        meta.productImageUrl || "",
-        finalUrl,
-        detectedLang
-      );
-      if (/<\/body>/i.test(finalHtml)) {
-        finalHtml = finalHtml.replace(/<\/body>/i, `${modalCode}\n</body>`);
-      } else {
-        finalHtml += modalCode;
+      // Inject the thank you modal code only if the reference page is detected as a COD offer
+      const isCodOffer = "isCod" in meta && (meta as any).isCod;
+      if (isCodOffer) {
+        const modalCode = getThankYouModalCode(
+          resolvedProductName,
+          meta.primaryColor || "#16a34a",
+          meta.productImageUrl || "",
+          finalUrl,
+          detectedLang
+        );
+        if (/<\/body>/i.test(finalHtml)) {
+          finalHtml = finalHtml.replace(/<\/body>/i, `${modalCode}\n</body>`);
+        } else {
+          finalHtml += modalCode;
+        }
       }
 
       // Inline assets using the captured cookies (inlines the background image and logo styles)
@@ -4566,18 +4569,21 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
     );
 
 
-    // Always inject the thank you modal code as a robust fallback (e.g. when executing local files)
-    const modalCode = getThankYouModalCode(
-      resolvedProductName,
-      meta.primaryColor || "#16a34a",
-      meta.productImageUrl || "",
-      finalUrl,
-      detectedLang
-    );
-    if (/<\/body>/i.test(finalHtml)) {
-      finalHtml = finalHtml.replace(/<\/body>/i, `${modalCode}\n</body>`);
-    } else {
-      finalHtml += modalCode;
+    // Inject the thank you modal code only if the reference page is detected as a COD offer or Dr.Cash SDK is active
+    const hasDrCash = !!(apiToken && streamCode);
+    if (meta.isCod || hasDrCash) {
+      const modalCode = getThankYouModalCode(
+        resolvedProductName,
+        meta.primaryColor || "#16a34a",
+        meta.productImageUrl || "",
+        finalUrl,
+        detectedLang
+      );
+      if (/<\/body>/i.test(finalHtml)) {
+        finalHtml = finalHtml.replace(/<\/body>/i, `${modalCode}\n</body>`);
+      } else {
+        finalHtml += modalCode;
+      }
     }
 
     // Strip before/after testimonial sections and reviews
