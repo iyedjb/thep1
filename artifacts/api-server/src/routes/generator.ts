@@ -28,7 +28,7 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
 
   try {
     const desktopPage = await browser.newPage();
-    await desktopPage.setViewport({ width: 1440, height: 900 });
+    await desktopPage.setViewport({ width: 1920, height: 1080 });
     
     // Set User-Agent to standard desktop browser
     await desktopPage.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
@@ -3343,9 +3343,6 @@ async function generateCleanBackgroundPresellHtml(input: {
       width: 100vw;
       height: 100vh;
       object-fit: cover;
-      object-position: center top;
-      transform: scale(1.03); /* Zoom in by 3% to make elements look closer and less spaced out */
-      transform-origin: center top;
       pointer-events: none;
       -webkit-user-drag: none;
       user-select: none;
@@ -4384,7 +4381,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       } catch (puppeteerErr: any) {
         logger.warn({ err: puppeteerErr.message }, "Local Puppeteer screenshot failed, falling back to external APIs");
         const encodedFinalUrl = encodeURIComponent(finalUrl);
-        screenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=false&viewport.width=1440&viewport.height=900&embed=screenshot.url`;
+        screenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=false&viewport.width=1920&viewport.height=1080&embed=screenshot.url`;
         mobileScreenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=false&viewport.width=390&viewport.height=844&viewport.isMobile=true&viewport.hasTouch=true&viewport.userAgent=Mozilla%2F5.0+%28iPhone%3B+CPU+iPhone+OS+15_0+like+Mac+OS+X%29+AppleWebKit%2F605.1.15+%28KHTML%2C+like+Gecko%29+Version%2F15.0+Mobile%2F15E148+Safari%2F604.1&embed=screenshot.url`;
 
         // Check if Microlink works, otherwise fallback to thum.io
@@ -4398,7 +4395,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
             const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
             const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
             const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-            screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1440/${finalUrl}`;
+            screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/${finalUrl}`;
             mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/${finalUrl}`;
           }
         } catch (err) {
@@ -4406,7 +4403,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
           const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
           const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
           const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-          screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1440/${finalUrl}`;
+          screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/${finalUrl}`;
           mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/${finalUrl}`;
         }
       }
