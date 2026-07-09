@@ -3271,6 +3271,7 @@ async function generateCleanBackgroundPresellHtml(input: {
       width: 100vw;
       height: 100vh;
       object-fit: cover;
+      object-position: center top;
       pointer-events: none;
       -webkit-user-drag: none;
       user-select: none;
@@ -3294,6 +3295,7 @@ async function generateCleanBackgroundPresellHtml(input: {
         width: 100vw;
         height: 100vh;
         object-fit: cover;
+        object-position: center top;
       }
       .ads-desktop-bg {
         display: none;
