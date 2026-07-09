@@ -4406,7 +4406,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
           affiliateUrl: normalizedAffiliate,
           trackingTags,
           productHint,
-          popupLanguage: detectedLang
+          popupLanguage
         });
         res.json({
           html,
