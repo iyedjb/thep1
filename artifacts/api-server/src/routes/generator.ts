@@ -2558,7 +2558,7 @@ const COOKIE_LOCALIZATION: Record<string, {
   }
 };
 
-function detectLandingPageLanguage(html: string | null, referenceUrl: string, chosenLanguage: string = "auto"): string {
+function detectLandingPageLanguage(html: string | null, referenceUrl: string, chosenLanguage: string = "auto", meta?: PageMetadata): string {
   let lang = chosenLanguage || "auto";
   if (lang !== "auto") {
     return lang;
@@ -2600,14 +2600,28 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
     }
   }
 
-  // 3. Fallback: Robust word frequency / conjunction checking from HTML content
+  // 3. Fallback: Robust word frequency / conjunction checking from HTML content or metadata
+  let cleanText = "";
   if (html) {
-    const cleanText = html
+    cleanText += " " + html
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
       .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
       .replace(/<[^>]+>/g, " ")
       .toLowerCase();
+  }
+  if (meta) {
+    if (meta.seoDescription) {
+      cleanText += " " + meta.seoDescription.toLowerCase();
+    }
+    if (meta.productName) {
+      cleanText += " " + meta.productName.toLowerCase();
+    }
+    if (meta.productDetails && Array.isArray(meta.productDetails)) {
+      cleanText += " " + meta.productDetails.join(" ").toLowerCase();
+    }
+  }
 
+  if (cleanText.trim()) {
     const scores: Record<string, number> = {
       "pt-BR": 0,
       "es": 0,
@@ -4339,9 +4353,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         : { productName: productHint || extractProductName(finalUrl), primaryColor: "#16a34a", productImageUrl: "" };
         
       const resolvedProductName = productHint || meta.productName || extractProductName(finalUrl);
-      detectedLang = rawHtmlString 
-        ? detectLandingPageLanguage(rawHtmlString, finalUrl, popupLanguage) 
-        : popupLanguage;
+      detectedLang = detectLandingPageLanguage(rawHtmlString, finalUrl, popupLanguage, meta);
 
       let finalThankYouUrl = thankYouUrl;
       let thankYouFileName = "";
@@ -4543,7 +4555,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       thankYouFileName = finalThankYouUrl.replace(/^\.\//, "");
     }
 
-    const detectedLang = detectLandingPageLanguage(rawHtmlString, finalUrl, popupLanguage);
+    const detectedLang = detectLandingPageLanguage(rawHtmlString, finalUrl, popupLanguage, meta);
 
     if (!shouldInjectThanksModal) {
       // Generate Thank You page matching colors, name, and image of the cloned page
