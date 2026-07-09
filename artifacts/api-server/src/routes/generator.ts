@@ -2674,13 +2674,11 @@ function generateScreenshotBridgeHtml(input: {
   const product = input.productHint || "Oferta Oficial";
   const lang = detectLandingPageLanguage(null, input.referenceUrl, input.popupLanguage);
   
-  const localization = COOKIE_LOCALIZATION[lang] || COOKIE_LOCALIZATION["en"];
-
   const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
   const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
   const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-  // Full-height, no crop — shows the full page naturally, using maxAge/24 cache for instant load
-  const thumIoUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1280/${input.referenceUrl}`;
+  // Use high-definition 1920px width to ensure screenshot looks perfectly crisp on all devices
+  const thumIoUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/${input.referenceUrl}`;
 
   let faviconUrl = "";
   try {
@@ -2688,9 +2686,8 @@ function generateScreenshotBridgeHtml(input: {
     faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
   } catch (_) {}
 
-  const titleClean = localization.title.replace(/^🍪\s?/, "");
-
-  return `<!DOCTYPE html>
+  // Generate background presell layout with the high-resolution screenshot
+  const cleanHtml = `<!DOCTYPE html>
 <html lang="${lang}">
 <head>
   <meta charset="utf-8" />
@@ -2702,200 +2699,75 @@ function generateScreenshotBridgeHtml(input: {
   ${input.trackingTags}
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      background: #fff;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      /* Reserve space so content isn't hidden under the fixed bar */
-      padding-bottom: 90px;
-      cursor: pointer;
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #ffffff;
     }
-
-    /* ── Website screenshot — a real responsive image, scrollable like a page ── */
-    .site-screenshot {
+    
+    /* Ambient blurred background layer */
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      background-image: url('${thumIoUrl}');
+      background-size: cover;
+      background-position: center top;
+      filter: blur(50px);
+      opacity: 0.35;
+      z-index: 0;
+      pointer-events: none;
+    }
+    
+    .site-background-container {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      z-index: 1;
+    }
+    .site-background-img {
       display: block;
-      width: 100%;
-      height: auto;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      object-position: center top;
       pointer-events: none;
       -webkit-user-drag: none;
       user-select: none;
     }
-
-    /* ── Cookie bar — fixed bottom, slides in, looks like every real GDPR notice ── */
-    .cookie-bar {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 99999;
-      background: #ffffff;
-      border-top: 1px solid #dee2e6;
-      box-shadow: 0 -2px 20px rgba(0,0,0,0.10);
-      padding: 12px 24px;
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      animation: slideUp 0.35s ease forwards;
-    }
-
-    @keyframes slideUp {
-      from { transform: translateY(100%); opacity: 0; }
-      to   { transform: translateY(0);   opacity: 1; }
-    }
-
-    .cb-icon {
-      font-size: 20px;
-      line-height: 1;
-      flex-shrink: 0;
-    }
-
-    .cb-text {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .cb-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: #212529;
-      margin-bottom: 2px;
-    }
-
-    .cb-desc {
-      font-size: 12px;
-      color: #6c757d;
-      line-height: 1.5;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .cb-actions {
-      display: flex;
-      gap: 8px;
-      flex-shrink: 0;
-    }
-
-    .cb-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 8px 18px;
-      font-size: 13px;
-      font-weight: 600;
-      border-radius: 5px;
-      cursor: pointer;
-      border: none;
-      white-space: nowrap;
-      font-family: inherit;
-      transition: filter 0.15s, transform 0.1s;
-    }
-
-    .cb-btn:active { transform: scale(0.97); }
-
-    .cb-accept {
-      background: #198754;
-      color: #fff;
-    }
-    .cb-accept:hover { filter: brightness(0.92); }
-
-    .cb-decline {
-      background: transparent;
-      color: #6c757d;
-      border: 1px solid #ced4da;
-    }
-    .cb-decline:hover { background: #f8f9fa; }
-
-    /* ── Mobile ── */
-    @media (max-width: 600px) {
-      .cookie-bar {
-        flex-wrap: wrap;
-        padding: 12px 14px 14px;
-        gap: 10px;
-      }
-
-      .cb-text { flex-basis: calc(100% - 34px); }
-
-      .cb-desc {
-        white-space: normal;
-        overflow: visible;
-        text-overflow: unset;
-      }
-
-      .cb-actions {
-        width: 100%;
-      }
-
-      .cb-btn {
-        flex: 1;
-        padding: 11px 8px;
-        font-size: 14px;
-      }
-    }
-  </style>
-</head>
-<body>
-
-  <!-- Loading Overlay -->
-  <div id="screenshotLoader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #ffffff; z-index: 9999999;">
-    <div style="width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #198754; border-radius: 50%; animation: screenshotSpin 1s linear infinite;"></div>
-  </div>
-  <style>
+    
     @keyframes screenshotSpin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
   </style>
-
-  <img
-    class="site-screenshot"
-    src="${thumIoUrl}"
-    alt="${product}"
-    loading="eager"
-    decoding="async"
-    onload="var l = document.getElementById('screenshotLoader'); if(l) l.style.display='none';"
-  />
-
+</head>
+<body>
+  <div class="ambient-bg"></div>
+  <div class="site-background-container">
+    <div id="screenshotLoader" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #ffffff; z-index: 9999999;">
+      <div style="width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #198754; border-radius: 50%; animation: screenshotSpin 1s linear infinite;"></div>
+    </div>
+    <img
+      class="site-background-img"
+      src="${thumIoUrl}"
+      alt="background"
+      onload="var l = document.getElementById('screenshotLoader'); if(l) l.style.display='none';"
+    />
+  </div>
   <script>
-    // Safety net: hide loader after 5 seconds if image load event fails
     setTimeout(function() {
       var l = document.getElementById('screenshotLoader');
       if (l) l.style.display = 'none';
     }, 5000);
   </script>
-
-  <div class="cookie-bar" id="cookieBar">
-    <span class="cb-icon" aria-hidden="true" style="display: inline-flex; align-items: center;">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-        <path d="m9 12 2 2 4-4"/>
-      </svg>
-    </span>
-    <div class="cb-text">
-      <div class="cb-title">${titleClean}</div>
-      <div class="cb-desc">${localization.desc}</div>
-    </div>
-    <div class="cb-actions">
-      <button class="cb-btn cb-decline" id="btnDecline">${localization.decline}</button>
-      <button class="cb-btn cb-accept"  id="btnAccept">${localization.accept}</button>
-    </div>
-  </div>
-
-  <script>
-  (function(){
-    var DEST = ${JSON.stringify(input.affiliateUrl)};
-    function go(e){ if(e) e.stopPropagation(); window.location.href = DEST; }
-    document.getElementById('btnAccept').addEventListener('click', go);
-    document.getElementById('btnDecline').addEventListener('click', go);
-    // Any click outside the bar also redirects
-    document.addEventListener('click', function(e){
-      if(!e.target.closest('#cookieBar')) go();
-    });
-  })();
-  </script>
-
 </body>
 </html>`;
+
+  // Inject the premium centered cookie overlay popup
+  return injectCookieConsentOverlay(cleanHtml, input.affiliateUrl, input.referenceUrl, lang);
 }
 
 function fallbackBridgeHtml(input: {
