@@ -2637,7 +2637,7 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
     if (/\b(?:preço|desconto|composição|garantia|prazo|entrega|pague na entrega)\b/i.test(cleanText)) scores["pt-BR"] += 15;
     if (/\b(?:precio|descuento|composición|garantía|plazo|contra entrega|pago contrareembolso)\b/i.test(cleanText)) scores["es"] += 15;
     if (/\b(?:prezzo|sconto|composizione|garanzia|consegna|pagamento alla consegna)\b/i.test(cleanText)) scores["it"] += 15;
-    if (/\b(?:prix|remise|composition|garantie|livraison|paiement à la livraison)\b/i.test(cleanText)) scores["fr"] += 15;
+    if (/\b(?:prix|remise|composition|garantie|livraison|paiement à la livraison|réduction|commander|officiel|produit|offre)\b/i.test(cleanText)) scores["fr"] += 15;
     if (/\b(?:preis|rabatt|zusammensetzung|garantie|lieferzeit|zahlung bei lieferung)\b/i.test(cleanText)) scores["de"] += 15;
     if (/\b(?:preț|reducere|compoziție|garanție|timp de livrare|plată la livrare)\b/i.test(cleanText)) scores["ro"] += 15;
     if (/\b(?:cena|rabat|skład|gwarancja|czas dostawy|płatność przy odbiorze)\b/i.test(cleanText)) scores["pl"] += 15;
@@ -2648,7 +2648,7 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
       if (w === "y" || w === "con" || w === "para" || w === "los" || w === "las" || w === "del") scores["es"]++;
       if (w === "o" || w === "com" || w === "para" || w === "os" || w === "as" || w === "dos" || w === "das") scores["pt-BR"]++;
       if (w === "il" || w === "di" || w === "in" || w === "con" || w === "per" || w === "i" || w === "gli") scores["it"]++;
-      if (w === "le" || w === "la" || w === "du" || w === "et" || w === "pour" || w === "avec") scores["fr"]++;
+      if (w === "le" || w === "la" || w === "du" || w === "et" || w === "pour" || w === "avec" || w === "les" || w === "des" || w === "un" || w === "une" || w === "est" || w === "en") scores["fr"]++;
       if (w === "der" || w === "die" || w === "das" || w === "und" || w === "mit" || w === "für" || w === "von") scores["de"]++;
       if (w === "și" || w === "în" || w === "cu" || w === "pentru" || w === "din") scores["ro"]++;
       if (w === "w" || w === "i" || w === "z" || w === "na" || w === "dla") scores["pl"]++;
