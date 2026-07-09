@@ -2558,6 +2558,47 @@ const COOKIE_LOCALIZATION: Record<string, {
   }
 };
 
+function detectLanguageFromText(cleanText: string): string {
+  const scores: Record<string, number> = {
+    "pt-BR": 0,
+    "es": 0,
+    "it": 0,
+    "fr": 0,
+    "de": 0,
+    "ro": 0,
+    "pl": 0,
+    "en": 0
+  };
+
+  // Specific unique trigger words/phrases
+  if (/\b(?:preço|desconto|composição|garantia|prazo|entrega|pague na entrega)\b/i.test(cleanText)) scores["pt-BR"] += 15;
+  if (/\b(?:precio|descuento|composición|garantía|plazo|contra entrega|pago contrareembolso)\b/i.test(cleanText)) scores["es"] += 15;
+  if (/\b(?:prezzo|sconto|composizione|garanzia|consegna|pagamento alla consegna)\b/i.test(cleanText)) scores["it"] += 15;
+  if (/\b(?:prix|remise|composition|garantie|livraison|paiement à la livraison|réduction|commander|officiel|produit|offre)\b/i.test(cleanText)) scores["fr"] += 15;
+  if (/\b(?:preis|rabatt|zusammensetzung|garantie|lieferzeit|zahlung bei lieferung)\b/i.test(cleanText)) scores["de"] += 15;
+  if (/\b(?:preț|reducere|compoziție|garanție|timp de livrare|plată la livrare)\b/i.test(cleanText)) scores["ro"] += 15;
+  if (/\b(?:cena|rabat|skład|gwarancja|czas dostawy|płatność przy odbiorze)\b/i.test(cleanText)) scores["pl"] += 15;
+
+  // Split and count high frequency unique words/conjunctions
+  const words = cleanText.split(/\s+/);
+  for (const w of words) {
+    if (w === "y" || w === "con" || w === "para" || w === "los" || w === "las" || w === "del") scores["es"]++;
+    if (w === "o" || w === "com" || w === "para" || w === "os" || w === "as" || w === "dos" || w === "das") scores["pt-BR"]++;
+    if (w === "il" || w === "di" || w === "in" || w === "con" || w === "per" || w === "i" || w === "gli") scores["it"]++;
+    if (w === "le" || w === "la" || w === "du" || w === "et" || w === "pour" || w === "avec" || w === "les" || w === "des" || w === "un" || w === "une" || w === "est" || w === "en") scores["fr"]++;
+    if (w === "der" || w === "die" || w === "das" || w === "und" || w === "mit" || w === "für" || w === "von") scores["de"]++;
+    if (w === "și" || w === "în" || w === "cu" || w === "pentru" || w === "din") scores["ro"]++;
+    if (w === "w" || w === "i" || w === "z" || w === "na" || w === "dla") scores["pl"]++;
+    if (w === "the" || w === "and" || w === "of" || w === "with" || w === "for" || w === "to") scores["en"]++;
+  }
+
+  const best = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  if (best[0][1] > 3) {
+    return best[0][0];
+  }
+  return "en";
+}
+
 function detectLandingPageLanguage(html: string | null, referenceUrl: string, chosenLanguage: string = "auto", meta?: PageMetadata): string {
   let lang = chosenLanguage || "auto";
   if (lang !== "auto") {
@@ -2600,64 +2641,37 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
     }
   }
 
-  // 3. Fallback: Robust word frequency / conjunction checking from HTML content or metadata
-  let cleanText = "";
+  // 3. Fallback: Robust word frequency / conjunction checking from metadata first (most reliable)
+  let metadataText = "";
+  if (meta) {
+    if (meta.seoDescription) {
+      metadataText += " " + meta.seoDescription.toLowerCase();
+    }
+    if (meta.productName) {
+      metadataText += " " + meta.productName.toLowerCase();
+    }
+    if (meta.productDetails && Array.isArray(meta.productDetails)) {
+      metadataText += " " + meta.productDetails.join(" ").toLowerCase();
+    }
+  }
+
+  if (metadataText.trim()) {
+    const langFromMetadata = detectLanguageFromText(metadataText);
+    if (langFromMetadata !== "en") {
+      return langFromMetadata;
+    }
+  }
+
+  // 4. If metadata didn't yield a language, scan the HTML
   if (html) {
-    cleanText += " " + html
+    const cleanText = html
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
       .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
       .replace(/<[^>]+>/g, " ")
       .toLowerCase();
-  }
-  if (meta) {
-    if (meta.seoDescription) {
-      cleanText += " " + meta.seoDescription.toLowerCase();
-    }
-    if (meta.productName) {
-      cleanText += " " + meta.productName.toLowerCase();
-    }
-    if (meta.productDetails && Array.isArray(meta.productDetails)) {
-      cleanText += " " + meta.productDetails.join(" ").toLowerCase();
-    }
-  }
-
-  if (cleanText.trim()) {
-    const scores: Record<string, number> = {
-      "pt-BR": 0,
-      "es": 0,
-      "it": 0,
-      "fr": 0,
-      "de": 0,
-      "ro": 0,
-      "pl": 0,
-      "en": 0
-    };
-
-    // Specific unique trigger words/phrases
-    if (/\b(?:preço|desconto|composição|garantia|prazo|entrega|pague na entrega)\b/i.test(cleanText)) scores["pt-BR"] += 15;
-    if (/\b(?:precio|descuento|composición|garantía|plazo|contra entrega|pago contrareembolso)\b/i.test(cleanText)) scores["es"] += 15;
-    if (/\b(?:prezzo|sconto|composizione|garanzia|consegna|pagamento alla consegna)\b/i.test(cleanText)) scores["it"] += 15;
-    if (/\b(?:prix|remise|composition|garantie|livraison|paiement à la livraison|réduction|commander|officiel|produit|offre)\b/i.test(cleanText)) scores["fr"] += 15;
-    if (/\b(?:preis|rabatt|zusammensetzung|garantie|lieferzeit|zahlung bei lieferung)\b/i.test(cleanText)) scores["de"] += 15;
-    if (/\b(?:preț|reducere|compoziție|garanție|timp de livrare|plată la livrare)\b/i.test(cleanText)) scores["ro"] += 15;
-    if (/\b(?:cena|rabat|skład|gwarancja|czas dostawy|płatność przy odbiorze)\b/i.test(cleanText)) scores["pl"] += 15;
-
-    // Split and count high frequency unique words/conjunctions
-    const words = cleanText.split(/\s+/);
-    for (const w of words) {
-      if (w === "y" || w === "con" || w === "para" || w === "los" || w === "las" || w === "del") scores["es"]++;
-      if (w === "o" || w === "com" || w === "para" || w === "os" || w === "as" || w === "dos" || w === "das") scores["pt-BR"]++;
-      if (w === "il" || w === "di" || w === "in" || w === "con" || w === "per" || w === "i" || w === "gli") scores["it"]++;
-      if (w === "le" || w === "la" || w === "du" || w === "et" || w === "pour" || w === "avec" || w === "les" || w === "des" || w === "un" || w === "une" || w === "est" || w === "en") scores["fr"]++;
-      if (w === "der" || w === "die" || w === "das" || w === "und" || w === "mit" || w === "für" || w === "von") scores["de"]++;
-      if (w === "și" || w === "în" || w === "cu" || w === "pentru" || w === "din") scores["ro"]++;
-      if (w === "w" || w === "i" || w === "z" || w === "na" || w === "dla") scores["pl"]++;
-      if (w === "the" || w === "and" || w === "of" || w === "with" || w === "for" || w === "to") scores["en"]++;
-    }
-
-    const best = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-    if (best[0][1] > 3) {
-      return best[0][0];
+    const langFromHtml = detectLanguageFromText(cleanText);
+    if (langFromHtml !== "en") {
+      return langFromHtml;
     }
   }
 
@@ -3834,11 +3848,9 @@ function injectCookieConsentOverlay(
   lang: string = "pt-BR",
   meta?: PageMetadata
 ): string {
-  // Use the explicitly passed lang if it's a valid localization key;
-  // only re-detect when lang is "auto" or unknown
   const detectedLang = (lang && lang !== "auto" && COOKIE_LOCALIZATION[lang])
     ? lang
-    : detectLandingPageLanguage(html, referenceUrl, lang);
+    : detectLandingPageLanguage(html, referenceUrl, lang, meta);
   const primaryColor = meta?.primaryColor || "#16a34a";
   const ctaButtonColor = meta?.ctaButtonColor || primaryColor;
 
