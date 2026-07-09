@@ -2664,7 +2664,7 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
   return "en"; // default fallback
 }
 
-function generateScreenshotBridgeHtml(input: {
+async function generateScreenshotBridgeHtml(input: {
   referenceUrl: string;
   affiliateUrl: string;
   trackingTags: string;
@@ -2672,8 +2672,36 @@ function generateScreenshotBridgeHtml(input: {
   popupLanguage?: string;
 }) {
   const product = input.productHint || "Oferta Oficial";
-  const lang = detectLandingPageLanguage(null, input.referenceUrl, input.popupLanguage);
+  let lang = detectLandingPageLanguage(null, input.referenceUrl, input.popupLanguage);
   
+  // When initial detection falls back to English (default), try a quick fetch
+  // to get the actual <html lang> attribute from the landing page
+  if (lang === "en" && (!input.popupLanguage || input.popupLanguage === "auto")) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(input.referenceUrl, {
+        method: "GET",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "text/html",
+          "Range": "bytes=0-4096"
+        },
+        redirect: "follow",
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      const partialHtml = await res.text();
+      const finalUrl = res.url || input.referenceUrl;
+      const quickLang = detectLandingPageLanguage(partialHtml, finalUrl, "auto");
+      if (quickLang !== "en") {
+        lang = quickLang;
+      }
+    } catch (_) {
+      // Silently ignore — keep the fallback lang
+    }
+  }
+
   const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
   const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
   const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
@@ -3806,7 +3834,11 @@ function injectCookieConsentOverlay(
   lang: string = "pt-BR",
   meta?: PageMetadata
 ): string {
-  const detectedLang = detectLandingPageLanguage(html, referenceUrl, lang);
+  // Use the explicitly passed lang if it's a valid localization key;
+  // only re-detect when lang is "auto" or unknown
+  const detectedLang = (lang && lang !== "auto" && COOKIE_LOCALIZATION[lang])
+    ? lang
+    : detectLandingPageLanguage(html, referenceUrl, lang);
   const primaryColor = meta?.primaryColor || "#16a34a";
   const ctaButtonColor = meta?.ctaButtonColor || primaryColor;
 
@@ -4369,7 +4401,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       // Fallback: screenshot bridge if site can't be fetched/cloned
       logger.warn({ err: err.message }, "Option A clone failed, falling back to screenshot bridge");
       try {
-        const html = generateScreenshotBridgeHtml({
+        const html = await generateScreenshotBridgeHtml({
           referenceUrl: normalizedReference,
           affiliateUrl: normalizedAffiliate,
           trackingTags,
