@@ -98,29 +98,15 @@ export async function getKeywordIdeas(
   if (!customer) return [];
 
   try {
-    // Location IDs: Brazil = 2076, São Paulo = 20106, Rio de Janeiro = 20109
-    const locationId = getLocationId(location);
+    const locationId = getLocationConstantId(location);
+    const languageId = getLanguageIdForLocation(location);
 
-    const results = await customer.query(`
-      SELECT
-        keyword_plan_metrics.avg_monthly_searches,
-        keyword_plan_metrics.competition,
-        keyword_plan_metrics.competition_index,
-        keyword_plan_metrics.low_top_of_page_bid_micros,
-        keyword_plan_metrics.high_top_of_page_bid_micros
-      FROM keyword_plan_idea
-      WHERE keyword_plan_idea.keyword.text = '${seedKeyword}'
-      AND keyword_plan_idea.geo_target_constants = 'geoTargetConstants/${locationId}'
-      AND keyword_plan_idea.language = 'languageConstants/1014'
-    `);
-
-    // Note: The query syntax above is simplified. The actual Keyword Planner API
-    // uses a different method. Let's use the service directly:
     return await fetchKeywordIdeasViaService(
       customer,
       seedKeyword,
       locationId,
       resolveCredentials(credentials)!.customerId,
+      languageId,
     );
   } catch (error: any) {
     logger.error({ error: error.message }, "Failed to fetch keyword ideas from Google Ads");
@@ -133,11 +119,12 @@ async function fetchKeywordIdeasViaService(
   seedKeyword: string,
   locationId: string,
   customerId: string,
+  languageId: string,
 ): Promise<KeywordIdea[]> {
   try {
     const response = await customer.keywordPlanIdeas.generateKeywordIdeas({
       customer_id: customerId.replace(/-/g, ""),
-      language: `languageConstants/1014`, // Portuguese
+      language: `languageConstants/${languageId}`,
       geo_target_constants: [`geoTargetConstants/${locationId}`],
       keyword_plan_network: enums.KeywordPlanNetwork.GOOGLE_SEARCH,
       keyword_seed: {
@@ -875,3 +862,68 @@ function mapMonthNumber(month: any): string {
   }
   return "Jan";
 }
+
+function getLanguageIdForLocation(location: string): string {
+  const loc = location.toLowerCase();
+  if (loc.includes("brasil") || loc.includes("brazil") || loc.includes("portugal")) {
+    return "1014"; // Portuguese
+  }
+  if (
+    loc.includes("espanha") ||
+    loc.includes("spain") ||
+    loc.includes("mexico") ||
+    loc.includes("méxico") ||
+    loc.includes("argentina") ||
+    loc.includes("chile") ||
+    loc.includes("colombia") ||
+    loc.includes("colômbia") ||
+    loc.includes("peru") ||
+    loc.includes("perú") ||
+    loc.includes("uruguay") ||
+    loc.includes("uruguai") ||
+    loc.includes("bolivia") ||
+    loc.includes("bolívia") ||
+    loc.includes("equador") ||
+    loc.includes("ecuador") ||
+    loc.includes("panama") ||
+    loc.includes("panamá") ||
+    loc.includes("costa rica")
+  ) {
+    return "1003"; // Spanish
+  }
+  if (
+    loc.includes("alemanha") ||
+    loc.includes("germany") ||
+    loc.includes("austria") ||
+    loc.includes("áustria") ||
+    loc.includes("suica") ||
+    loc.includes("suíça") ||
+    loc.includes("switzerland")
+  ) {
+    return "1001"; // German
+  }
+  if (loc.includes("franca") || loc.includes("france") || loc.includes("frança")) {
+    return "1002"; // French
+  }
+  if (loc.includes("italia") || loc.includes("italy") || loc.includes("itália")) {
+    return "1004"; // Italian
+  }
+  if (loc.includes("polonia") || loc.includes("poland") || loc.includes("polônia")) {
+    return "1030"; // Polish
+  }
+  if (loc.includes("japao") || loc.includes("japan") || loc.includes("japão")) {
+    return "1005"; // Japanese
+  }
+  if (loc.includes("coreia")) {
+    return "1012"; // Korean
+  }
+  if (loc.includes("russo") || loc.includes("russia") || loc.includes("rússia")) {
+    return "1020"; // Russian
+  }
+  if (loc.includes("turquia") || loc.includes("turkey")) {
+    return "1037"; // Turkish
+  }
+  // Default to English for international queries to get maximum coverage
+  return "1000";
+}
+
