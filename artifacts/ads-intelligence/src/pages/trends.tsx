@@ -705,7 +705,7 @@ export default function Trends() {
                 </CardHeader>
                 <CardContent className="pt-4">
                   <GoogleTrendsWidget
-                    keyword={activeKeyword}
+                    keyword={keyword}
                     geo={geo}
                     timeRange={computedTimeRange}
                     type="TIMESERIES"
@@ -723,7 +723,7 @@ export default function Trends() {
                 </CardHeader>
                 <CardContent className="pt-4">
                   <GoogleTrendsWidget
-                    keyword={activeKeyword}
+                    keyword={keyword}
                     geo={geo}
                     timeRange={computedTimeRange}
                     type="GEO_MAP"
