@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Search, TrendingUp, Globe, MapPin, Sparkles, AlertCircle, Users, Heart, Cpu, Coins, Plus, Check, Loader2, BookOpen, Smartphone, Monitor, Trophy } from "lucide-react";
+import { Search, TrendingUp, Globe, MapPin, Sparkles, AlertCircle, Users, Heart, Cpu, Coins, Plus, Check, Loader2, BookOpen, Smartphone, Monitor, Trophy, X, Edit3 } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, PieChart, Pie, Cell } from "recharts";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useCreateKeyword, getListKeywordsQueryKey, customFetch } from "@workspace/api-client-react";
@@ -124,7 +124,30 @@ const COUNTRY_CODES: Record<string, string> = {
   "África do Sul": "ZA",
   "Nigéria": "NG",
   "Egito": "EG",
-  "Marrocos": "MA"
+  "Marrocos": "MA",
+  "Países Baixos": "NL",
+  "Suécia": "SE",
+  "Noruega": "NO",
+  "Dinamarca": "DK",
+  "Finlândia": "FI",
+  "Bélgica": "BE",
+  "Grécia": "GR",
+  "Coreia do Sul": "KR",
+  "Singapura": "SG",
+  "Malásia": "MY",
+  "Indonésia": "ID",
+  "Tailândia": "TH",
+  "Vietnã": "VN",
+  "Filipinas": "PH",
+  "Taiwan": "TW",
+  "Hong Kong": "HK",
+  "Emirados Árabes Unidos": "AE",
+  "Arábia Saudita": "SA",
+  "Quênia": "KE",
+  "Israel": "IL",
+  "Turquia": "TR",
+  "Ucrânia": "UA",
+  "Irlanda": "IE"
 };
 
 interface WidgetProps {
@@ -223,7 +246,9 @@ export default function Trends() {
   const [activeTab, setActiveTab] = useState<string>("termo");
 
   // Term search states
-  const [keyword, setKeyword] = useState("marketing digital");
+  const [activeKeywords, setActiveKeywords] = useState<string[]>(["marketing digital"]);
+  const [inlineInput, setInlineInput] = useState("");
+  const [showAddInput, setShowAddInput] = useState(false);
   const [geo, setGeo] = useState("Global");
   const [timeRange, setTimeRange] = useState("12m");
   const [customStartDate, setCustomStartDate] = useState(() => {
@@ -234,9 +259,11 @@ export default function Trends() {
   const [customEndDate, setCustomEndDate] = useState(() => {
     return new Date().toISOString().split("T")[0];
   });
-  const [searchInput, setSearchInput] = useState("marketing digital");
-  const [activeKeyword, setActiveKeyword] = useState("marketing digital");
+  const [searchInput, setSearchInput] = useState("");
   const [countrySearch, setCountrySearch] = useState("");
+
+  const activeKeyword = activeKeywords[0] || "";
+  const keyword = activeKeywords.join(",");
 
   // Theme search states
   const [themeInput, setThemeInput] = useState("");
@@ -251,8 +278,11 @@ export default function Trends() {
 
   const computedTimeRange = timeRange === "custom" ? `${customStartDate} ${customEndDate}` : timeRange;
   const demographics = getDemographicsForKeyword(activeKeyword);
+  const normalizeString = (str: string) => 
+    str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
   const filteredCountries = Object.keys(COUNTRY_CODES).filter((c) =>
-    c.toLowerCase().includes(countrySearch.toLowerCase())
+    normalizeString(c).includes(normalizeString(countrySearch))
   );
 
   const PRESET_THEMES = [
@@ -272,25 +302,79 @@ export default function Trends() {
       });
       return;
     }
-    setActiveKeyword(searchInput);
-    setKeyword(searchInput);
+    const newKws = searchInput.split(",")
+      .map(k => k.trim())
+      .filter(k => k && !activeKeywords.includes(k));
+      
+    if (newKws.length > 0) {
+      setActiveKeywords([...activeKeywords, ...newKws].slice(0, 5));
+    }
+    setSearchInput("");
   };
 
   const handleGeoChange = (newGeo: string) => {
     setGeo(newGeo);
-    if (searchInput.trim()) {
-      setActiveKeyword(searchInput.trim());
-      setKeyword(searchInput.trim());
-    }
   };
 
   const handleTimeRangeChange = (newRange: string) => {
     setTimeRange(newRange);
-    if (searchInput.trim()) {
-      setActiveKeyword(searchInput.trim());
-      setKeyword(searchInput.trim());
+  };
+
+  const handleEditKeyword = (kw: string) => {
+    setActiveKeywords(activeKeywords.filter(k => k !== kw));
+    setInlineInput(kw);
+    setShowAddInput(true);
+  };
+
+  const handleSuggestKeywords = () => {
+    if (activeKeywords.length === 0) {
+      setActiveKeywords(["marketing digital", "e-commerce", "tráfego pago", "afiliados"].slice(0, 5));
+      toast({
+        title: "Termos sugeridos",
+        description: "Adicionados termos de tendência em marketing digital."
+      });
+      return;
+    }
+
+    const firstKw = activeKeywords[0].toLowerCase();
+    if (/\b(?:retox|flex|metonil|diaflex|caps|gel|fit|health|saude|capsula|emagrecer|prost|artic|dor|diabete)\b/i.test(firstKw)) {
+      const suggestions = ["Retoxin", "Metonil", "DiaFlex", "Fleboxin"].filter(s => !activeKeywords.includes(s));
+      if (suggestions.length > 0) {
+        setActiveKeywords([...activeKeywords, ...suggestions].slice(0, 5));
+        toast({
+          title: "Termos sugeridos",
+          description: "Adicionados termos relacionados ao nicho de saúde."
+        });
+      } else {
+        toast({
+          title: "Sugestões esgotadas",
+          description: "Todos os termos recomendados para este nicho já foram adicionados."
+        });
+      }
+    } else {
+      const suggestions = ["inteligência artificial", "chatgpt", "tecnologia", "inovação"].filter(s => !activeKeywords.includes(s));
+      if (suggestions.length > 0) {
+        setActiveKeywords([...activeKeywords, ...suggestions].slice(0, 5));
+        toast({
+          title: "Termos sugeridos",
+          description: "Adicionados termos relacionados a tecnologia e IA."
+        });
+      } else {
+        toast({
+          title: "Sem sugestões adicionais",
+          description: "Não há sugestões adicionais para este termo no momento."
+        });
+      }
     }
   };
+
+  const TAG_COLORS = [
+    { bg: "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300", indicator: "bg-blue-500" },
+    { bg: "bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300", indicator: "bg-red-500" },
+    { bg: "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-300", indicator: "bg-amber-500" },
+    { bg: "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-300", indicator: "bg-emerald-500" },
+    { bg: "bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300", indicator: "bg-purple-500" }
+  ];
 
   const fetchKeywordsByTheme = async (themeName: string) => {
     setLoadingTheme(true);
@@ -353,9 +437,8 @@ export default function Trends() {
   };
 
   const handleAnalyzeOnTrends = (keywordText: string) => {
-    setSearchInput(keywordText);
-    setActiveKeyword(keywordText);
-    setKeyword(keywordText);
+    setSearchInput("");
+    setActiveKeywords([keywordText]);
     setActiveTab("termo");
     toast({
       title: "Explorando no Trends",
@@ -404,7 +487,121 @@ export default function Trends() {
         </TabsList>
 
         <TabsContent value="termo" className="space-y-6">
-          {/* Filters Card */}
+          {/* New Tag Input Card - Matches the user screenshot */}
+          <Card className="rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-sm p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">
+                  Confira as tendências de pesquisa
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Adicione até 5 termos para comparar tendências no Google</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setActiveKeywords([]);
+                    toast({
+                      title: "Filtros limpos",
+                      description: "Todos os termos foram removidos."
+                    });
+                  }}
+                  className="rounded-xl h-9 px-4 text-xs font-semibold"
+                >
+                  Limpar
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleSuggestKeywords}
+                  className="rounded-xl h-9 px-4 text-xs font-semibold flex items-center gap-1.5 bg-muted/80 hover:bg-muted"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  Sugerir termos de pesquisa
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3 items-center min-h-[52px] p-2 bg-muted/20 border border-border/30 rounded-xl">
+              {activeKeywords.map((kw, index) => {
+                const color = TAG_COLORS[index % TAG_COLORS.length];
+                return (
+                  <div
+                    key={kw}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-sm font-semibold shadow-sm transition-all animate-in zoom-in-95 duration-150 ${color.bg}`}
+                  >
+                    <span className={`w-2.5 h-2.5 rounded-full ${color.indicator}`} />
+                    <span>{kw}</span>
+                    <div className="flex items-center gap-1 ml-1 pl-1.5 border-l border-current/15">
+                      <button
+                        type="button"
+                        onClick={() => handleEditKeyword(kw)}
+                        className="hover:bg-black/5 dark:hover:bg-white/10 rounded-full p-0.5"
+                        title="Editar"
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveKeywords(activeKeywords.filter((k) => k !== kw));
+                        }}
+                        className="hover:bg-black/5 dark:hover:bg-white/10 rounded-full p-0.5 text-destructive hover:text-destructive"
+                        title="Excluir"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {showAddInput ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (inlineInput.trim()) {
+                      const newKws = inlineInput
+                        .split(",")
+                        .map((k) => k.trim())
+                        .filter((k) => k && !activeKeywords.includes(k));
+                      if (newKws.length > 0) {
+                        setActiveKeywords([...activeKeywords, ...newKws].slice(0, 5));
+                      }
+                      setInlineInput("");
+                      setShowAddInput(false);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 animate-in slide-in-from-left-2 duration-100"
+                >
+                  <Input
+                    value={inlineInput}
+                    onChange={(e) => setInlineInput(e.target.value)}
+                    placeholder="Digite o termo e aperte Enter..."
+                    className="h-9 w-48 text-xs rounded-xl focus-visible:ring-primary bg-background"
+                    autoFocus
+                    onBlur={() => {
+                      setTimeout(() => setShowAddInput(false), 200);
+                    }}
+                  />
+                </form>
+              ) : (
+                activeKeywords.length < 5 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAddInput(true)}
+                    className="h-9 rounded-xl border-dashed flex items-center gap-1.5 text-xs font-semibold bg-transparent"
+                  >
+                    <Plus className="h-4 w-4" /> Adicionar termo
+                  </Button>
+                )
+              )}
+            </div>
+          </Card>
+
+          {/* Filters Card under the Tags Card */}
           <div className="flex flex-wrap md:flex-nowrap gap-4 items-center justify-between bg-card/50 backdrop-blur-md p-4 border border-border/40 rounded-2xl">
             <form onSubmit={handleSearch} className="flex gap-2 w-full md:w-auto md:max-w-md shrink-0">
               <div className="relative flex-1">
@@ -417,7 +614,7 @@ export default function Trends() {
                 />
               </div>
               <Button type="submit" className="rounded-xl h-10 px-4">
-                Pesquisar
+                Adicionar
               </Button>
             </form>
 
@@ -495,7 +692,7 @@ export default function Trends() {
               <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
-                    Interesse ao longo do tempo para &quot;{activeKeyword}&quot;
+                    Interesse ao longo do tempo para: {activeKeywords.join(", ")}
                   </CardTitle>
                   <CardDescription>Visualização interativa da popularidade de buscas históricas do Google.</CardDescription>
                 </CardHeader>
