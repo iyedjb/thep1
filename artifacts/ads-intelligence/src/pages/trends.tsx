@@ -254,6 +254,7 @@ export default function Trends() {
 
   // Term search states
   const [activeKeywords, setActiveKeywords] = useState<string[]>(["marketing digital"]);
+  const [selectedQueryTab, setSelectedQueryTab] = useState<string>("marketing digital");
   const [inlineInput, setInlineInput] = useState("");
   const [showAddInput, setShowAddInput] = useState(false);
   const [geo, setGeo] = useState("Global");
@@ -271,6 +272,12 @@ export default function Trends() {
 
   const activeKeyword = activeKeywords[0] || "";
   const keyword = activeKeywords.join(",");
+
+  useEffect(() => {
+    if (activeKeywords.length > 0 && !activeKeywords.includes(selectedQueryTab)) {
+      setSelectedQueryTab(activeKeywords[0]);
+    }
+  }, [activeKeywords]);
 
   // Theme search states
   const [themeInput, setThemeInput] = useState("");
@@ -446,6 +453,7 @@ export default function Trends() {
   const handleAnalyzeOnTrends = (keywordText: string) => {
     setSearchInput("");
     setActiveKeywords([keywordText]);
+    setSelectedQueryTab(keywordText);
     setActiveTab("termo");
     toast({
       title: "Explorando no Trends",
@@ -731,25 +739,59 @@ export default function Trends() {
                 </CardContent>
               </Card>
 
-              {/* Related Queries for each term */}
-              {activeKeywords.map((kw) => (
-                <Card key={kw} className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)] animate-in fade-in duration-200">
-                  <CardHeader>
-                    <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-primary" /> Consultas Relacionadas para &quot;{kw}&quot;
-                    </CardTitle>
-                    <CardDescription>Termos relacionados que os usuários pesquisaram junto com &quot;{kw}&quot;.</CardDescription>
-                  </CardHeader>
-                  <CardContent className="pt-4">
+              {/* Related Queries Card with Tabs */}
+              <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)] animate-in fade-in duration-200">
+                <CardHeader className="pb-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" /> Consultas Relacionadas
+                      </CardTitle>
+                      <CardDescription>Termos relacionados que os usuários pesquisaram junto com o termo selecionado.</CardDescription>
+                    </div>
+
+                    {/* Tab triggers for each active keyword */}
+                    {activeKeywords.length > 1 && (
+                      <div className="flex flex-wrap gap-1.5 p-1 bg-muted/40 border border-border/25 rounded-xl">
+                        {activeKeywords.map((kw, index) => {
+                          const color = TAG_COLORS[index % TAG_COLORS.length];
+                          const isSelected = selectedQueryTab === kw;
+                          return (
+                            <button
+                              key={kw}
+                              type="button"
+                              onClick={() => setSelectedQueryTab(kw)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                                isSelected
+                                  ? `${color.bg} shadow-sm border`
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              <span className={`w-2 h-2 rounded-full ${color.indicator}`} />
+                              {kw}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-2">
+                  {selectedQueryTab ? (
                     <GoogleTrendsWidget
-                      keyword={kw}
+                      key={selectedQueryTab} // Forces remount and new load when tab changes
+                      keyword={selectedQueryTab}
                       geo={geo}
                       timeRange={computedTimeRange}
                       type="RELATED_QUERIES"
                     />
-                  </CardContent>
-                </Card>
-              ))}
+                  ) : (
+                    <div className="p-8 text-center text-muted-foreground text-sm">
+                      Selecione ou adicione um termo para carregar consultas relacionadas.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
           ) : (
             <Card className="border border-dashed rounded-2xl flex flex-col items-center justify-center p-12 text-center text-muted-foreground">
