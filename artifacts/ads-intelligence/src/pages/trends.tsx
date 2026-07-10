@@ -187,11 +187,18 @@ function GoogleTrendsWidget({ keyword, geo, timeRange, type }: WidgetProps) {
           exploreParams.push(`hl=pt-BR`);
           const exploreQuery = exploreParams.join("&");
 
+          const keywords = keyword.split(",").map(k => k.trim()).filter(Boolean);
+          const comparisonItem = keywords.map(kw => ({
+            keyword: kw,
+            geo: geoCode,
+            time: timeCode
+          }));
+
           window.trends.embed.renderExploreWidgetTo(
             containerRef.current,
             type,
             {
-              comparisonItem: [{ keyword, geo: geoCode, time: timeCode }],
+              comparisonItem: comparisonItem,
               category: 0,
               property: ""
             },
@@ -724,120 +731,25 @@ export default function Trends() {
                 </CardContent>
               </Card>
 
-              {/* Related Queries */}
-              <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-primary" /> Consultas Relacionadas
-                  </CardTitle>
-                  <CardDescription>Termos relacionados que os usuários pesquisaram junto com esta palavra-chave.</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <GoogleTrendsWidget
-                    keyword={activeKeyword}
-                    geo={geo}
-                    timeRange={computedTimeRange}
-                    type="RELATED_QUERIES"
-                  />
-                </CardContent>
-              </Card>
-
-              {/* Demographic & Channel Audience Segmentation */}
-              <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
-                    <Users className="h-5 w-5 text-primary" /> Segmentação de Público & Canais de Busca (IA)
-                  </CardTitle>
-                  <CardDescription>Perfil demográfico e de canais de busca de interesse estimado por idade, gênero e dispositivo para o termo &quot;{activeKeyword}&quot;.</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="grid gap-8 md:grid-cols-3">
-                    {/* Age distribution */}
-                    <div className="space-y-4">
-                      <h4 className="text-sm font-semibold text-muted-foreground text-center">Faixas Etárias</h4>
-                      <div className="h-[200px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={demographics.ages} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                            <XAxis dataKey="age" className="text-xs" tickLine={false} axisLine={false} />
-                            <YAxis className="text-xs" tickLine={false} axisLine={false} tickFormatter={(val: number) => `${val}%`} />
-                            <RechartsTooltip formatter={(val) => `${val}%`} contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }} />
-                            <Bar dataKey="percentage" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
-                    </div>
-
-                    {/* Gender distribution */}
-                    <div className="space-y-4 flex flex-col items-center justify-center">
-                      <h4 className="text-sm font-semibold text-muted-foreground text-center w-full">Distribuição por Gênero</h4>
-                      <div className="h-[180px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={demographics.genders}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={45}
-                              outerRadius={65}
-                              paddingAngle={5}
-                              dataKey="value"
-                            >
-                              {demographics.genders.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={GENDER_COLORS[index % GENDER_COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <RechartsTooltip formatter={(val) => `${val}%`} contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="flex justify-center gap-3 text-xs mt-2 flex-wrap">
-                        {demographics.genders.map((entry, index) => (
-                          <div key={entry.name} className="flex items-center">
-                            <div className="w-2.5 h-2.5 rounded-full mr-1" style={{ backgroundColor: GENDER_COLORS[index % GENDER_COLORS.length] }} />
-                            <span className="text-muted-foreground text-[11px]">{entry.name} ({entry.value}%)</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Device distribution */}
-                    <div className="space-y-4 flex flex-col items-center justify-center">
-                      <h4 className="text-sm font-semibold text-muted-foreground text-center w-full">Distribuição por Dispositivo</h4>
-                      <div className="h-[180px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={demographics.devices}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={45}
-                              outerRadius={65}
-                              paddingAngle={5}
-                              dataKey="value"
-                            >
-                              {demographics.devices.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={DEVICE_COLORS[index % DEVICE_COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <RechartsTooltip formatter={(val) => `${val}%`} contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="flex justify-center gap-3 text-xs mt-2 flex-wrap">
-                        {demographics.devices.map((entry, index) => (
-                          <div key={entry.name} className="flex items-center">
-                            <div className="w-2.5 h-2.5 rounded-full mr-1" style={{ backgroundColor: DEVICE_COLORS[index % DEVICE_COLORS.length] }} />
-                            <span className="text-muted-foreground text-[11px] flex items-center gap-0.5">
-                              {entry.name === "Mobile" ? <Smartphone className="h-3 w-3 text-muted-foreground" /> : <Monitor className="h-3 w-3 text-muted-foreground" />}
-                              {entry.name} ({entry.value}%)
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+              {/* Related Queries for each term */}
+              {activeKeywords.map((kw) => (
+                <Card key={kw} className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)] animate-in fade-in duration-200">
+                  <CardHeader>
+                    <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-primary" /> Consultas Relacionadas para &quot;{kw}&quot;
+                    </CardTitle>
+                    <CardDescription>Termos relacionados que os usuários pesquisaram junto com &quot;{kw}&quot;.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    <GoogleTrendsWidget
+                      keyword={kw}
+                      geo={geo}
+                      timeRange={computedTimeRange}
+                      type="RELATED_QUERIES"
+                    />
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           ) : (
             <Card className="border border-dashed rounded-2xl flex flex-col items-center justify-center p-12 text-center text-muted-foreground">
