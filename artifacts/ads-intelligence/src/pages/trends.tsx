@@ -279,6 +279,44 @@ export default function Trends() {
     }
   }, [activeKeywords]);
 
+  interface KeywordStats {
+    keyword: string;
+    avgMonthlySearches: number;
+    competition: string;
+    lowCpc: number;
+    highCpc: number;
+    avgCpc: number;
+    source: string;
+  }
+
+  const [keywordStats, setKeywordStats] = useState<KeywordStats[]>([]);
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  useEffect(() => {
+    if (activeKeywords.length === 0) {
+      setKeywordStats([]);
+      return;
+    }
+
+    const fetchStats = async () => {
+      setLoadingStats(true);
+      try {
+        const kwsParam = activeKeywords.join(",");
+        const locationParam = geo === "Global" ? "Brasil" : geo;
+        const res = await customFetch<KeywordStats[]>(
+          `/api/keywords/stats?keywords=${encodeURIComponent(kwsParam)}&location=${encodeURIComponent(locationParam)}`
+        );
+        setKeywordStats(res);
+      } catch (err) {
+        console.error("Failed to load keyword metrics stats:", err);
+      } finally {
+        setLoadingStats(false);
+      }
+    };
+
+    fetchStats();
+  }, [activeKeywords, geo]);
+
   // Theme search states
   const [themeInput, setThemeInput] = useState("");
   const [selectedTheme, setSelectedTheme] = useState("");
@@ -718,6 +756,95 @@ export default function Trends() {
                     timeRange={computedTimeRange}
                     type="TIMESERIES"
                   />
+                </CardContent>
+              </Card>
+
+              {/* Keyword Auction & CPC Metrics Card */}
+              <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)] animate-in fade-in duration-200">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
+                        <Coins className="h-5 w-5 text-primary" /> Métricas de Leilão e CPC (Google Ads)
+                      </CardTitle>
+                      <CardDescription>
+                        Disputa do leilão, volume estimado de buscas mensais e custo por clique (CPC) em Reais.
+                      </CardDescription>
+                    </div>
+                    {loadingStats && <Loader2 className="h-5 w-5 text-primary animate-spin" />}
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-2">
+                  {loadingStats && keywordStats.length === 0 ? (
+                    <div className="flex items-center justify-center p-8">
+                      <Loader2 className="h-6 w-6 text-primary animate-spin mr-2" />
+                      <span className="text-sm text-muted-foreground font-medium">Carregando dados do leilão...</span>
+                    </div>
+                  ) : keywordStats.length > 0 ? (
+                    <div className="overflow-x-auto rounded-xl border border-border/45 bg-muted/10">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-border/40 bg-muted/20 text-xs font-semibold text-muted-foreground uppercase">
+                            <th className="p-3">Palavra-chave</th>
+                            <th className="p-3 text-center">Buscas Mensais</th>
+                            <th className="p-3 text-center">Disputa (Leilão)</th>
+                            <th className="p-3 text-center">CPC Mínimo</th>
+                            <th className="p-3 text-center">CPC Médio</th>
+                            <th className="p-3 text-center">CPC Máximo</th>
+                            <th className="p-3 text-right">Fonte</th>
+                          </tr>
+                        </thead>
+                        <tbody className="text-sm divide-y divide-border/25">
+                          {keywordStats.map((stat, index) => {
+                            const color = TAG_COLORS[index % TAG_COLORS.length];
+                            
+                            // Competition color and badge logic
+                            let compBadgeColor = "bg-emerald-500/10 text-emerald-500 border-emerald-500/20";
+                            if (stat.competition.toLowerCase() === "alta") {
+                              compBadgeColor = "bg-red-500/10 text-red-500 border-red-500/20";
+                            } else if (stat.competition.toLowerCase() === "média" || stat.competition.toLowerCase() === "media") {
+                              compBadgeColor = "bg-amber-500/10 text-amber-500 border-amber-500/20";
+                            }
+
+                            return (
+                              <tr key={stat.keyword} className="hover:bg-muted/15 transition-colors">
+                                <td className="p-3 font-semibold flex items-center gap-2">
+                                  <span className={`w-2.5 h-2.5 rounded-full ${color.indicator}`} />
+                                  <span>{stat.keyword}</span>
+                                </td>
+                                <td className="p-3 text-center font-medium text-foreground/80">
+                                  {stat.avgMonthlySearches ? Number(stat.avgMonthlySearches).toLocaleString("pt-BR") : "-"}
+                                </td>
+                                <td className="p-3 text-center">
+                                  <Badge variant="outline" className={`rounded-lg px-2.5 py-0.5 font-semibold uppercase text-[10px] ${compBadgeColor}`}>
+                                    {stat.competition}
+                                  </Badge>
+                                </td>
+                                <td className="p-3 text-center font-bold text-foreground/70">
+                                  {stat.lowCpc ? `R$ ${Number(stat.lowCpc).toFixed(2).replace(".", ",")}` : "R$ 0,00"}
+                                </td>
+                                <td className="p-3 text-center font-bold text-primary">
+                                  {stat.avgCpc ? `R$ ${Number(stat.avgCpc).toFixed(2).replace(".", ",")}` : "R$ 0,00"}
+                                </td>
+                                <td className="p-3 text-center font-bold text-foreground/90">
+                                  {stat.highCpc ? `R$ ${Number(stat.highCpc).toFixed(2).replace(".", ",")}` : "R$ 0,00"}
+                                </td>
+                                <td className="p-3 text-right">
+                                  <span className="text-[11px] font-semibold text-muted-foreground bg-muted/40 px-2 py-0.5 rounded-md uppercase border border-border/10">
+                                    {stat.source === "google-keyword-planner" ? "Google Ads" : stat.source === "gemini-ai" ? "Gemini IA" : "Fallback"}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center text-muted-foreground text-sm">
+                      Nenhuma métrica de leilão disponível para os termos ativos.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 

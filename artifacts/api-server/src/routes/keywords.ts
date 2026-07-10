@@ -94,6 +94,76 @@ router.get("/keywords/top-by-theme", requireAuth, async (req: any, res) => {
   }
 });
 
+// GET /keywords/stats - Get dynamic live statistics (volume, competition, min/avg/max CPC) for multiple keywords
+router.get("/keywords/stats", requireAuth, async (req: any, res) => {
+  const keywordsStr = req.query.keywords as string | undefined;
+  const location = (req.query.location as string) || "Brasil";
+
+  if (!keywordsStr) {
+    res.status(400).json({ error: "keywords query param required" });
+    return;
+  }
+
+  const kwList = keywordsStr.split(",").map(k => k.trim()).filter(Boolean);
+  const results: any[] = [];
+
+  const connection = await getGoogleAdsConnection(req.userId);
+
+  for (const keyword of kwList) {
+    let metrics: any = null;
+
+    if (connection?.customerId) {
+      try {
+        metrics = await getKeywordMetrics(keyword, location, toCredentials(connection));
+      } catch (err: any) {
+        logger.warn({ err: err.message, keyword }, "Google Ads stats call failed, falling back to Gemini AI");
+      }
+    }
+
+    if (!metrics) {
+      try {
+        const aiMetrics = await getKeywordMetricsWithAI(keyword, location);
+        const lowCpc = Math.round(aiMetrics.cpc * 0.7 * 100) / 100;
+        const highCpc = Math.round(aiMetrics.cpc * 1.4 * 100) / 100;
+        metrics = {
+          keyword,
+          avgMonthlySearches: aiMetrics.searchVolume,
+          competition: aiMetrics.competition,
+          lowCpc,
+          highCpc,
+          avgCpc: aiMetrics.cpc,
+          source: "gemini-ai"
+        };
+      } catch (aiErr: any) {
+        logger.error({ err: aiErr.message, keyword }, "Gemini AI fallback stats call failed");
+        metrics = {
+          keyword,
+          avgMonthlySearches: 1000,
+          competition: "média",
+          lowCpc: 1.00,
+          highCpc: 2.00,
+          avgCpc: 1.50,
+          source: "local-fallback"
+        };
+      }
+    } else {
+      metrics = {
+        keyword,
+        avgMonthlySearches: metrics.avgMonthlySearches,
+        competition: metrics.competition,
+        lowCpc: metrics.lowCpc,
+        highCpc: metrics.highCpc,
+        avgCpc: metrics.avgCpc,
+        source: "google-keyword-planner"
+      };
+    }
+
+    results.push(metrics);
+  }
+
+  res.json(results);
+});
+
 const PRESET_DR_CASH_OFFERS = [
   { id: 15014, name: "Eretron Aktiv", category: "Potency", geo: ["IT"] },
   { id: 15018, name: "Prostatricum", category: "Men's Health", geo: ["DE"] },
