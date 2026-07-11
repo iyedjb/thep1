@@ -461,7 +461,6 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
         }
       }
     }
-  }
 
   // 1.5. Process and inline images inside inline <style> blocks of the HTML document
   const styleMatches = Array.from(html.matchAll(/<style([^>]*)>([\s\S]*?)<\/style>/gi));
@@ -2797,11 +2796,12 @@ async function generateScreenshotBridgeHtml(input: {
   ${input.trackingTags}
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      height: 100%;
-      overflow: hidden;
+    body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: #ffffff;
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
     }
     
     /* Ambient blurred background layer */
@@ -2818,19 +2818,16 @@ async function generateScreenshotBridgeHtml(input: {
     }
     
     .site-background-container {
-      position: fixed;
-      inset: 0;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
+      width: 100%;
+      max-width: 1920px;
+      margin: 0 auto;
+      position: relative;
       z-index: 1;
     }
     .site-background-img {
       display: block;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
-      object-position: center top;
+      width: 100%;
+      height: auto;
       pointer-events: none;
       -webkit-user-drag: none;
       user-select: none;
@@ -2845,12 +2842,13 @@ async function generateScreenshotBridgeHtml(input: {
       .ambient-bg {
         display: none;
       }
+      .site-background-container {
+        width: 100%;
+      }
       .site-background-img.ads-mobile-bg {
         display: block;
-        width: 100vw;
-        height: 100vh;
-        object-fit: cover;
-        object-position: center top;
+        width: 100%;
+        height: auto;
       }
       .ads-desktop-bg {
         display: none;
@@ -3322,11 +3320,12 @@ async function generateCleanBackgroundPresellHtml(input: {
   ${input.trackingTags}
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      height: 100%;
-      overflow: hidden;
+    body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: #ffffff;
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
     }
     
     /* Ambient blurred background layer */
@@ -3343,19 +3342,16 @@ async function generateCleanBackgroundPresellHtml(input: {
     }
     
     .site-background-container {
-      position: fixed;
-      inset: 0;
-      width: 100vw;
-      height: 100vh;
-      overflow: hidden;
+      width: 100%;
+      max-width: 1920px;
+      margin: 0 auto;
+      position: relative;
       z-index: 1;
     }
     .site-background-img {
       display: block;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
-      object-position: center top;
+      width: 100%;
+      height: auto;
       pointer-events: none;
       -webkit-user-drag: none;
       user-select: none;
@@ -3371,15 +3367,12 @@ async function generateCleanBackgroundPresellHtml(input: {
         display: none;
       }
       .site-background-container {
-        width: 100vw;
-        height: 100vh;
+        width: 100%;
       }
       .site-background-img.ads-mobile-bg {
         display: block;
-        width: 100vw;
-        height: 100vh;
-        object-fit: cover;
-        object-position: center top;
+        width: 100%;
+        height: auto;
       }
       .ads-desktop-bg {
         display: none;
