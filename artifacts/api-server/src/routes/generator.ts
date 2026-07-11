@@ -2555,10 +2555,48 @@ const COOKIE_LOCALIZATION: Record<string, {
     valOfertaGeneric: "Specjalny rabat promocyjny dostępny w tej kampanii.",
     labelInfoRelevante: "Istotne Informacje",
     valInfoRelevante: "Oficjalny kanał informacyjny kampanii. Warunki gwarancji i zasady zwrotów są zgodne z określonymi na oficjalnej stronie."
+  },
+  "ar": {
+    title: "🍪 سياسة ملفات التعريف",
+    desc: "نستخدم ملفات تعريف الارتباط لتحسين تجربتك. بالاستمرار، فإنك توافق على شروطنا.",
+    accept: "قبول",
+    decline: "رفض",
+    infoBtn: "تفاصيل العرض",
+    infoTitle: "تفاصيل العرض",
+    labelFormula: "التركيبة / المكونات",
+    labelEntrega: "مدة التوصيل",
+    labelEntregaDigital: "طريقة الوصول",
+    labelPreco: "السعر والشروط",
+    labelOferta: "عرض خاص",
+    valFormula: "تركيبة مطورة بمكونات ومستخلصات طبيعية مختارة بعناية.",
+    valEntregaPhysical: "الشحن يتم وفقًا للمواعيد والأسعار الخاصة بالموقع الرسمي.",
+    valEntregaDigital: "وصول فوري عبر البريد الإلكتروني بعد تأكيد الدفع.",
+    valPrecoCOD: "الدفع عند الاستلام (ادفع فقط عند استلام المنتج).",
+    valPrecoOnline: "دفع آمن عبر الإنترنت (بطاقة الائتمان أو وسائل الدفع المحلية).",
+    valOferta: "عرض ترويجي خاص لفترة محدودة على القناة الرسمية.",
+    formatPreco: "من <del>{orig}</del> إلى <strong>{prom}</strong> فقط",
+    ctaOffer: "استفيد من الخصم! عرض لفترة محدودة.",
+    descTemplate: "الصفحة التعريفية الرسمية للمنتج {prod}. تعرف على تفاصيل العرض واشترِ مع ضمان الأصالة.",
+    priceDescFormat: " من {orig} إلى {prom} فقط.",
+    priceValFormat: " (السعر: {val}).",
+    labelGadget: "المواصفات الفنية",
+    valGadget: "مواصفات ومميزات عالية التقنية تم تطويرها بواسطة الشركة المصنعة.",
+    labelDigital: "المحتوى / الميزات",
+    valDigital: "مصادر ومواد إعلامية عالية الجودة تم تطويرها بواسطة خبراء.",
+    valGenericCampaignInfo: "تحقق من المعلومات المتوفرة في هذه الحملة.",
+    valPrecoGeneric: "قيمة ترويجية متاحة على القناة الرسمية للشركة المصنعة.",
+    valPrecoGenericCond: "دفع آمن معالج عبر القناة الرسمية.",
+    valPrecoGenericFallback: "انظر تفاصيل العرض.",
+    valOfertaGeneric: "خصم ترويجي خاص متاح في هذه الحملة.",
+    labelInfoRelevante: "معلومات هامة",
+    valInfoRelevante: "القناة الإخبارية الرسمية للحملة. شروط الضمان وسياسات الاسترداد هي تلك المحددة على الموقع الرسمي."
   }
 };
 
 function detectLanguageFromText(cleanText: string): string {
+  if (/[\u0600-\u06FF]/.test(cleanText)) {
+    return "ar";
+  }
   const scores: Record<string, number> = {
     "pt-BR": 0,
     "es": 0,
@@ -2567,7 +2605,8 @@ function detectLanguageFromText(cleanText: string): string {
     "de": 0,
     "ro": 0,
     "pl": 0,
-    "en": 0
+    "en": 0,
+    "ar": 0
   };
 
   // Specific unique trigger words/phrases
@@ -2605,11 +2644,25 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
     return lang;
   }
 
-  // 1. Try to detect from HTML tag if available (optional quotes)
+  // 1. Check full HTML text content first (most reliable, as developers often leave incorrect <html lang="en"> tags on cloned/translated sites)
+  if (html) {
+    const cleanText = html
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .toLowerCase();
+    const langFromHtmlText = detectLanguageFromText(cleanText);
+    if (langFromHtmlText && langFromHtmlText !== "en") {
+      return langFromHtmlText;
+    }
+  }
+
+  // 2. Try to detect from HTML tag if available (optional quotes)
   if (html) {
     const htmlLangMatch = html.match(/<html\s+[^>]*lang=['"]?([a-zA-Z-]{2,5})['"]?/i);
     if (htmlLangMatch) {
       const rawLang = htmlLangMatch[1].toLowerCase();
+      if (rawLang.startsWith("ar")) return "ar";
       if (rawLang.startsWith("es")) return "es";
       if (rawLang.startsWith("pt")) return "pt-BR";
       if (rawLang.startsWith("en")) return "en";
@@ -2621,7 +2674,7 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
     }
   }
 
-  // 2. Try to detect from reference URL
+  // 3. Try to detect from reference URL
   if (referenceUrl) {
     const urlLower = referenceUrl.toLowerCase();
     if (urlLower.endsWith(".br") || urlLower.includes(".com.br")) {
@@ -2638,10 +2691,12 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
       return "ro";
     } else if (urlLower.endsWith(".pl") || urlLower.includes("/pl/")) {
       return "pl";
+    } else if (urlLower.endsWith(".ma") || urlLower.includes("/ar/") || urlLower.includes("/ma/")) {
+      return "ar";
     }
   }
 
-  // 3. Fallback: Robust word frequency / conjunction checking from metadata first (most reliable)
+  // 4. Fallback: Check metadata text
   let metadataText = "";
   if (meta) {
     if (meta.seoDescription) {
@@ -2659,19 +2714,6 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
     const langFromMetadata = detectLanguageFromText(metadataText);
     if (langFromMetadata !== "en") {
       return langFromMetadata;
-    }
-  }
-
-  // 4. If metadata didn't yield a language, scan the HTML
-  if (html) {
-    const cleanText = html
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
-      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
-      .replace(/<[^>]+>/g, " ")
-      .toLowerCase();
-    const langFromHtml = detectLanguageFromText(cleanText);
-    if (langFromHtml !== "en") {
-      return langFromHtml;
     }
   }
 
@@ -2824,6 +2866,7 @@ function fallbackBridgeHtml(input: {
   const isOptionA = input.selectedOption === "a";
   const lang = detectLandingPageLanguage(null, input.referenceUrl, input.popupLanguage);
   const localization = COOKIE_LOCALIZATION[lang] || COOKIE_LOCALIZATION["en"];
+  const isRtl = lang === "ar";
 
   let faviconUrl = "";
   try {
@@ -2873,6 +2916,7 @@ function fallbackBridgeHtml(input: {
       text-align: center;
       cursor: default;
       animation: cookiePop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+      ${isRtl ? 'direction: rtl;' : ''}
     }
     .cookie-title {
       font-size: 16px;
@@ -3858,6 +3902,7 @@ function injectCookieConsentOverlay(
 
   const localization = COOKIE_LOCALIZATION[detectedLang] || COOKIE_LOCALIZATION["en"];
   const titleClean = localization.title.replace(/^\u{1F36A}\s?/u, "");
+  const isRtl = detectedLang === "ar";
 
   const productName = meta?.productName || "Produto";
   
@@ -3932,6 +3977,7 @@ function injectCookieConsentOverlay(
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     animation: adsCardIn 0.45s cubic-bezier(0.34,1.56,0.64,1) both;
     pointer-events: auto;
+    ${isRtl ? 'direction: rtl; text-align: right;' : ''}
   }
   @keyframes adsCardIn {
     from { transform: translate(-50%, -50%) scale(0.8) translateY(30px); opacity: 0; }
@@ -3940,7 +3986,7 @@ function injectCookieConsentOverlay(
   .ads-close-btn {
     position: absolute;
     top: 14px;
-    right: 14px;
+    ${isRtl ? 'left: 14px;' : 'right: 14px;'}
     width: 28px;
     height: 28px;
     background: #f1f5f9;
@@ -3996,7 +4042,7 @@ function injectCookieConsentOverlay(
     margin-top: 24px;
     border-top: 1px dashed #e2e8f0;
     padding-top: 16px;
-    text-align: left;
+    text-align: ${isRtl ? 'right' : 'left'};
   }
   #ads-seo-toggle {
     background: none;
