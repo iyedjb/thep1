@@ -445,12 +445,18 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
 
           html = html.replaceAll(fullTag, `<style>\n${cssText}\n</style>`);
         } else {
-          // Defer loading of non-inlined CSS to prevent render-blocking
-          if (!/media=/i.test(attrs) && !/onload=/i.test(attrs)) {
-            const newTag = fullTag
-              .replace(/rel=["']stylesheet["']/i, 'rel="stylesheet" media="print" onload="this.media=\'all\'"')
-              .replace(/rel='stylesheet'/i, 'rel=\'stylesheet\' media=\'print\' onload="this.media=\'all\'"');
-            html = html.replaceAll(fullTag, newTag);
+            // Resolve relative href to absolute URL so the browser can load it from the original server
+            let resolvedTag = fullTag;
+            const absHref = getAbsoluteUrl(relHref);
+            resolvedTag = resolvedTag.replace(relHref, absHref);
+            
+            // Defer loading of non-inlined CSS to prevent render-blocking
+            if (!/media=/i.test(attrs) && !/onload=/i.test(attrs)) {
+              resolvedTag = resolvedTag
+                .replace(/rel=["']stylesheet["']/i, 'rel="stylesheet" media="print" onload="this.media=\'all\'"')
+                .replace(/rel='stylesheet'/i, 'rel=\'stylesheet\' media=\'print\' onload="this.media=\'all\'"');
+            }
+            html = html.replaceAll(fullTag, resolvedTag);
           }
         }
       }
@@ -556,13 +562,19 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
       const jsText = asset.buffer.toString("utf8");
       html = html.replaceAll(fullTag, `<script>\n${jsText}\n</script>`);
     } else {
+      // Resolve relative src to absolute URL so the browser can load it from the original server
+      const absSrc = getAbsoluteUrl(relSrc);
+      let resolvedTag = fullTag
+        .replace(`src="${relSrc}"`, `src="${absSrc}"`)
+        .replace(`src='${relSrc}'`, `src='${absSrc}'`);
+        
       // Defer execution of relative script that failed to inline
       if (!/defer|async/i.test(attrs1 + attrs2)) {
-        const newTag = fullTag
-          .replace(`src="${relSrc}"`, `src="${relSrc}" defer`)
-          .replace(`src='${relSrc}'`, `src='${relSrc}' defer`);
-        html = html.replaceAll(fullTag, newTag);
+        resolvedTag = resolvedTag
+          .replace(`src="${absSrc}"`, `src="${absSrc}" defer`)
+          .replace(`src='${absSrc}'`, `src='${absSrc}' defer`);
       }
+      html = html.replaceAll(fullTag, resolvedTag);
     }
   }
 
@@ -2763,6 +2775,7 @@ async function generateScreenshotBridgeHtml(input: {
   const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
   // Use high-definition 1920px width to ensure screenshot looks perfectly crisp on all devices
   const thumIoUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/${input.referenceUrl}`;
+  const mobileThumIoUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/${input.referenceUrl}`;
 
   let faviconUrl = "";
   try {
@@ -2779,6 +2792,7 @@ async function generateScreenshotBridgeHtml(input: {
   <title>${product}</title>
   <meta name="robots" content="index, follow" />
   <link rel="preload" as="image" href="${thumIoUrl}" />
+  <link rel="preload" as="image" href="${mobileThumIoUrl}" />
   ${faviconUrl ? `<link rel="icon" href="${faviconUrl}">` : ""}
   ${input.trackingTags}
   <style>
@@ -2821,6 +2835,27 @@ async function generateScreenshotBridgeHtml(input: {
       -webkit-user-drag: none;
       user-select: none;
     }
+    .ads-desktop-bg {
+      display: block;
+    }
+    .ads-mobile-bg {
+      display: none;
+    }
+    @media (max-width: 768px) {
+      .ambient-bg {
+        display: none;
+      }
+      .site-background-img.ads-mobile-bg {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+        object-fit: cover;
+        object-position: center top;
+      }
+      .ads-desktop-bg {
+        display: none;
+      }
+    }
     
     @keyframes screenshotSpin {
       0% { transform: rotate(0deg); }
@@ -2835,10 +2870,15 @@ async function generateScreenshotBridgeHtml(input: {
       <div style="width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #198754; border-radius: 50%; animation: screenshotSpin 1s linear infinite;"></div>
     </div>
     <img
-      class="site-background-img"
+      class="site-background-img ads-desktop-bg"
       src="${thumIoUrl}"
-      alt="background"
+      alt="desktop background"
       onload="var l = document.getElementById('screenshotLoader'); if(l) l.style.display='none';"
+    />
+    <img
+      class="site-background-img ads-mobile-bg"
+      src="${mobileThumIoUrl}"
+      alt="mobile background"
     />
   </div>
   <script>
