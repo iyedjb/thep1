@@ -192,6 +192,10 @@ export interface GoogleAdsCampaign {
   status: string;
   budgetAmountMicros: number;
   budgetAmount: number;
+  cpc?: number;
+  ctr?: number;
+  roas?: number;
+  conversions?: number;
 }
 
 /**
@@ -517,19 +521,36 @@ export async function listGoogleAdsCampaigns(credentials?: GoogleAdsCredentials)
         campaign.id,
         campaign.name,
         campaign.status,
-        campaign_budget.amount_micros
+        campaign_budget.amount_micros,
+        metrics.clicks,
+        metrics.conversions,
+        metrics.cost_micros,
+        metrics.ctr,
+        metrics.average_cpc,
+        metrics.conversions_value
       FROM campaign
       WHERE campaign.status != 'REMOVED'
+        AND segments.date DURING LAST_30_DAYS
       ORDER BY campaign.name
     `);
 
-    return (campaigns || []).map((row: any) => ({
-      id: String(row.campaign?.id || ""),
-      name: row.campaign?.name || "",
-      status: mapCampaignStatus(row.campaign?.status),
-      budgetAmountMicros: Number(row.campaign_budget?.amount_micros || 0),
-      budgetAmount: Number(row.campaign_budget?.amount_micros || 0) / 1_000_000,
-    }));
+    return (campaigns || []).map((row: any) => {
+      const cost = Number(row.metrics?.cost_micros || 0) / 1_000_000;
+      const conversionsValue = Number(row.metrics?.conversions_value || 0);
+      const roas = cost > 0 ? conversionsValue / cost : 0;
+
+      return {
+        id: String(row.campaign?.id || ""),
+        name: row.campaign?.name || "",
+        status: mapCampaignStatus(row.campaign?.status),
+        budgetAmountMicros: Number(row.campaign_budget?.amount_micros || 0),
+        budgetAmount: Number(row.campaign_budget?.amount_micros || 0) / 1_000_000,
+        cpc: Number(row.metrics?.average_cpc || 0) / 1_000_000,
+        ctr: Number(row.metrics?.ctr || 0) * 100, // Google Ads API returns CTR as decimal (e.g. 0.05 for 5%)
+        roas: roas,
+        conversions: Number(row.metrics?.conversions || 0),
+      };
+    });
   } catch (error: any) {
     logger.error({ error: error.message }, "Failed to list Google Ads campaigns");
     throw error;

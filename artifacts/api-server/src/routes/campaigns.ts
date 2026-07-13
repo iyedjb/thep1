@@ -56,13 +56,35 @@ router.get("/campaigns", requireAuth, async (req: any, res) => {
         "SELECT id FROM campaigns WHERE user_id = ? AND google_campaign_id = ?",
       ).get(req.userId, campaign.id) as any;
       if (existing) {
-        await db.prepare("UPDATE campaigns SET name = ?, status = ?, budget = ? WHERE id = ?")
-          .run(campaign.name, campaign.status, campaign.budgetAmount, existing.id);
+        await db.prepare(`
+          UPDATE campaigns 
+          SET name = ?, status = ?, budget = ?, cpc = ?, ctr = ?, roas = ?, conversions = ? 
+          WHERE id = ?
+        `).run(
+          campaign.name,
+          campaign.status,
+          campaign.budgetAmount,
+          campaign.cpc || 0,
+          campaign.ctr || 0,
+          campaign.roas || 0,
+          campaign.conversions || 0,
+          existing.id
+        );
       } else {
         await db.prepare(`
-          INSERT INTO campaigns (user_id, name, status, budget, google_campaign_id)
-          VALUES (?, ?, ?, ?, ?)
-        `).run(req.userId, campaign.name, campaign.status, campaign.budgetAmount, campaign.id);
+          INSERT INTO campaigns (user_id, name, status, budget, google_campaign_id, cpc, ctr, roas, conversions)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          req.userId,
+          campaign.name,
+          campaign.status,
+          campaign.budgetAmount,
+          campaign.id,
+          campaign.cpc || 0,
+          campaign.ctr || 0,
+          campaign.roas || 0,
+          campaign.conversions || 0
+        );
       }
     }
     const rows = await db.prepare("SELECT * FROM campaigns WHERE user_id = ? ORDER BY id ASC").all(req.userId) as any[];
