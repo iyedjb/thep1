@@ -987,7 +987,7 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
   }
 
   // Broad list of words indicating medical claims, weight loss promises, cures, or guarantees
-  const violationFilterRegex = /\b(perdi|perder|lose|weight|peso|kg|kilos|kilo|emagrecer|queimar|fat|gordura|grasa|liposuzione|liposuction|garantido|guaranteed|garantia|cure|cura|curar|trata|treat|elimina|eliminate|diabetes|diabético|hipertens|artrite|arthritis|cancro|câncer|morte|death|morrer|segredo|secret|clinicamente|comprovad[ao]|proven|clinically)\b/i;
+  const violationFilterRegex = /\b(perdi|perder|lose|weight|peso|kg|kilos|kilo|emagrecer|queimar|fat|gordura|grasa|liposuzione|liposuction|garantido|guaranteed|garantia|cure|cura|curar|trata|treat|elimina|eliminate|diabetes|diabético|hipertens|artrite|arthritis|cancro|câncer|morte|death|morrer|segredo|secret|clinicamente|comprovad[ao]|proven|clinically|prostatite|prostate|prostatitis|próstata|reprodutor|reproducteur|reproductor|reproductive|maladie|maladies|doença|doenças|enfermedad|enfermedades|disease|diseases|remédio|remedio|remède|remedy|combater|combate|combat|combattre|lutar|luta|luchar|lucha|lutter|fight|guérir|soigner|tratamento|tratamentos|tratamiento|treatment|efficace|efficacement|eficaz|eficazmente|effectively|prouvé|prouvée|provado|provada|probado|probada|garanti|garantie|garantizado|garantizada|éliminer|élimine|perdre|poids|graisse)\b/i;
 
   // Extract SEO description and clean it if it contains violating words
   const metaDescMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
@@ -3488,7 +3488,58 @@ function rewriteClaimsWithLocalDictionary(html: string): string {
     { regex: /\b(sem efeitos colaterais|100% natural e sem contraindicações|livre de efeitos colaterais|não tem contraindicação)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "Fórmula suave desenvolvida com ingredientes de origem natural" },
     { regex: /\b(resultado garantido|satisfação garantida ou seu dinheiro de volta|risco zero|garantia blindada)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "Para melhores resultados, utilize o produto de forma regular" },
     { regex: /\b(se não tratar pode levar à morte|risco de mortalidade alto|silenciosa e mortal|pode te matar|morte silenciosa)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "Mantenha seus exames em dia e sua rotina saudável" },
-    { regex: /\b(comprovou sua eficácia|comprovado clinicamente|clinicamente comprovado|eficácia clínica comprovada)\b/gi, replacement: "Fórmula com ingredientes estudados" }
+    { regex: /\b(comprovou sua eficácia|comprovado clinicamente|clinicamente comprovado|eficácia clínica comprovada)\b/gi, replacement: "Fórmula com ingredientes estudados" },
+
+    // --- ADDITIONAL MULTI-LANGUAGE MEDICAL & PROSTATE COMPLIANCE PATTERNS ---
+    // French (prostate/remedy/diseases)
+    { regex: /\b(?:combattre|lutter|guérir|soigner)\s+efficacement\s+(?:la\s+)?prostatite\b/gi, replacement: "soutenir le confort urinaire et la prostate" },
+    { regex: /\b(?:combattre|lutter|guérir|soigner)\s+efficacement\s+contre\s+la\s+prostatite\b/gi, replacement: "soutenir le confort urinaire et la prostate" },
+    { regex: /\b(?:les\s+)?maladies\s+chroniques\s+du\s+système\s+reproducteur\b/gi, replacement: "le confort urinaire et la vitalité masculine" },
+    { regex: /\bun\s+remède\s+naturel\b/gi, replacement: "un produit formulé avec des ingrédients naturels" },
+    { regex: /\bprostatite\b/gi, replacement: "confort urinaire" },
+    { regex: /\bprostate\b/gi, replacement: "confort masculin" },
+    { regex: /\bsystème\s+reproducteur\b/gi, replacement: "bien-être masculin" },
+    { regex: /\bmaladie\s+chronique\b/gi, replacement: "inconfort" },
+    { regex: /\bmaladies\s+chroniques\b/gi, replacement: "inconforts" },
+    { regex: /\bremède\b/gi, replacement: "produit naturel" },
+    { regex: /\b50%\s+de\s+réduction\b/gi, replacement: "remise promotionnelle" },
+    { regex: /\boffre\s+à\s+durée\s+limitée\b/gi, replacement: "offre spéciale" },
+
+    // Portuguese (prostate/remedy/diseases)
+    { regex: /\b(?:combater|lutar)\s+eficazmente\s+(?:a\s+)?prostatite\b/gi, replacement: "auxiliar no conforto urinário e saúde da próstata" },
+    { regex: /\b(?:combater|lutar)\s+eficazmente\s+contra\s+a\s+prostatite\b/gi, replacement: "auxiliar no conforto urinário e saúde da próstata" },
+    { regex: /\b(?:as\s+)?doenças\s+crônicas\s+do\s+sistema\s+reprodutor\b/gi, replacement: "o conforto e bem-estar masculino" },
+    { regex: /\bum\s+remédio\s+natural\b/gi, replacement: "um produto formulado com ingredientes naturais" },
+    { regex: /\bprostatite\b/gi, replacement: "conforto urinário" },
+    { regex: /\bpróstata\b/gi, replacement: "conforto masculino" },
+    { regex: /\bsistema\s+reprodutor\b/gi, replacement: "bem-estar masculino" },
+    { regex: /\bdoença\s+crônica\b/gi, replacement: "desconforto" },
+    { regex: /\bdoenças\s+crônicas\b/gi, replacement: "desconfortos" },
+    { regex: /\bremédio\b/gi, replacement: "suplemento natural" },
+
+    // Spanish (prostate/remedy/diseases)
+    { regex: /\b(?:combatir|luchar)\s+eficazmente\s+(?:la\s+)?prostatitis\b/gi, replacement: "apoyar el confort urinario y la salud de la próstata" },
+    { regex: /\b(?:combatir|luchar)\s+eficazmente\s+contra\s+la\s+prostatitis\b/gi, replacement: "apoyar el confort urinario y la salud de la próstata" },
+    { regex: /\b(?:las\s+)?enfermedades\s+crónicas\s+del\s+sistema\s+reproductor\b/gi, replacement: "el confort y bienestar masculino" },
+    { regex: /\bun\s+remedio\s+natural\b/gi, replacement: "un producto formulado con ingredientes naturales" },
+    { regex: /\bprostatitis\b/gi, replacement: "confort urinario" },
+    { regex: /\bpróstata\b/gi, replacement: "confort masculino" },
+    { regex: /\bsistema\s+reproductor\b/gi, replacement: "bienestar masculino" },
+    { regex: /\benfermedad\s+crónica\b/gi, replacement: "incomodidad" },
+    { regex: /\benfermedades\s+crónicas\b/gi, replacement: "incomodidades" },
+    { regex: /\bremedio\b/gi, replacement: "suplemento natural" },
+
+    // English (prostate/remedy/diseases)
+    { regex: /\b(?:combat|fight)\s+effectively\s+prostatitis\b/gi, replacement: "support urinary comfort and prostate health" },
+    { regex: /\b(?:combat|fight)\s+effectively\s+against\s+prostatitis\b/gi, replacement: "support urinary comfort and prostate health" },
+    { regex: /\b(?:the\s+)?chronic\s+diseases\s+of\s+the\s+reproductive\s+system\b/gi, replacement: "urinary comfort and male vitality" },
+    { regex: /\ba\s+natural\s+remedy\b/gi, replacement: "a supplement with natural ingredients" },
+    { regex: /\bprostatitis\b/gi, replacement: "urinary comfort" },
+    { regex: /\bprostate\b/gi, replacement: "male comfort" },
+    { regex: /\breproductive\s+system\b/gi, replacement: "male well-being" },
+    { regex: /\bchronic\s+disease\b/gi, replacement: "discomfort" },
+    { regex: /\bchronic\s+diseases\b/gi, replacement: "discomforts" },
+    { regex: /\bremedy\b/gi, replacement: "natural product" }
   ];
 
   let cleaned = html;
@@ -3582,6 +3633,7 @@ Exemplos críticos:
 - "Elimina parasitas" → "Blend de ervas utilizadas na medicina tradicional para suporte intestinal"
 - "97% de eficácia clínica" → "Escolhido por quem busca uma rotina de bem-estar mais equilibrada"
 - "Clinicamente comprovado" → "Formulado com ingredientes de origem natural"
+- "Combattre efficacement la prostatite et les maladies chroniques du système reproducteur ! Urofarm est un remède naturel conçu pour lutter efficacement contre la prostatite" → "Soutenir le confort urinaire et la vitalité masculine avec une formule d'ingrédients naturels pour la prostate"
 
 ### CAT 2 — Urgência falsa e escassez manipuladora
 Proibido: número fixo de unidades, timers em loop, "847 pessoas estão vendo agora", "Preço sobe amanhã".
@@ -3603,12 +3655,12 @@ Proibido: estatísticas de mortalidade, "Se não agir agora sua saúde piora", s
 Proibido: preço original inflado sem referência, múltiplos preços riscados.
 ✅ Manter apenas: 1 preço original + 1 preço atual com contexto claro.
 
-## REFERÊNCIA POR NICHO
-Cardiovascular: ✅ "Fórmula com magnésio, coenzima Q10 e extrato de alho" ❌ "Controla a pressão arterial", "Previne infartos"
+ Cardiovascular: ✅ "Fórmula com magnésio, coenzima Q10 e extrato de alho" ❌ "Controla a pressão arterial", "Previne infartos"
 Emagrecimento: ✅ "Fórmula com café verde, chá verde e gengibre" ❌ "Emagrece X kg em Y dias", "Queima gordura garantida"
 Parasitas/Detox: ✅ "Blend de ervas com propriedades purificantes: boldo, cúrcuma, pau-d'arco" ❌ "Elimina parasitas", "Mata vermes"
 Diabetes/Metabólico: ✅ "Fórmula com berberina, canela e cromo — ingredientes estudados para equilíbrio metabólico" ❌ "Controla glicemia", "Reduz açúcar no sangue garantido"
 Articulações: ✅ "Fórmula com colágeno, cúrcuma e boswellia" ❌ "Cura artrite", "Elimina dor nas juntas em X dias"
+Saúde Masculina / Próstata: ✅ "soutenir le confort urinaire et la prostate" / "apoia a saúde da próstata e o conforto masculino" ❌ "Combattre la prostatite", "maladies chroniques du système reproducteur", "remède naturel contre la prostatite", "lutter contre la prostatite"
 
 ## REGRAS INVIOLÁVEIS
 1. Preservar SEMPRE o idioma original (português, espanhol, inglês)
@@ -3958,6 +4010,9 @@ function injectCookieConsentOverlay(
   // Add CTA directly into the SEO description (price is kept generic)
   seoDesc += ` ${localization.valPrecoGenericFallback} ${localization.ctaOffer}`;
   
+  // Apply local compliance mapping to override any violating terminology in the description
+  seoDesc = rewriteClaimsWithLocalDictionary(seoDesc);
+  
   // Generic pricing and payment conditions
   let valPrecoResolved = localization.valPrecoGenericCond;
   valPrecoResolved = `${valPrecoResolved} (${localization.ctaOffer})`;
@@ -3972,8 +4027,8 @@ function injectCookieConsentOverlay(
     ? `${meta.extractedOffer} - ${localization.valOferta}`
     : localization.valOfertaGeneric;
 
-  // Additional safe details extracted from the landing page
-  const seoDetails = meta?.productDetails || [];
+  // Additional safe details extracted from the landing page, sanitized for compliance
+  const seoDetails = (meta?.productDetails || []).map(item => rewriteClaimsWithLocalDictionary(item));
 
   const overlay = `
 <!-- Ads Intelligence: Cookie Overlay (popup after 2s) -->
