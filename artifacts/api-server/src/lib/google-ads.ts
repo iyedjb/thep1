@@ -122,13 +122,18 @@ async function fetchKeywordIdeasViaService(
   languageId: string,
 ): Promise<KeywordIdea[]> {
   try {
+    const keywords = seedKeyword
+      .split(",")
+      .map((k) => k.trim())
+      .filter(Boolean);
+
     const response = await customer.keywordPlanIdeas.generateKeywordIdeas({
       customer_id: customerId.replace(/-/g, ""),
       language: `languageConstants/${languageId}`,
       geo_target_constants: [`geoTargetConstants/${locationId}`],
       keyword_plan_network: enums.KeywordPlanNetwork.GOOGLE_SEARCH,
       keyword_seed: {
-        keywords: [seedKeyword],
+        keywords: keywords,
       },
     });
 
@@ -180,6 +185,67 @@ export async function getKeywordMetrics(
     (i) => i.keyword.toLowerCase() === keyword.toLowerCase()
   );
   return exact || ideas[0] || null;
+}
+
+/**
+ * Get real metrics for multiple keywords in a single batch query
+ */
+export async function getKeywordMetricsBatch(
+  keywords: string[],
+  location: string = "Brasil",
+  credentials?: GoogleAdsCredentials,
+): Promise<Record<string, KeywordIdea>> {
+  const customer = getCustomer(credentials) as any;
+  if (!customer || keywords.length === 0) return {};
+
+  try {
+    const locationId = getLocationConstantId(location);
+    const languageId = getLanguageIdForLocation(location);
+
+    const response = await customer.keywordPlanIdeas.generateKeywordIdeas({
+      customer_id: resolveCredentials(credentials)!.customerId.replace(/-/g, ""),
+      language: `languageConstants/${languageId}`,
+      geo_target_constants: [`geoTargetConstants/${locationId}`],
+      keyword_plan_network: enums.KeywordPlanNetwork.GOOGLE_SEARCH,
+      keyword_seed: {
+        keywords: keywords,
+      },
+    }) as any;
+
+    const result: Record<string, KeywordIdea> = {};
+    for (const idea of response || []) {
+      const kwText = (idea.text || "").toLowerCase();
+      const metrics = idea.keyword_idea_metrics || {};
+      const avgSearches = Number(metrics.avg_monthly_searches || 0);
+      const competitionEnum = metrics.competition;
+      const lowBid = Number(metrics.low_top_of_page_bid_micros || 0) / 1_000_000;
+      const highBid = Number(metrics.high_top_of_page_bid_micros || 0) / 1_000_000;
+      const avgCpc = Math.round(((lowBid + highBid) / 2) * 100) / 100;
+
+      const monthlySearchVolumes = metrics.monthly_search_volumes || [];
+      const trends = monthlySearchVolumes.map((m: any) => ({
+        month: mapMonthNumber(m.month),
+        volume: Number(m.monthly_searches || 0),
+      }));
+
+      result[kwText] = {
+        keyword: idea.text || "",
+        avgMonthlySearches: avgSearches,
+        competition: mapCompetition(competitionEnum),
+        competitionIndex: Number(metrics.competition_index || 0),
+        lowCpc: Math.round(lowBid * 100) / 100,
+        highCpc: Math.round(highBid * 100) / 100,
+        avgCpc,
+        text: idea.text || "",
+        cpc: avgCpc,
+        trends,
+      };
+    }
+    return result;
+  } catch (error: any) {
+    logger.error({ error: error.message }, "Failed to fetch keyword ideas batch from Google Ads");
+    throw error;
+  }
 }
 
 // ============================================================================

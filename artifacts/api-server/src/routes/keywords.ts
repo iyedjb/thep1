@@ -4,7 +4,7 @@ import https from "https";
 import { requireAuth } from "./auth";
 import { CreateKeywordBody } from "@workspace/api-zod";
 import { analyzeKeywordWithAI, generateKeywordSuggestionsWithAI, getTopKeywordsByTheme, getRealProductRankingsWithAI, getKeywordMetricsWithAI } from "../lib/gemini";
-import { getKeywordMetrics, getKeywordIdeas } from "../lib/google-ads";
+import { getKeywordMetrics, getKeywordIdeas, getKeywordMetricsBatch } from "../lib/google-ads";
 import { logger } from "../lib/logger";
 import { getGoogleAdsConnection } from "../lib/google-ads-connections";
 
@@ -108,19 +108,48 @@ router.get("/keywords/stats", requireAuth, async (req: any, res) => {
   const results: any[] = [];
 
   const connection = await getGoogleAdsConnection(req.userId);
+  let batchMetrics: Record<string, any> = {};
+  let googleAdsSuccess = false;
+
+  if (connection?.customerId) {
+    try {
+      batchMetrics = await getKeywordMetricsBatch(kwList, location, toCredentials(connection));
+      googleAdsSuccess = true;
+    } catch (err: any) {
+      logger.warn({ err: err.message }, "Google Ads batch stats call failed, falling back to Gemini AI");
+    }
+  }
 
   for (const keyword of kwList) {
-    let metrics: any = null;
+    const normalizedKeyword = keyword.toLowerCase();
+    let metrics = batchMetrics[normalizedKeyword];
 
-    if (connection?.customerId) {
-      try {
-        metrics = await getKeywordMetrics(keyword, location, toCredentials(connection));
-      } catch (err: any) {
-        logger.warn({ err: err.message, keyword }, "Google Ads stats call failed, falling back to Gemini AI");
+    if (googleAdsSuccess) {
+      // If Google Ads query succeeded, keep the source as google-keyword-planner
+      // even if Google Ads didn't have data for this specific keyword (default to 0/low metrics)
+      if (!metrics) {
+        metrics = {
+          keyword,
+          avgMonthlySearches: 0,
+          competition: "baixa",
+          lowCpc: 0,
+          highCpc: 0,
+          avgCpc: 0,
+          source: "google-keyword-planner"
+        };
+      } else {
+        metrics = {
+          keyword,
+          avgMonthlySearches: metrics.avgMonthlySearches,
+          competition: metrics.competition,
+          lowCpc: metrics.lowCpc,
+          highCpc: metrics.highCpc,
+          avgCpc: metrics.avgCpc,
+          source: "google-keyword-planner"
+        };
       }
-    }
-
-    if (!metrics) {
+    } else {
+      // If Google Ads was not connected or failed entirely, fall back to Gemini AI
       try {
         const aiMetrics = await getKeywordMetricsWithAI(keyword, location);
         const lowCpc = Math.round(aiMetrics.cpc * 0.7 * 100) / 100;
@@ -146,16 +175,6 @@ router.get("/keywords/stats", requireAuth, async (req: any, res) => {
           source: "local-fallback"
         };
       }
-    } else {
-      metrics = {
-        keyword,
-        avgMonthlySearches: metrics.avgMonthlySearches,
-        competition: metrics.competition,
-        lowCpc: metrics.lowCpc,
-        highCpc: metrics.highCpc,
-        avgCpc: metrics.avgCpc,
-        source: "google-keyword-planner"
-      };
     }
 
     results.push(metrics);
