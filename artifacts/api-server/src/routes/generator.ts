@@ -28,7 +28,7 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
 
   try {
     const desktopPage = await browser.newPage();
-    await desktopPage.setViewport({ width: 1920, height: 1080 });
+    await desktopPage.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 2 });
     
     // Set User-Agent to standard desktop browser
     await desktopPage.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
@@ -73,7 +73,8 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
       width: 390,
       height: 844,
       isMobile: true,
-      hasTouch: true
+      hasTouch: true,
+      deviceScaleFactor: 2
     });
     
     // Set standard mobile User-Agent
@@ -2796,12 +2797,15 @@ async function generateScreenshotBridgeHtml(input: {
   ${input.trackingTags}
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden !important;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: #ffffff;
-      min-height: 100vh;
       position: relative;
-      overflow-x: hidden;
     }
     
     /* Ambient blurred background layer */
@@ -2818,15 +2822,18 @@ async function generateScreenshotBridgeHtml(input: {
     }
     
     .site-background-container {
-      width: 100%;
-      max-width: 1920px;
-      margin: 0 auto;
-      position: relative;
+      position: fixed;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      overflow: hidden;
       z-index: 1;
     }
     .site-background-img {
       display: block;
       width: 100%;
+      max-width: 1920px;
       height: auto;
       pointer-events: none;
       -webkit-user-drag: none;
@@ -2843,7 +2850,8 @@ async function generateScreenshotBridgeHtml(input: {
         display: none;
       }
       .site-background-container {
-        width: 100%;
+        width: 100vw;
+        height: 100vh;
       }
       .site-background-img.ads-mobile-bg {
         display: block;
@@ -3320,12 +3328,15 @@ async function generateCleanBackgroundPresellHtml(input: {
   ${input.trackingTags}
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden !important;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: #ffffff;
-      min-height: 100vh;
       position: relative;
-      overflow-x: hidden;
     }
     
     /* Ambient blurred background layer */
@@ -3342,15 +3353,18 @@ async function generateCleanBackgroundPresellHtml(input: {
     }
     
     .site-background-container {
-      width: 100%;
-      max-width: 1920px;
-      margin: 0 auto;
-      position: relative;
+      position: fixed;
+      inset: 0;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      overflow: hidden;
       z-index: 1;
     }
     .site-background-img {
       display: block;
       width: 100%;
+      max-width: 1920px;
       height: auto;
       pointer-events: none;
       -webkit-user-drag: none;
@@ -3367,7 +3381,8 @@ async function generateCleanBackgroundPresellHtml(input: {
         display: none;
       }
       .site-background-container {
-        width: 100%;
+        width: 100vw;
+        height: 100vh;
       }
       .site-background-img.ads-mobile-bg {
         display: block;
