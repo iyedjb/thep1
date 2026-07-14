@@ -4010,11 +4010,8 @@ function injectCookieConsentOverlay(
 
   const productName = meta?.productName || "Produto";
   
-  // Resolve / generate SEO description if empty
-  let seoDesc = meta?.seoDescription || "";
-  if (!seoDesc) {
-    seoDesc = localization.descTemplate.replace("{prod}", productName);
-  }
+  // ALWAYS generate a safe, generic SEO description to prevent Google Ads policy violations
+  let seoDesc = localization.descTemplate.replace("{prod}", productName);
 
   // Resolve formula/spec/digital label and value
   let labelFormulaResolved = localization.labelFormula;
@@ -4279,12 +4276,6 @@ function injectCookieConsentOverlay(
             <span class="ads-seo-check">✓</span>
             <span><strong>${localization.labelInfoRelevante}:</strong> ${localization.valInfoRelevante}</span>
           </li>
-          ${seoDetails.map(item => `
-            <li class="ads-seo-item">
-              <span class="ads-seo-check">✓</span>
-              <span>${item}</span>
-            </li>
-          `).join('')}
         </ul>
       </div>
     </div>
