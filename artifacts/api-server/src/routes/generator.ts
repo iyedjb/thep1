@@ -2855,8 +2855,10 @@ async function generateScreenshotBridgeHtml(input: {
       }
       .site-background-img.ads-mobile-bg {
         display: block;
-        width: 100%;
-        height: auto;
+        width: 100vw;
+        height: 100vh;
+        object-fit: cover;
+        object-position: center top;
       }
       .ads-desktop-bg {
         display: none;
@@ -3386,8 +3388,10 @@ async function generateCleanBackgroundPresellHtml(input: {
       }
       .site-background-img.ads-mobile-bg {
         display: block;
-        width: 100%;
-        height: auto;
+        width: 100vw;
+        height: 100vh;
+        object-fit: cover;
+        object-position: center top;
       }
       .ads-desktop-bg {
         display: none;
