@@ -118,14 +118,14 @@ export default function Login() {
   };
 
   return (
-    <AuthShell eyebrow="Bem-vindo de volta" title="Entre na sua conta ClickLab" description="Insira seus dados para acessar o painel e gerenciar suas campanhas.">
+    <AuthShell eyebrow="Bem-vindo de volta" title="Entre na sua conta ClicLab" description="Insira seus dados para acessar o painel e gerenciar suas campanhas.">
       {/* Google OAuth Official Button */}
       <div id="google-button-container" className="w-full flex justify-center h-12 mb-2 [&>div]:w-full [&>div]:flex [&>div]:justify-center"></div>
 
       <div className="my-6 flex items-center gap-4">
-        <span className="h-px flex-1 bg-border/40" />
-        <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground/60">ou com e-mail e senha</span>
-        <span className="h-px flex-1 bg-border/40" />
+        <span className="h-px flex-1 bg-slate-200" />
+        <span className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">ou com e-mail e senha</span>
+        <span className="h-px flex-1 bg-slate-200" />
       </div>
 
       <Form {...form}>
@@ -135,13 +135,13 @@ export default function Login() {
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel className="text-xs font-semibold text-foreground/70">E-mail</FormLabel>
+                <FormLabel className="text-xs font-semibold text-slate-600">E-mail</FormLabel>
                 <FormControl>
                   <Input
                     placeholder="voce@empresa.com"
                     autoComplete="email"
                     {...field}
-                    className="h-12 rounded-xl border-border/60 bg-white/5 px-4 text-foreground placeholder:text-muted-foreground/40 focus-visible:border-primary/60 focus-visible:ring-1 focus-visible:ring-primary/30 transition-all"
+                    className="h-12 rounded-xl border-slate-200 bg-white px-4 text-slate-900 placeholder:text-slate-400 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/20 shadow-sm transition-all"
                     data-testid="input-email"
                   />
                 </FormControl>
@@ -155,7 +155,7 @@ export default function Login() {
             render={({ field }) => (
               <FormItem>
                 <div className="flex items-center justify-between">
-                  <FormLabel className="text-xs font-semibold text-foreground/70">Senha</FormLabel>
+                  <FormLabel className="text-xs font-semibold text-slate-600">Senha</FormLabel>
                 </div>
                 <FormControl>
                   <div className="relative">
@@ -164,13 +164,13 @@ export default function Login() {
                       placeholder="••••••••"
                       autoComplete="current-password"
                       {...field}
-                      className="h-12 rounded-xl border-border/60 bg-white/5 px-4 pr-12 text-foreground placeholder:text-muted-foreground/40 focus-visible:border-primary/60 focus-visible:ring-1 focus-visible:ring-primary/30 transition-all"
+                      className="h-12 rounded-xl border-slate-200 bg-white px-4 pr-12 text-slate-900 placeholder:text-slate-400 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/20 shadow-sm transition-all"
                       data-testid="input-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground/50 transition-colors hover:text-foreground"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600"
                       aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -198,7 +198,7 @@ export default function Login() {
         </form>
       </Form>
 
-      <p className="mt-8 text-center text-sm text-muted-foreground">
+      <p className="mt-8 text-center text-sm text-slate-500">
         Ainda não tem uma conta?{" "}
         <Link href="/signup" className="font-semibold text-primary hover:text-primary/80 transition-colors">
           Criar conta

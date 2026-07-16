@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { LayoutDashboard, Target, FileText, LogOut, TrendingUp, Sparkles, Globe, CheckCircle2 } from "lucide-react";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
+import { Logo } from "./logo";
 
 type GoogleAdsStatus = {
   configured: boolean;
@@ -81,19 +82,7 @@ export function AppSidebar() {
       {/* Logo + Account ID */}
       <SidebarHeader className="px-5 pt-5 pb-4 border-b border-sidebar-border/40 space-y-4">
         <Link href="/dashboard" className="flex items-center gap-3 group select-none">
-          <div className="relative flex h-11 w-11 items-center justify-center transition-colors">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8 text-primary">
-              <rect x="3" y="15" width="2.5" height="5" rx="0.5" />
-              <rect x="8" y="11" width="2.5" height="9" rx="0.5" />
-              <rect x="13" y="8" width="2.5" height="12" rx="0.5" />
-              <rect x="18" y="5" width="2.5" height="15" rx="0.5" />
-              <path d="M2 13C6 11 12 7 21 3" />
-              <path d="M16 3h5v5" />
-            </svg>
-          </div>
-          <div className="flex flex-col leading-none">
-            <span className="text-lg font-extrabold text-sidebar-foreground tracking-tight">ClickLab</span>
-          </div>
+          <Logo iconSize={32} textClass="text-sidebar-foreground" />
         </Link>
 
         {/* Google Ads account chip */}

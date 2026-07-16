@@ -81,7 +81,7 @@ export function Layout({ children }: { children: ReactNode }) {
     }
   };
 
-  const pageTitle = PAGE_TITLES[location] || "ClickLab";
+  const pageTitle = PAGE_TITLES[location] || "ClicLab";
 
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof document !== "undefined") {

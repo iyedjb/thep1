@@ -57,7 +57,7 @@ export default function Signup() {
 
   return (
     <AuthShell eyebrow="Comece agora" title="Crie sua conta" description="Organize seus dados de mídia e encontre oportunidades com mais rapidez.">
-      <Link href="/login" className="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:text-primary">
+      <Link href="/login" className="mb-6 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition-colors hover:text-primary">
         <ArrowLeft className="h-3.5 w-3.5" /> Voltar ao login
       </Link>
 
@@ -65,13 +65,13 @@ export default function Signup() {
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
           <FormField control={form.control} name="name" render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-xs font-semibold text-foreground/70">Nome completo</FormLabel>
+              <FormLabel className="text-xs font-semibold text-slate-600">Nome completo</FormLabel>
               <FormControl>
                 <Input
                   placeholder="Como podemos chamar você?"
                   autoComplete="name"
                   {...field}
-                  className="h-12 rounded-xl border-border/60 bg-white/5 px-4 text-foreground placeholder:text-muted-foreground/40 focus-visible:border-primary/60 focus-visible:ring-1 focus-visible:ring-primary/30 transition-all"
+                  className="h-12 rounded-xl border-slate-200 bg-white px-4 text-slate-900 placeholder:text-slate-400 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/20 shadow-sm transition-all"
                 />
               </FormControl>
               <FormMessage />
@@ -79,13 +79,13 @@ export default function Signup() {
           )} />
           <FormField control={form.control} name="email" render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-xs font-semibold text-foreground/70">E-mail</FormLabel>
+              <FormLabel className="text-xs font-semibold text-slate-600">E-mail</FormLabel>
               <FormControl>
                 <Input
                   placeholder="voce@empresa.com"
                   autoComplete="email"
                   {...field}
-                  className="h-12 rounded-xl border-border/60 bg-white/5 px-4 text-foreground placeholder:text-muted-foreground/40 focus-visible:border-primary/60 focus-visible:ring-1 focus-visible:ring-primary/30 transition-all"
+                  className="h-12 rounded-xl border-slate-200 bg-white px-4 text-slate-900 placeholder:text-slate-400 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/20 shadow-sm transition-all"
                 />
               </FormControl>
               <FormMessage />
@@ -93,7 +93,7 @@ export default function Signup() {
           )} />
           <FormField control={form.control} name="password" render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-xs font-semibold text-foreground/70">Senha</FormLabel>
+              <FormLabel className="text-xs font-semibold text-slate-600">Senha</FormLabel>
               <FormControl>
                 <div className="relative">
                   <Input
@@ -101,12 +101,12 @@ export default function Signup() {
                     placeholder="Crie uma senha segura"
                     autoComplete="new-password"
                     {...field}
-                    className="h-12 rounded-xl border-border/60 bg-white/5 px-4 pr-12 text-foreground placeholder:text-muted-foreground/40 focus-visible:border-primary/60 focus-visible:ring-1 focus-visible:ring-primary/30 transition-all"
+                    className="h-12 rounded-xl border-slate-200 bg-white px-4 pr-12 text-slate-900 placeholder:text-slate-400 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/20 shadow-sm transition-all"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((value) => !value)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground/50 transition-colors hover:text-foreground"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600"
                     aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -117,10 +117,10 @@ export default function Signup() {
             </FormItem>
           )} />
 
-          <div className="grid grid-cols-2 gap-2 rounded-xl bg-white/5 border border-border/40 p-3.5">
+          <div className="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 border border-slate-200 p-3.5">
             {rules.map((rule) => (
-              <div key={rule.label} className={`flex items-center gap-1.5 text-[11px] ${rule.valid ? "font-medium text-emerald-400" : "text-muted-foreground/60"}`}>
-                <span className={`flex h-4 w-4 items-center justify-center rounded-full ${rule.valid ? "bg-emerald-500/20 text-emerald-400" : "bg-white/10 text-muted-foreground/40"}`}>
+              <div key={rule.label} className={`flex items-center gap-1.5 text-[11px] ${rule.valid ? "font-medium text-emerald-600" : "text-slate-400"}`}>
+                <span className={`flex h-4 w-4 items-center justify-center rounded-full ${rule.valid ? "bg-emerald-100 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
                   {rule.valid && <Check className="h-2.5 w-2.5" />}
                 </span>
                 {rule.label}
@@ -138,7 +138,7 @@ export default function Signup() {
         </form>
       </Form>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
+      <p className="mt-6 text-center text-sm text-slate-500">
         Já tem uma conta?{" "}
         <Link href="/login" className="font-semibold text-primary hover:text-primary/80 transition-colors">
           Entrar
