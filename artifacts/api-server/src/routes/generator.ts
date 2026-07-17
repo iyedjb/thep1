@@ -766,7 +766,20 @@ function extractProductName(url: string): string {
   try {
     const hostname = new URL(url).hostname.replace(/^www\./, "");
     const parts = hostname.split(".");
-    return parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+    
+    let candidate = parts[0];
+    if (parts.length >= 3) {
+      const subdomain = parts[0].toLowerCase();
+      // Skip tracking-like short subdomains to target the actual brand domain
+      const isTrackingSubdomain = subdomain.length <= 6 || 
+        ["click", "track", "offer", "promo", "app", "go", "link", "aff", "lp", "flow", "page", "prod", "official"].includes(subdomain);
+      
+      if (isTrackingSubdomain) {
+        candidate = parts[1];
+      }
+    }
+    
+    return candidate.charAt(0).toUpperCase() + candidate.slice(1);
   } catch {
     return "Produto Oficial";
   }
