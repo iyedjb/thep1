@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Search, TrendingUp, Globe, MapPin, Sparkles, AlertCircle, Users, Heart, Cpu, Coins, Plus, Check, Loader2, BookOpen, Smartphone, Monitor, Trophy, X, Edit3 } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, PieChart, Pie, Cell } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, PieChart, Pie, Cell, AreaChart, Area, CartesianGrid } from "recharts";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useCreateKeyword, getListKeywordsQueryKey, customFetch } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -330,6 +330,35 @@ export default function Trends() {
 
   const computedTimeRange = timeRange === "custom" ? `${customStartDate} ${customEndDate}` : timeRange;
   const demographics = getDemographicsForKeyword(activeKeyword);
+
+  // Google Trends API state
+  const [trendsData, setTrendsData] = useState<any>(null);
+  const [loadingTrends, setLoadingTrends] = useState(false);
+  const [viewMode, setViewMode] = useState<"native" | "google">("native");
+
+  useEffect(() => {
+    if (!activeKeyword) {
+      setTrendsData(null);
+      return;
+    }
+
+    const fetchTrendsData = async () => {
+      setLoadingTrends(true);
+      try {
+        const kwsParam = activeKeywords.join(",");
+        const res = await customFetch<any>(
+          `/api/trends?keyword=${encodeURIComponent(kwsParam)}&geo=${encodeURIComponent(geo)}&timeRange=${encodeURIComponent(computedTimeRange)}`
+        );
+        setTrendsData(res);
+      } catch (err) {
+        console.error("Failed to fetch Google Trends data from API:", err);
+      } finally {
+        setLoadingTrends(false);
+      }
+    };
+
+    fetchTrendsData();
+  }, [activeKeywords, geo, computedTimeRange]);
   const normalizeString = (str: string) => 
     str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
@@ -740,24 +769,121 @@ export default function Trends() {
           </div>
 
           {activeKeyword ? (
-            <div className="grid gap-6 md:grid-cols-7">
-              {/* Interest Over Time */}
-              <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
-                    Interesse ao longo do tempo para: {activeKeywords.join(", ")}
-                  </CardTitle>
-                  <CardDescription>Visualização interativa da popularidade de buscas históricas do Google.</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <GoogleTrendsWidget
-                    keyword={keyword}
-                    geo={geo}
-                    timeRange={computedTimeRange}
-                    type="TIMESERIES"
-                  />
-                </CardContent>
-              </Card>
+            <div className="space-y-6">
+              {/* View Mode Toggle */}
+              <div className="flex justify-end animate-in fade-in duration-200">
+                <div className="flex items-center gap-1.5 p-1 bg-muted/40 border border-border/25 rounded-xl">
+                  <Button
+                    variant={viewMode === "native" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setViewMode("native")}
+                    className={`rounded-lg text-xs h-7 font-semibold px-3 transition-all ${
+                      viewMode === "native" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                    }`}
+                  >
+                    <TrendingUp className="h-3.5 w-3.5 mr-1 text-primary" />
+                    Gráfico Nativo (100% Estável)
+                  </Button>
+                  <Button
+                    variant={viewMode === "google" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setViewMode("google")}
+                    className={`rounded-lg text-xs h-7 font-semibold px-3 transition-all ${
+                      viewMode === "google" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                    }`}
+                  >
+                    <Globe className="h-3.5 w-3.5 mr-1 text-primary" />
+                    Widget Google (Oficial)
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-7">
+                {/* Interest Over Time */}
+                <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
+                      {viewMode === "native" ? (
+                        <TrendingUp className="h-5 w-5 text-primary" />
+                      ) : null}
+                      Interesse ao longo do tempo para: {activeKeywords.join(", ")}
+                    </CardTitle>
+                    <CardDescription>
+                      {viewMode === "native" 
+                        ? "Histórico de popularidade de buscas estimadas pelo ClicqLab." 
+                        : "Visualização interativa da popularidade de buscas históricas do Google."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    {viewMode === "google" ? (
+                      <GoogleTrendsWidget
+                        keyword={keyword}
+                        geo={geo}
+                        timeRange={computedTimeRange}
+                        type="TIMESERIES"
+                      />
+                    ) : loadingTrends ? (
+                      <div className="flex flex-col items-center justify-center h-[350px]">
+                        <Loader2 className="h-8 w-8 text-primary animate-spin mb-2" />
+                        <span className="text-sm text-muted-foreground">Carregando gráfico nativo...</span>
+                      </div>
+                    ) : trendsData?.interestOverTime ? (
+                      <div className="h-[350px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={trendsData.interestOverTime} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4}/>
+                                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.01}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
+                            <XAxis 
+                              dataKey="date" 
+                              className="text-xs text-muted-foreground" 
+                              tickLine={false} 
+                              axisLine={false}
+                            />
+                            <YAxis 
+                              className="text-xs text-muted-foreground" 
+                              tickLine={false} 
+                              axisLine={false}
+                              domain={[0, 100]}
+                            />
+                            <RechartsTooltip
+                              content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  return (
+                                    <div className="bg-popover border border-border/80 p-3 rounded-xl shadow-lg">
+                                      <p className="text-xs font-semibold text-muted-foreground uppercase">{payload[0].payload.date}</p>
+                                      <p className="text-sm font-bold text-foreground mt-0.5">
+                                        Interesse: <span className="text-primary">{payload[0].value}</span>
+                                      </p>
+                                    </div>
+                                  );
+                                }
+                                // Return fallback if active is false but data exists (just for layout stability)
+                                return null;
+                              }}
+                            />
+                            <Area 
+                              type="monotone" 
+                              dataKey="value" 
+                              stroke="hsl(var(--primary))" 
+                              strokeWidth={2.5}
+                              fillOpacity={1} 
+                              fill="url(#colorValue)" 
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-[350px] border border-dashed rounded-xl text-muted-foreground text-sm">
+                        Nenhum dado de interesse disponível.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
               {/* Keyword Auction & CPC Metrics Card */}
               <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)] animate-in fade-in duration-200">
@@ -857,12 +983,57 @@ export default function Trends() {
                   <CardDescription>Distribuição de buscas nos principais mercados geográficos do Google.</CardDescription>
                 </CardHeader>
                 <CardContent className="pt-4">
-                  <GoogleTrendsWidget
-                    keyword={keyword}
-                    geo={geo}
-                    timeRange={computedTimeRange}
-                    type="GEO_MAP"
-                  />
+                  {viewMode === "google" ? (
+                    <GoogleTrendsWidget
+                      keyword={keyword}
+                      geo={geo}
+                      timeRange={computedTimeRange}
+                      type="GEO_MAP"
+                    />
+                  ) : loadingTrends ? (
+                    <div className="flex flex-col items-center justify-center h-[300px]">
+                      <Loader2 className="h-8 w-8 text-primary animate-spin mb-2" />
+                      <span className="text-sm text-muted-foreground">Carregando dados de região...</span>
+                    </div>
+                  ) : trendsData?.interestByRegion ? (
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={trendsData.interestByRegion}
+                          layout="vertical"
+                          margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" horizontal={false} />
+                          <XAxis type="number" className="text-xs text-muted-foreground" tickLine={false} axisLine={false} domain={[0, 100]} />
+                          <YAxis dataKey="region" type="category" className="text-xs text-muted-foreground font-semibold" tickLine={false} axisLine={false} width={130} />
+                          <RechartsTooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="bg-popover border border-border/80 p-3 rounded-xl shadow-lg">
+                                    <p className="text-xs font-semibold text-muted-foreground">{payload[0].payload.region}</p>
+                                    <p className="text-sm font-bold text-foreground mt-0.5">
+                                      Popularidade: <span className="text-primary">{payload[0].value}%</span>
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 8, 8, 0]} barSize={16}>
+                            {trendsData.interestByRegion.map((entry: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill={`hsl(var(--primary) / ${1 - index * 0.15})`} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-[300px] border border-dashed rounded-xl text-muted-foreground text-sm">
+                      Nenhum dado geográfico disponível.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -904,22 +1075,59 @@ export default function Trends() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-2">
-                  {selectedQueryTab ? (
-                    <GoogleTrendsWidget
-                      key={selectedQueryTab} // Forces remount and new load when tab changes
-                      keyword={selectedQueryTab}
-                      geo={geo}
-                      timeRange={computedTimeRange}
-                      type="RELATED_QUERIES"
-                    />
+                  {viewMode === "google" ? (
+                    selectedQueryTab ? (
+                      <GoogleTrendsWidget
+                        key={selectedQueryTab} // Forces remount and new load when tab changes
+                        keyword={selectedQueryTab}
+                        geo={geo}
+                        timeRange={computedTimeRange}
+                        type="RELATED_QUERIES"
+                      />
+                    ) : (
+                      <div className="p-8 text-center text-muted-foreground text-sm">
+                        Selecione ou adicione um termo para carregar consultas relacionadas.
+                      </div>
+                    )
+                  ) : loadingTrends ? (
+                    <div className="flex flex-col items-center justify-center h-[200px]">
+                      <Loader2 className="h-8 w-8 text-primary animate-spin mb-2" />
+                      <span className="text-sm text-muted-foreground">Carregando consultas relacionadas...</span>
+                    </div>
+                  ) : trendsData?.relatedQueries && trendsData.relatedQueries.length > 0 ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {trendsData.relatedQueries.map((query: string, index: number) => (
+                        <div 
+                          key={query} 
+                          className="flex items-center justify-between p-3.5 rounded-xl border border-border/40 bg-card/40 hover:border-border/80 transition-all group animate-in fade-in duration-200"
+                          style={{ animationDelay: `${index * 50}ms` }}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
+                              {index + 1}
+                            </span>
+                            <span className="text-sm font-medium text-foreground">{query}</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleAnalyzeOnTrends(query)}
+                            className="h-8 rounded-lg text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            Analisar
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
-                    <div className="p-8 text-center text-muted-foreground text-sm">
-                      Selecione ou adicione um termo para carregar consultas relacionadas.
+                    <div className="flex items-center justify-center h-[200px] border border-dashed rounded-xl text-muted-foreground text-sm">
+                      Nenhuma consulta relacionada disponível.
                     </div>
                   )}
                 </CardContent>
               </Card>
             </div>
+          </div>
           ) : (
             <Card className="border border-dashed rounded-2xl flex flex-col items-center justify-center p-12 text-center text-muted-foreground">
               <AlertCircle className="h-10 w-10 text-muted-foreground/60 mb-2" />
