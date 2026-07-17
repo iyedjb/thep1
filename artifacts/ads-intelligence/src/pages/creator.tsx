@@ -39,6 +39,7 @@ import {
   Zap,
   Layout,
   Layers,
+  Tag,
 } from "lucide-react";
 
 type Step = "form" | "generating" | "done" | "actions";
@@ -509,6 +510,24 @@ export default function Creator() {
                             onChange={(e) => setReferenceUrl(e.target.value)}
                             className="pl-9 rounded-xl h-11 bg-muted/40 border-border focus-visible:ring-primary text-xs font-mono placeholder:text-muted-foreground/60"
                             required
+                          />
+                        </div>
+                      </div>
+
+                      {/* Product Name (Optional) */}
+                      <div className="space-y-2">
+                        <Label htmlFor="product-name" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                          Nome do Produto (Opcional)
+                        </Label>
+                        <div className="relative">
+                          <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            id="product-name"
+                            type="text"
+                            placeholder="Ex: Reulex (Se vazio, tenta extrair do site)"
+                            value={productName}
+                            onChange={(e) => setProductName(e.target.value)}
+                            className="pl-9 rounded-xl h-11 bg-muted/40 border-border focus-visible:ring-primary text-xs placeholder:text-muted-foreground/60"
                           />
                         </div>
                       </div>
