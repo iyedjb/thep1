@@ -58,7 +58,14 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
     }
 
     logger.info("Navigating desktop page...");
-    await desktopPage.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+    try {
+      await desktopPage.goto(url, { waitUntil: 'networkidle2', timeout: 20000 });
+    } catch (e: any) {
+      logger.warn({ err: e.message }, "Desktop navigation timed out or failed, attempting capture anyway...");
+    }
+    
+    // Wait 3 seconds for animations, lazy images, and layouts to settle
+    await new Promise(resolve => setTimeout(resolve, 3000));
     
     // Hide scrollbars before screenshot
     await desktopPage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
@@ -105,11 +112,13 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
     }
 
     logger.info("Navigating mobile page...");
-    await mobilePage.goto(url, { waitUntil: 'load', timeout: 30000 });
+    try {
+      await mobilePage.goto(url, { waitUntil: 'load', timeout: 20000 });
+    } catch (e: any) {
+      logger.warn({ err: e.message }, "Mobile navigation timed out or failed, attempting capture anyway...");
+    }
     
     // Wait for the page content to actually render on the mobile viewport.
-    // Many sites serve different content or use JS-driven rendering for mobile,
-    // which means networkidle2 fires before visible content appears.
     await new Promise(resolve => setTimeout(resolve, 3000));
     
     // Also try to wait for the body to have meaningful content height
@@ -3357,17 +3366,15 @@ async function generateCleanBackgroundPresellHtml(input: {
     .site-background-container {
       position: fixed;
       inset: 0;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
       overflow: hidden;
       z-index: 1;
     }
     .site-background-img {
       display: block;
-      width: 100%;
-      max-width: 1920px;
-      height: auto;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      object-position: center top;
       pointer-events: none;
       -webkit-user-drag: none;
       user-select: none;
@@ -3382,16 +3389,8 @@ async function generateCleanBackgroundPresellHtml(input: {
       .ambient-bg {
         display: none;
       }
-      .site-background-container {
-        width: 100vw;
-        height: 100vh;
-      }
       .site-background-img.ads-mobile-bg {
         display: block;
-        width: 100vw;
-        height: 100vh;
-        object-fit: cover;
-        object-position: center top;
       }
       .ads-desktop-bg {
         display: none;
