@@ -2792,6 +2792,11 @@ async function generateScreenshotBridgeHtml(input: {
     faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
   } catch (_) {}
 
+  const localization = COOKIE_LOCALIZATION[lang] || COOKIE_LOCALIZATION["en"];
+  let seoDesc = localization.descTemplate.replace("{prod}", product);
+  seoDesc += ` ${localization.valPrecoGenericFallback} ${localization.ctaOffer}`;
+  seoDesc = rewriteClaimsWithLocalDictionary(seoDesc);
+
   // Generate background presell layout with the high-resolution screenshot
   const cleanHtml = `<!DOCTYPE html>
 <html lang="${lang}">
@@ -2799,6 +2804,7 @@ async function generateScreenshotBridgeHtml(input: {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${product}</title>
+  <meta name="description" content="${seoDesc}" />
   <meta name="robots" content="index, follow" />
   <link rel="preload" as="image" href="${thumIoUrl}" />
   <link rel="preload" as="image" href="${mobileThumIoUrl}" />
@@ -2833,17 +2839,15 @@ async function generateScreenshotBridgeHtml(input: {
     .site-background-container {
       position: fixed;
       inset: 0;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
       overflow: hidden;
       z-index: 1;
     }
     .site-background-img {
       display: block;
-      width: 100%;
-      max-width: 1920px;
-      height: auto;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      object-position: center top;
       pointer-events: none;
       -webkit-user-drag: none;
       user-select: none;
@@ -2858,16 +2862,8 @@ async function generateScreenshotBridgeHtml(input: {
       .ambient-bg {
         display: none;
       }
-      .site-background-container {
-        width: 100vw;
-        height: 100vh;
-      }
       .site-background-img.ads-mobile-bg {
         display: block;
-        width: 100vw;
-        height: 100vh;
-        object-fit: cover;
-        object-position: center top;
       }
       .ads-desktop-bg {
         display: none;
@@ -3328,12 +3324,18 @@ async function generateCleanBackgroundPresellHtml(input: {
     }
   }
 
+  const localization = COOKIE_LOCALIZATION[lang] || COOKIE_LOCALIZATION["en"];
+  let seoDesc = localization.descTemplate.replace("{prod}", product);
+  seoDesc += ` ${localization.valPrecoGenericFallback} ${localization.ctaOffer}`;
+  seoDesc = rewriteClaimsWithLocalDictionary(seoDesc);
+
   return `<!DOCTYPE html>
 <html lang="${lang}">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${product}</title>
+  <meta name="description" content="${seoDesc}" />
   <meta name="robots" content="index, follow" />
   ${faviconUrl ? `<link rel="icon" href="${faviconUrl}">` : ""}
   ${input.trackingTags}
@@ -4414,6 +4416,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         : { productName: productHint || extractProductName(finalUrl), primaryColor: "#16a34a", productImageUrl: "" };
         
       const resolvedProductName = productHint || meta.productName || extractProductName(finalUrl);
+      meta.productName = resolvedProductName;
       detectedLang = detectLandingPageLanguage(rawHtmlString, finalUrl, popupLanguage, meta);
 
       let finalThankYouUrl = thankYouUrl;
