@@ -28,7 +28,7 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
 
   try {
     const desktopPage = await browser.newPage();
-    await desktopPage.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 2 });
+    await desktopPage.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
     
     // Set User-Agent to standard desktop browser
     await desktopPage.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
@@ -70,8 +70,8 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
     // Hide scrollbars before screenshot
     await desktopPage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
 
-    const desktopBuffer = (await desktopPage.screenshot({ fullPage: false, type: 'png' })) as Buffer;
-    const desktopBase64 = `data:image/png;base64,${desktopBuffer.toString('base64')}`;
+    const desktopBuffer = (await desktopPage.screenshot({ fullPage: false, type: 'jpeg', quality: 70 })) as Buffer;
+    const desktopBase64 = `data:image/jpeg;base64,${desktopBuffer.toString('base64')}`;
 
     const mobilePage = await browser.newPage();
     
@@ -81,7 +81,7 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
       height: 844,
       isMobile: true,
       hasTouch: true,
-      deviceScaleFactor: 2
+      deviceScaleFactor: 1
     });
     
     // Set standard mobile User-Agent
@@ -135,8 +135,8 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
     // Hide scrollbars
     await mobilePage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
 
-    const mobileBuffer = (await mobilePage.screenshot({ fullPage: false, type: 'png' })) as Buffer;
-    const mobileBase64 = `data:image/png;base64,${mobileBuffer.toString('base64')}`;
+    const mobileBuffer = (await mobilePage.screenshot({ fullPage: false, type: 'jpeg', quality: 70 })) as Buffer;
+    const mobileBase64 = `data:image/jpeg;base64,${mobileBuffer.toString('base64')}`;
 
     logger.info("Puppeteer screenshots captured successfully!");
     return { desktop: desktopBase64, mobile: mobileBase64 };
