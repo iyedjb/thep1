@@ -168,10 +168,27 @@ function GoogleTrendsWidget({ keyword, geo, timeRange, type }: WidgetProps) {
     }
 
     const geoCode = COUNTRY_CODES[geo] || "";
-    const timeCode = timeRange === "12m" ? "today 12-m" :
-                     timeRange === "30d" ? "today 1-m" :
-                     timeRange === "7d" ? "now 7-d" :
-                     timeRange;
+    const timeCodeRaw = timeRange === "12m" ? "today 12-m" :
+                        timeRange === "30d" ? "today 1-m" :
+                        timeRange === "7d" ? "now 7-d" :
+                        timeRange;
+
+    // Convert custom date format "DD/MM/YYYY DD/MM/YYYY" to "YYYY-MM-DD YYYY-MM-DD"
+    let timeCode = timeCodeRaw;
+    if (timeCodeRaw && timeCodeRaw.includes(" ") && !timeCodeRaw.startsWith("today") && !timeCodeRaw.startsWith("now")) {
+      const parts = timeCodeRaw.split(" ");
+      if (parts.length === 2) {
+        const convertDate = (d: string) => {
+          const dParts = d.split("/");
+          if (dParts.length === 3) {
+            // [DD, MM, YYYY] -> YYYY-MM-DD
+            return `${dParts[2]}-${dParts[1]}-${dParts[0]}`;
+          }
+          return d;
+        };
+        timeCode = `${convertDate(parts[0])} ${convertDate(parts[1])}`;
+      }
+    }
 
     const scriptId = "google-trends-embed-loader";
     let script = document.getElementById(scriptId) as HTMLScriptElement | null;
@@ -334,7 +351,7 @@ export default function Trends() {
   // Google Trends API state
   const [trendsData, setTrendsData] = useState<any>(null);
   const [loadingTrends, setLoadingTrends] = useState(false);
-  const [viewMode, setViewMode] = useState<"native" | "google">("native");
+  const [viewMode, setViewMode] = useState<"native" | "google">("google");
 
   useEffect(() => {
     if (!activeKeyword) {

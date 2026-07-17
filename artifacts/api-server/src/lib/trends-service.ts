@@ -42,7 +42,7 @@ Forneça os seguintes dados em formato JSON estrito:
   ]
 }
 Nota: 
-- interestOverTime deve conter exatamente 12 pontos mensais correspondendo aos últimos 12 meses terminando no mês atual (ex: Jun a Mai).
+- interestOverTime deve conter pontos correspondentes e coerentes com o período solicitado "${timeRange}". Se for um período curto (ex: 7 dias, 30 dias ou período customizado com datas de início e fim), retorne pontos diários (com datas formatadas como "DD/MM"). Se for 12 meses (12m), retorne exatamente 12 pontos mensais correspondendo aos últimos 12 meses terminando no mês atual (ex: Jun a Mai).
 - interestByRegion deve conter os 5 principais países ou regiões de maior volume, ordenados por valor (máximo 100).
 - relatedQueries deve conter até 5 consultas relacionadas.
 
@@ -65,32 +65,79 @@ Responda APENAS o JSON, sem markdown, sem code blocks, sem texto adicional.`;
   }
 
   // Fallback to high-fidelity local trends generator
-  return generateLocalTrendsData(keyword, geo);
+  return generateLocalTrendsData(keyword, geo, timeRange);
 }
 
-function generateLocalTrendsData(keyword: string, geo: string): TrendsData {
-  const months = ["Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez", "Jan", "Fev", "Mar", "Abr", "Mai"];
-  
+function generateLocalTrendsData(keyword: string, geo: string, timeRange: string = "12m"): TrendsData {
+  let dates: string[] = [];
+  const normalizedTime = timeRange.trim();
+
+  if (normalizedTime === "7d") {
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      dates.push(`${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+  } else if (normalizedTime === "30d") {
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      dates.push(`${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+  } else if (normalizedTime.includes(" ") || normalizedTime.includes("/") || normalizedTime.includes("-")) {
+    try {
+      const parts = normalizedTime.split(" ");
+      let startStr = parts[0];
+      let endStr = parts[1];
+
+      const parseDateStr = (s: string) => {
+        if (s.includes("/")) {
+          const dp = s.split("/");
+          if (dp.length === 3) {
+            return new Date(Number(dp[2]), Number(dp[1]) - 1, Number(dp[0]));
+          }
+        }
+        return new Date(s);
+      };
+
+      const startDate = parseDateStr(startStr);
+      const endDate = parseDateStr(endStr);
+      
+      if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime())) {
+        const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const limitDays = Math.min(90, diffDays); // cap at 90 days to avoid UI clutter
+        
+        for (let i = 0; i <= limitDays; i++) {
+          const d = new Date(startDate);
+          d.setDate(startDate.getDate() + i);
+          dates.push(`${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`);
+        }
+      }
+    } catch (_) {
+      // ignore, fallback will handle
+    }
+  }
+
+  // Fallback to 12 months list if dates is empty
+  if (dates.length === 0) {
+    dates = ["Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez", "Jan", "Fev", "Mar", "Abr", "Mai"];
+  }
+
   // Create a realistic interest over time wave
   const baseValue = 40 + Math.random() * 30;
-  const interestOverTime = months.map((month, idx) => {
-    // Generate a natural-looking curve with some seasonal peaks
-    const factor = Math.sin((idx / 12) * Math.PI * 2) * 20;
+  const interestOverTime = dates.map((date, idx) => {
+    const factor = Math.sin((idx / dates.length) * Math.PI * 2) * 20;
     const randomNoise = Math.random() * 15 - 7.5;
-    
-    // Add holiday season peak if it's Nov/Dec
-    let holidayPeak = 0;
-    if (month === "Nov" || month === "Dez") {
-      holidayPeak = 15;
-    }
-
-    const value = Math.min(100, Math.max(10, Math.round(baseValue + factor + holidayPeak + randomNoise)));
-    return { date: month, value };
+    const value = Math.min(100, Math.max(10, Math.round(baseValue + factor + randomNoise)));
+    return { date, value };
   });
 
-  // Ensure there is at least one month peaking at 100 (Google Trends standard)
-  const maxIdx = interestOverTime.reduce((max, item, idx, arr) => item.value > arr[max].value ? idx : max, 0);
-  interestOverTime[maxIdx].value = 100;
+  // Ensure there is at least one data point peaking at 100
+  if (interestOverTime.length > 0) {
+    const maxIdx = interestOverTime.reduce((max, item, idx, arr) => item.value > arr[max].value ? idx : max, 0);
+    interestOverTime[maxIdx].value = 100;
+  }
 
   // Generate realistic regions based on keyword language detection
   const isPortuguese = /[áéíóúãõç]/i.test(keyword) || 
