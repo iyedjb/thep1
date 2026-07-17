@@ -38,6 +38,16 @@ RUN pnpm run build
 # ---- Runner ----
 FROM node:22-slim AS runner
 
+# Install Chromium and support fonts for Puppeteer PDF/screenshot rendering
+RUN apt-get update && apt-get install -y \
+    chromium \
+    fonts-ipafont-gothic \
+    fonts-wqy-zenhei \
+    fonts-kacst \
+    fonts-freefont-ttf \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN npm install -g pnpm@11
 
 WORKDIR /app
@@ -48,5 +58,7 @@ COPY --from=builder /app /app
 EXPOSE 3001
 
 ENV NODE_ENV=production
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 
 CMD ["pnpm", "start"]
