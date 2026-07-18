@@ -3,6 +3,7 @@ import { requireAuth } from "./auth";
 import fs from "fs";
 import path from "path";
 import { logger } from "../lib/logger";
+import { getDb } from "../lib/sqlite";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import puppeteer from "puppeteer";
 
@@ -4793,6 +4794,151 @@ router.delete("/delete-bridge", requireAuth, (req, res) => {
   } catch (err: any) {
     logger.error({ err: err.message }, "Failed to delete bridge page");
     res.status(500).json({ error: `Failed to delete: ${err.message}` });
+  }
+});
+
+router.get("/presells", requireAuth, async (req: any, res) => {
+  try {
+    const db = getDb();
+    const rows = await db.prepare("SELECT * FROM presells WHERE user_id = ? ORDER BY created_at DESC").all(req.userId);
+    res.json({ presells: rows });
+  } catch (err: any) {
+    logger.error({ err: err.message }, "Error fetching presells");
+    res.status(500).json({ error: "Erro ao buscar presells." });
+  }
+});
+
+router.post("/presells", requireAuth, async (req: any, res) => {
+  const { referenceUrl, destinationUrl, productName, productCategory, selectedOption } = req.body || {};
+  if (!destinationUrl) {
+    res.status(400).json({ error: "destinationUrl is required" });
+    return;
+  }
+  try {
+    const db = getDb();
+    const result = await db.prepare(
+      `INSERT INTO presells (user_id, reference_url, destination_url, product_name, product_category, selected_option)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(req.userId, referenceUrl || "", destinationUrl, productName || "", productCategory || "Saúde & Bem-estar", selectedOption || "a");
+    res.json({ success: true, id: result.lastInsertRowid });
+  } catch (err: any) {
+    logger.error({ err: err.message }, "Error inserting presell");
+    res.status(500).json({ error: "Erro ao salvar presell." });
+  }
+});
+
+async function queryReviewChat(history: any[]): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is not defined in environment");
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.0-flash",
+    generationConfig: {
+      responseMimeType: "application/json",
+      temperature: 0.2,
+    }
+  });
+
+  const systemPrompt = `Você é um especialista em CRO (Otimização de Taxa de Conversão) e Desenvolvedor Front-end de elite.
+Sua especialidade é construir páginas de review de produtos que convertem extremamente bem e são visualmente deslumbrantes.
+Você irá interagir com o usuário em português através de uma conversa de chat. O usuário pedirá para você criar ou alterar uma página de review de produto.
+
+DIRETRIZES PARA A PÁGINA DE REVIEW (HTML):
+- O código gerado deve ser um arquivo HTML auto-contido e completo (index.html), com CSS inline em uma tag <style>.
+- Use designs modernos e premium: gradientes suaves, tipografia do Google Fonts (ex: Inter, Outfit, etc.), espaçamento confortável, cantos arredondados, cores harmoniosas.
+- Elementos obrigatórios:
+  1. Cabeçalho de navegação (Logo fictícia, Nome do Produto, Avaliação Geral em Estrelas).
+  2. Seção Hero (Título atraente do produto, headline impactante, lista de benefícios em marcadores, placeholder de imagem do produto, e botão de chamada para ação (CTA) chamativo redirecionando para o link de afiliado).
+  3. Visão Geral (Cópia persuasiva explicando o produto, para quem serve, como funciona).
+  4. Lista de Prós e Contras de forma organizada.
+  5. Depoimentos/Avaliações de Clientes (3 a 4 avaliações reais fictícias com foto/avatar fictício, nome, estrelas e comentário).
+  6. Seção de Perguntas Frequentes (FAQ) com efeito sanfona/accordion simples usando Javascript puro ou detalhes CSS.
+  7. Rodapé (Aviso legal de publicidade, e-mail de suporte fictício, e links de termos/privacidade que abrem modais ou placeholders).
+- Compliance: Evite promessas milagrosas e use termos de acordo com as regras de anúncio do Google Ads.
+- Links: Todos os botões e links de compra devem apontar exatamente para o link de afiliado fornecido pelo usuário. Caso o usuário não tenha fornecido um ainda, use "#" ou tente extrair do histórico.
+
+FORMATO DE RESPOSTA (OBRIGATÓRIO):
+Você DEVE responder exclusivamente em formato JSON com a seguinte estrutura de propriedades:
+{
+  "message": "Uma mensagem simpática em português explicando o que você fez ou fazendo perguntas adicionais ao usuário se precisar de mais informações.",
+  "html": "O código HTML completo e pronto da página de review se você tiver informações suficientes. Se não tiver ou estiver apenas tirando dúvidas do usuário, envie uma string vazia ou mantenha o HTML anterior.",
+  "productName": "O nome do produto se identificado ou fornecido.",
+  "affiliateUrl": "O link de destino/afiliado se identificado ou fornecido."
+}
+
+Não inclua formatações markdown de código antes ou depois do JSON (não coloque \`\`\`json ... \`\`\`). Retorne apenas o JSON bruto.`;
+
+  const formattedHistory = [
+    {
+      role: "user",
+      parts: [{ text: systemPrompt }]
+    },
+    {
+      role: "model",
+      parts: [{ text: "Entendido. Atuarei como um especialista em páginas de review e CRO. Estou pronto para iniciar o chat e gerar o código em JSON." }]
+    }
+  ];
+
+  history.forEach((msg: any) => {
+    formattedHistory.push({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [{ text: msg.content }]
+    });
+  });
+
+  const chat = model.startChat({
+    history: formattedHistory.slice(0, -1)
+  });
+
+  const lastMessage = formattedHistory[formattedHistory.length - 1].parts[0].text;
+  const result = await chat.sendMessage(lastMessage);
+  return result.response.text();
+}
+
+router.post("/chat-review-expert", requireAuth, async (req: any, res) => {
+  const { messages } = req.body || {};
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    res.status(400).json({ error: "Missing messages array" });
+    return;
+  }
+
+  try {
+    const rawResponse = await queryReviewChat(messages);
+    
+    let jsonResponse;
+    try {
+      const startIdx = rawResponse.indexOf("{");
+      const endIdx = rawResponse.lastIndexOf("}");
+      if (startIdx !== -1 && endIdx !== -1) {
+        jsonResponse = JSON.parse(rawResponse.substring(startIdx, endIdx + 1));
+      } else {
+        jsonResponse = JSON.parse(rawResponse);
+      }
+    } catch (parseErr) {
+      logger.error({ rawResponse, parseErr }, "Failed to parse Gemini response as JSON");
+      res.status(500).json({ error: "Erro ao parsear a resposta do assistente de IA." });
+      return;
+    }
+
+    res.json(jsonResponse);
+  } catch (err: any) {
+    logger.error({ err: err.message }, "Error in chat-review-expert route");
+    res.status(500).json({ error: "Erro ao processar chat com especialista." });
+  }
+});
+
+router.delete("/presells/:id", requireAuth, async (req: any, res) => {
+  const { id } = req.params;
+  try {
+    const db = getDb();
+    await db.prepare("DELETE FROM presells WHERE id = ? AND user_id = ?").run(id, req.userId);
+    res.json({ success: true });
+  } catch (err: any) {
+    logger.error({ err: err.message }, "Error deleting presell");
+    res.status(500).json({ error: "Erro ao excluir presell." });
   }
 });
 

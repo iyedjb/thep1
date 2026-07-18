@@ -64,7 +64,7 @@ interface SavedWebsite {
   supportEmail?: string;
   apiToken?: string;
   streamCode?: string;
-  selectedOption?: "a" | "b";
+  selectedOption?: "a" | "b" | "review";
   thankYouHtml?: string;
   thankYouFileName?: string;
 }
@@ -105,11 +105,133 @@ export default function Creator() {
 
   const [savedWebsites, setSavedWebsites] = useState<SavedWebsite[]>([]);
 
-  useEffect(() => {
-    const list = localStorage.getItem("saved_bridges");
-    if (list) {
-      try { setSavedWebsites(JSON.parse(list)); } catch (_) {}
+  const [activeMode, setActiveMode] = useState<"redirect" | "chat">("redirect");
+  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([
+    { role: "assistant", content: "Olá! Sou seu especialista em criação de páginas de review de alta conversão. Para começarmos, me diga qual é o nome do produto e o link de afiliado, ou qualquer outro detalhe de design/texto que você prefira." }
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [isChatSending, setIsChatSending] = useState(false);
+  const [chatGeneratedHtml, setChatGeneratedHtml] = useState("");
+  const [chatProductName, setChatProductName] = useState("");
+  const [chatAffiliateUrl, setChatAffiliateUrl] = useState("");
+
+  const fetchPresells = async () => {
+    try {
+      const token = localStorage.getItem("ads_token");
+      const res = await fetch("/api/presells", {
+        headers: { "Authorization": token ? `Bearer ${token}` : "" }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.presells) {
+          const mapped = data.presells.map((site: any) => ({
+            id: site.id.toString(),
+            referenceUrl: site.reference_url,
+            destinationUrl: site.destination_url,
+            productName: site.product_name,
+            productCategory: site.product_category,
+            selectedOption: site.selected_option,
+            createdAt: site.created_at ? new Date(site.created_at).toLocaleDateString("pt-BR") : "",
+            status: "local" as const,
+            scripts: []
+          }));
+          setSavedWebsites(mapped);
+        }
+      }
+    } catch (err) {
+      console.error("Erro ao buscar presells", err);
     }
+  };
+
+  const handleChatSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim() || isChatSending) return;
+
+    const userMsg = chatInput.trim();
+    setChatInput("");
+    
+    const newMessages = [...chatMessages, { role: "user" as const, content: userMsg }];
+    setChatMessages(newMessages);
+    setIsChatSending(true);
+
+    const token = localStorage.getItem("ads_token");
+    try {
+      const response = await fetch("/api/chat-review-expert", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : ""
+        },
+        body: JSON.stringify({ messages: newMessages })
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Erro ao conversar com a IA.");
+
+      setChatMessages(prev => [...prev, { role: "assistant" as const, content: data.message }]);
+      
+      if (data.html) {
+        setChatGeneratedHtml(data.html);
+        if (data.productName) setChatProductName(data.productName);
+        if (data.affiliateUrl) setChatAffiliateUrl(data.affiliateUrl);
+
+        // Auto save review metadata to history database
+        try {
+          const dbRes = await fetch("/api/presells", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": token ? `Bearer ${token}` : ""
+            },
+            body: JSON.stringify({
+              referenceUrl: "",
+              destinationUrl: data.affiliateUrl || chatAffiliateUrl || "#",
+              productName: data.productName || chatProductName || "Página de Review",
+              productCategory: "Review",
+              selectedOption: "review"
+            })
+          });
+          if (dbRes.ok) {
+            fetchPresells();
+          }
+        } catch (dbErr) {
+          console.error("Erro ao salvar a review no banco de dados", dbErr);
+        }
+      }
+    } catch (err: any) {
+      toast({ title: "Erro no Chat", description: err.message, variant: "destructive" });
+    } finally {
+      setIsChatSending(false);
+    }
+  };
+
+  const handleChatDownload = () => {
+    if (!chatGeneratedHtml) return;
+    try {
+      const blob = new Blob([chatGeneratedHtml], { type: "text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cleanName = (chatProductName || "review").toLowerCase().replace(/[^a-z0-9]/g, "-");
+      a.download = `review-${cleanName}.html`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Download Iniciado ⬇️", description: "O arquivo HTML da página de review foi baixado com sucesso." });
+    } catch (err: any) {
+      toast({ title: "Erro ao baixar arquivo", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleChatReset = () => {
+    setChatMessages([
+      { role: "assistant", content: "Olá! Sou seu especialista em criação de páginas de review de alta conversão. Para começarmos, me diga qual é o nome do produto e o link de afiliado, ou qualquer outro detalhe de design/texto que você prefira." }
+    ]);
+    setChatGeneratedHtml("");
+    setChatProductName("");
+    setChatAffiliateUrl("");
+  };
+
+  useEffect(() => {
+    fetchPresells();
 
     const drcashLander = localStorage.getItem("drcash_selected_lander");
     if (drcashLander) {
@@ -132,39 +254,6 @@ export default function Creator() {
     };
     fetchDefaultToken();
   }, []);
-
-  const saveWebsites = (newList: SavedWebsite[]) => {
-    setSavedWebsites(newList);
-    
-    let listToSave = newList;
-    let success = false;
-    let attempts = 0;
-    
-    while (!success && attempts < newList.length) {
-      try {
-        localStorage.setItem("saved_bridges", JSON.stringify(listToSave));
-        success = true;
-      } catch (err: any) {
-        if (err.name === "QuotaExceededError" || err.message?.toLowerCase().includes("quota")) {
-          // Evict the oldest item with non-empty HTML to free up space
-          let clearedSomething = false;
-          for (let i = listToSave.length - 1; i >= 0; i--) {
-            if (listToSave[i].generatedHtml) {
-              listToSave = listToSave.map((s, idx) => idx === i ? { ...s, generatedHtml: "" } : s);
-              clearedSomething = true;
-              break;
-            }
-          }
-          if (!clearedSomething) {
-            break;
-          }
-          attempts++;
-        } else {
-          break;
-        }
-      }
-    }
-  };
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -216,12 +305,35 @@ export default function Creator() {
       setThankYouHtml(tyHtml);
       setThankYouFileName(tyFileName);
 
-      const newId = Date.now().toString();
-      setCurrentWebsiteId(newId);
+      let savedId = Date.now().toString();
+      try {
+        const dbRes = await fetch("/api/presells", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": token ? `Bearer ${token}` : ""
+          },
+          body: JSON.stringify({
+            referenceUrl: sourceUrl,
+            destinationUrl: targetUrl,
+            productName: data.productName || productName,
+            productCategory,
+            selectedOption
+          })
+        });
+        if (dbRes.ok) {
+          const dbData = await dbRes.json();
+          if (dbData.id) savedId = dbData.id.toString();
+        }
+      } catch (err) {
+        console.error("Erro ao persistir no banco de dados", err);
+      }
+
+      setCurrentWebsiteId(savedId);
 
       const newSite: SavedWebsite = {
-        id: newId, referenceUrl: sourceUrl, destinationUrl: targetUrl,
-        scripts: scripts.filter(s => s.trim() !== ""), generatedHtml: html,
+        id: savedId, referenceUrl: sourceUrl, destinationUrl: targetUrl,
+        scripts: [], generatedHtml: html,
         publishedUrl: "", fileName: "", status: "local",
         createdAt: new Date().toLocaleDateString("pt-BR"),
         popupLanguage: data.language || popupLanguage, productName: data.productName || productName,
@@ -229,7 +341,7 @@ export default function Creator() {
         productCategory, ctaText, supportEmail, apiToken, streamCode, selectedOption,
         thankYouHtml: tyHtml, thankYouFileName: tyFileName
       };
-      saveWebsites([newSite, ...savedWebsites]);
+      setSavedWebsites(prev => [newSite, ...prev]);
       setRawHtml(""); // Reset pasted HTML on success
       setGeneratingMessage("✅ Finalizando e salvando no histórico...");
       setStep("done");
@@ -260,135 +372,22 @@ export default function Creator() {
     }
   };
 
-  const handlePublish = async () => {
-    setIsPublishing(true);
-    setPublishedUrl("");
-    let domain = "presell";
-    try { domain = new URL(destinationUrl).hostname.replace("www.", "").split(".")[0]; } catch (_) {}
-    const fileName = `presell-${domain}-${Date.now()}.html`;
-    const token = localStorage.getItem("ads_token");
-    try {
-      const response = await fetch("/api/publish-bridge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
-        body: JSON.stringify({ htmlContent: generatedHtml, fileName, thankYouHtml, thankYouFileName })
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Erro ao publicar no servidor.");
-      const updatedList = savedWebsites.map(site =>
-        site.id === currentWebsiteId ? { ...site, publishedUrl: data.url, fileName, thankYouFileName, status: "active" as const } : site
-      );
-      saveWebsites(updatedList);
-      setPublishedUrl(data.url);
-      toast({ title: "🎉 Página Publicada!", description: "Sua página de redirecionamento está online." });
-    } catch (err: any) {
-      toast({ title: "Erro de Publicação", description: err.message, variant: "destructive" });
-    } finally {
-      setIsPublishing(false);
-    }
-  };
-
-  const downloadSavedWebsite = async (site: SavedWebsite) => {
-    let html = site.generatedHtml;
-    
-    // Fallback: If local storage has cleared the cached html, try to fetch it from the published server URL
-    if (!html && site.publishedUrl) {
-      try {
-        const res = await fetch(site.publishedUrl);
-        if (res.ok) {
-          html = await res.text();
-        }
-      } catch (_) {}
-    }
-    
-    if (!html) {
-      toast({
-        title: "Conteúdo Indisponível 🗃️",
-        description: "O cache local desta página foi limpo para poupar espaço. Use 'Reutilizar / Editar' para gerá-la novamente.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    const blob = new Blob([html], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    let domain = "presell";
-    try { domain = new URL(site.destinationUrl).hostname.replace("www.", "").split(".")[0]; } catch (_) {}
-    a.download = `redirect-${domain}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast({ title: "Download Iniciado", description: "O arquivo foi baixado com sucesso." });
-  };
-
-  const copyPublishedLink = (url: string) => {
-    navigator.clipboard.writeText(`${window.location.origin}${url}`);
-    toast({ title: "Link Copiado! 📋", description: "Copiado para a área de transferência." });
-  };
-
-  const toggleWebsiteStatus = async (site: SavedWebsite) => {
-    let targetHtml = "";
-    const isCurrentlyActive = site.status === "active";
-    const newStatus = isCurrentlyActive ? "paused" : "active";
-    const pausedTemplate = `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Página Pausada</title><style>body{background:#0f172a;color:#f8fafc;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}.c{text-align:center;padding:24px;border-radius:16px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);max-width:400px}h1{font-size:20px;font-weight:700;margin:0 0 8px}p{font-size:13px;color:#94a3b8;margin:0}</style></head><body><div class="c"><h1>Página Pausada</h1><p>Este redirecionamento está temporariamente inativo.</p></div></body></html>`;
-    
-    if (isCurrentlyActive) {
-      targetHtml = pausedTemplate;
-    } else {
-      targetHtml = site.generatedHtml;
-      
-      // Fallback: If cache was evicted, try to restore from the published page on server before we paused it
-      if (!targetHtml && site.publishedUrl) {
-        try {
-          const res = await fetch(site.publishedUrl);
-          if (res.ok) {
-            targetHtml = await res.text();
-          }
-        } catch (_) {}
-      }
-    }
-    
-    if (!targetHtml) {
-      toast({
-        title: "Não foi possível ativar 🚫",
-        description: "O código-fonte original não está disponível no cache local. Clique em 'Reutilizar / Editar' para gerá-lo de novo.",
-        variant: "destructive"
-      });
-      return;
-    }
-    
-    const token = localStorage.getItem("ads_token");
-    try {
-      const response = await fetch("/api/publish-bridge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
-        body: JSON.stringify({ htmlContent: targetHtml, fileName: site.fileName })
-      });
-      if (!response.ok) throw new Error("Erro ao atualizar status no servidor.");
-      const updatedList = savedWebsites.map(s =>
-        s.id === site.id ? { ...s, status: newStatus as "active" | "paused" } : s
-      );
-      saveWebsites(updatedList);
-      toast({ title: isCurrentlyActive ? "Página Pausada ⏸️" : "Página Ativada ▶️" });
-    } catch (err: any) {
-      toast({ title: "Erro ao alterar status", description: err.message, variant: "destructive" });
-    }
-  };
-
   const deleteWebsite = async (site: SavedWebsite) => {
-    if (site.status === "active" || site.status === "paused") {
-      const token = localStorage.getItem("ads_token");
-      try {
-        await fetch("/api/delete-bridge", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
-          body: JSON.stringify({ fileName: site.fileName, thankYouFileName: site.thankYouFileName })
-        });
-      } catch (_) {}
+    const token = localStorage.getItem("ads_token");
+    try {
+      const response = await fetch(`/api/presells/${site.id}`, {
+        method: "DELETE",
+        headers: { "Authorization": token ? `Bearer ${token}` : "" }
+      });
+      if (response.ok) {
+        setSavedWebsites(savedWebsites.filter(s => s.id !== site.id));
+        toast({ title: "Presell Excluída 🗑️", description: "O redirecionador foi excluído do histórico com sucesso." });
+      } else {
+        throw new Error("Erro ao excluir do servidor.");
+      }
+    } catch (err: any) {
+      toast({ title: "Erro ao excluir", description: err.message, variant: "destructive" });
     }
-    saveWebsites(savedWebsites.filter(s => s.id !== site.id));
-    toast({ title: "Presell Excluída 🗑️", description: "O redirecionador foi excluído com sucesso." });
   };
 
   const getTagCount = () => scripts.filter(s => s.trim() !== "").length;
@@ -448,12 +447,40 @@ export default function Creator() {
               </div>
             </div>
 
+            {/* Mode Switcher */}
+            <div className="flex bg-card border border-border p-1 rounded-xl gap-2 w-full md:w-fit mt-6 shadow-sm">
+              <button
+                type="button"
+                onClick={() => { setActiveMode("redirect"); setStep("form"); }}
+                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 flex items-center gap-1.5 ${
+                  activeMode === "redirect"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Zap className="h-3.5 w-3.5" />
+                Redirecionador Inteligente
+              </button>
+              <button
+                type="button"
+                onClick={() => { setActiveMode("chat"); }}
+                className={`px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 flex items-center gap-1.5 ${
+                  activeMode === "chat"
+                    ? "bg-primary text-primary-foreground shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Chat Especialista (Review)
+              </button>
+            </div>
+
             {/* Stats row */}
             <div className="grid grid-cols-3 gap-3 mt-6">
               {[
                 { icon: Layers, label: "Presells Criadas", value: savedWebsites.length, color: "text-primary" },
-                { icon: Globe, label: "Ativas Online", value: savedWebsites.filter(s => s.status === "active").length, color: "text-emerald-500" },
-                { icon: Zap, label: "Pixels Injetados", value: savedWebsites.reduce((acc, s) => acc + s.scripts.length, 0), color: "text-amber-500" },
+                { icon: ShieldCheck, label: "Modelo Cookies", value: savedWebsites.filter(s => s.selectedOption === "a").length, color: "text-emerald-500" },
+                { icon: Zap, label: "Modelo Clone", value: savedWebsites.filter(s => s.selectedOption === "b").length, color: "text-amber-500" },
               ].map(({ icon: Icon, label, value, color }) => (
                 <div key={label} className="glass-card rounded-xl p-3 md:p-4 flex items-center gap-3">
                   <div className={`w-9 h-9 rounded-lg bg-card flex items-center justify-center border border-border shrink-0 ${color}`}>
@@ -475,8 +502,10 @@ export default function Creator() {
           {/* ── LEFT: Form / Wizard ──────────────────────────── */}
           <div className={`w-full lg:col-span-5 space-y-5 ${activeView === "create" ? "block" : "hidden lg:block"}`}>
 
-            {/* STEP: Form */}
-            {step === "form" && (
+            {activeMode === "redirect" && (
+              <>
+                {/* STEP: Form */}
+                {step === "form" && (
               <div className="animate-slide-up">
                 <Card className="border border-border bg-card shadow-md rounded-2xl overflow-hidden">
                   {/* Card gradient top accent */}
@@ -861,17 +890,6 @@ export default function Creator() {
                         <Download className="h-4 w-4 text-primary" /> Baixar Código HTML
                       </Button>
 
-                      <Button size="lg"
-                        className="w-full rounded-xl h-11 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2 shadow-lg shadow-primary/20 transition-all"
-                        onClick={handlePublish} disabled={isPublishing}
-                      >
-                        {isPublishing ? (
-                          <><Loader2 className="h-4 w-4 animate-spin mr-1.5" /> Publicando...</>
-                        ) : (
-                          <><RefreshCw className="h-4 w-4 mr-1.5" /> Publicar no Servidor</>
-                        )}
-                      </Button>
-
                       <Button variant="ghost" size="sm"
                         className="w-full rounded-xl h-9 text-xs text-muted-foreground hover:text-foreground"
                         onClick={handleBackToEdit}
@@ -881,31 +899,109 @@ export default function Creator() {
                     </div>
                   </CardContent>
                 </Card>
+              </div>
+            )}
+              </>
+            )}
 
-                {/* Published URL banner */}
-                {publishedUrl && (
-                  <div className="glass-card rounded-xl p-4 border border-emerald-500/25 bg-emerald-500/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-slide-up">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-xs">
-                        <CheckCircle2 className="h-4 w-4" /> Link Ativo Online!
+            {/* Chat Mode Panel */}
+            {activeMode === "chat" && (
+              <div className="space-y-4 animate-slide-up">
+                <Card className="border border-border bg-card shadow-md rounded-2xl overflow-hidden">
+                  <div className="h-1 w-full bg-gradient-to-r from-primary via-violet-500 to-primary" />
+                  <CardContent className="p-6 space-y-4 flex flex-col h-[520px]">
+                    <div className="flex items-center justify-between border-b border-border pb-3">
+                      <div>
+                        <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-primary animate-pulse" />
+                          Chat Especialista (Review Page)
+                        </h2>
+                        <p className="text-[10px] text-muted-foreground">Otimizado com inteligência CRO e Google Ads Compliance.</p>
                       </div>
-                      <span className="text-[11px] font-mono text-muted-foreground select-all block truncate max-w-[260px]">
-                        {window.location.origin}{publishedUrl}
-                      </span>
+                      <Button variant="ghost" size="sm" onClick={handleChatReset} className="h-7 text-[10px] rounded-lg text-muted-foreground hover:text-foreground">
+                        Resetar Chat
+                      </Button>
                     </div>
-                    <div className="flex gap-2 shrink-0">
-                      <Button variant="outline" size="sm" className="h-8 rounded-lg text-[11px] font-semibold border-border"
-                        onClick={() => { navigator.clipboard.writeText(`${window.location.origin}${publishedUrl}`); toast({ title: "Link copiado! 📋" }); }}
+
+                    {/* Chat Messages Log */}
+                    <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-xs">
+                      {chatMessages.map((msg, idx) => (
+                        <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                          <div className={`max-w-[85%] rounded-2xl p-3 leading-relaxed ${
+                            msg.role === "user"
+                              ? "bg-primary text-primary-foreground rounded-tr-none"
+                              : "bg-muted/80 text-foreground rounded-tl-none border border-border/40"
+                          }`}>
+                            <p className="font-semibold text-[10px] opacity-80 mb-1">
+                              {msg.role === "user" ? "Você" : "Especialista CRO"}
+                            </p>
+                            <p className="whitespace-pre-line text-[11px]">{msg.content}</p>
+                          </div>
+                        </div>
+                      ))}
+                      {isChatSending && (
+                        <div className="flex justify-start">
+                          <div className="bg-muted/60 text-muted-foreground rounded-2xl rounded-tl-none p-3 border border-border/30 max-w-[85%] flex items-center gap-2">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary mr-1" />
+                            <span className="text-[10px] font-medium">Escrevendo código e copy...</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Chat Input form */}
+                    <form onSubmit={handleChatSend} className="flex gap-2 pt-2 border-t border-border/40">
+                      <Input
+                        type="text"
+                        placeholder="Instruções da página (Ex: Review do LiftCaps...)"
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        className="rounded-xl h-10 text-xs bg-muted/40 border-border focus-visible:ring-primary placeholder:text-muted-foreground/60 flex-1"
+                        disabled={isChatSending}
+                        required
+                      />
+                      <Button type="submit" size="sm" className="rounded-xl h-10 px-4 bg-primary text-primary-foreground hover:bg-primary/95" disabled={isChatSending}>
+                        Enviar
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+
+                {/* Chat Generation Output Sidepanel */}
+                {chatGeneratedHtml && (
+                  <Card className="border border-emerald-500/25 bg-emerald-500/5 rounded-2xl overflow-hidden animate-slide-up">
+                    <CardContent className="p-5 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center border border-emerald-500/25">
+                          <CheckCircle className="h-4 w-4 text-emerald-500" />
+                        </div>
+                        <div>
+                          <h3 className="text-xs font-bold text-foreground">Página de Review Pronta! 🚀</h3>
+                          <p className="text-[10px] text-muted-foreground">HTML compilado com sucesso de acordo com as instruções.</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-card border border-border/50 rounded-xl p-3.5 space-y-1.5 text-[11px]">
+                        <div className="flex justify-between items-center py-0.5">
+                          <span className="text-muted-foreground">Produto:</span>
+                          <span className="font-bold text-foreground">{chatProductName || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between items-center py-0.5">
+                          <span className="text-muted-foreground">Destino:</span>
+                          <span className="font-mono text-primary truncate max-w-[150px]">{chatAffiliateUrl || "#"}</span>
+                        </div>
+                      </div>
+
+                      <Button
+                        type="button"
+                        size="lg"
+                        onClick={handleChatDownload}
+                        className="w-full rounded-xl h-11 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-600/10"
                       >
-                        <Copy className="mr-1.5 h-3.5 w-3.5" /> Copiar
+                        <Download className="h-4 w-4" /> Baixar Review (HTML)
                       </Button>
-                      <Button asChild size="sm" className="h-8 rounded-lg text-[11px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white">
-                        <a href={publishedUrl} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="mr-1.5 h-3.5 w-3.5" /> Abrir
-                        </a>
-                      </Button>
-                    </div>
-                  </div>
+                    </CardContent>
+                  </Card>
                 )}
               </div>
             )}
@@ -963,12 +1059,12 @@ export default function Creator() {
                 ) : (
                   <div className="overflow-hidden rounded-xl border border-border/60">
                     <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
-                      <Table>
+                       <Table>
                         <TableHeader>
                           <TableRow className="hover:bg-transparent bg-muted/30 border-b border-border/60">
                             <TableHead className="py-3 text-[11px] font-bold text-muted-foreground">Presell / Destino</TableHead>
-                            <TableHead className="py-3 text-[11px] font-bold text-muted-foreground">Status</TableHead>
-                            <TableHead className="py-3 text-[11px] font-bold text-muted-foreground text-center">Tags</TableHead>
+                            <TableHead className="py-3 text-[11px] font-bold text-muted-foreground">Modelo</TableHead>
+                            <TableHead className="py-3 text-[11px] font-bold text-muted-foreground text-center">Data</TableHead>
                             <TableHead className="py-3 text-[11px] font-bold text-muted-foreground text-right pr-4">Ações</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -987,84 +1083,59 @@ export default function Creator() {
                                     <span className="text-[9.5px] text-muted-foreground font-mono truncate mt-0.5 max-w-[160px] md:max-w-[220px]" title={site.destinationUrl}>
                                       {site.destinationUrl}
                                     </span>
-                                    {site.publishedUrl && (
-                                      <a
-                                        href={site.publishedUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-[9px] text-primary hover:underline flex items-center gap-1 mt-1 font-semibold w-fit"
-                                      >
-                                        <ExternalLink className="h-2.5 w-2.5" /> Ver Online
-                                      </a>
-                                    )}
                                   </div>
                                 </TableCell>
 
                                 <TableCell className="py-3">
                                   <div className="flex flex-col gap-1">
-                                    {site.status === "active" && (
-                                      <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/10 text-[9px] font-bold uppercase tracking-wider w-fit">
-                                        ● Ativo
-                                      </Badge>
-                                    )}
-                                    {site.status === "paused" && (
-                                      <Badge className="bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/10 text-[9px] font-bold uppercase tracking-wider w-fit">
-                                        ⏸ Pausado
-                                      </Badge>
-                                    )}
-                                    {site.status === "local" && (
-                                      <Badge className="bg-muted text-muted-foreground border-border hover:bg-muted text-[9px] font-bold uppercase tracking-wider w-fit">
-                                        ⬇ Local
-                                      </Badge>
-                                    )}
                                     <Badge variant="outline" className={`text-[8px] font-bold uppercase tracking-wider w-fit ${
                                       site.selectedOption === "b"
                                         ? "bg-sky-500/10 text-sky-400 border-sky-500/20"
+                                        : site.selectedOption === "review"
+                                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                                         : "bg-violet-500/10 text-violet-400 border-violet-500/20"
                                     }`}>
-                                      {site.selectedOption === "b" ? "Clone" : "Cookies"}
+                                      {site.selectedOption === "b" ? "Clone" : site.selectedOption === "review" ? "Review" : "Cookies"}
                                     </Badge>
                                   </div>
                                 </TableCell>
 
                                 <TableCell className="py-3 text-center">
                                   <span className="text-[11px] text-muted-foreground font-mono font-medium">
-                                    {site.scripts.length}
+                                    {site.createdAt}
                                   </span>
                                 </TableCell>
 
                                 <TableCell className="py-3 text-right pr-4">
                                   <div className="flex items-center justify-end gap-0.5">
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60" onClick={() => downloadSavedWebsite(site)} title="Baixar HTML">
-                                      <Download className="h-3.5 w-3.5" />
-                                    </Button>
-                                    {(site.status === "active" || site.status === "paused") && (
-                                      <>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60" onClick={() => toggleWebsiteStatus(site)} title={site.status === "active" ? "Pausar" : "Ativar"}>
-                                          {site.status === "active" ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5 text-emerald-500" />}
-                                        </Button>
-                                        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60" onClick={() => copyPublishedLink(site.publishedUrl)} title="Copiar Link">
-                                          <Copy className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </>
-                                    )}
                                     <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60"
                                       onClick={() => {
-                                        setDestinationUrl(site.destinationUrl);
-                                        setReferenceUrl(site.referenceUrl || "");
-                                        setScripts(site.scripts.length > 0 ? site.scripts : [""]);
-                                        setProductName(site.productName || "");
-                                        setProductHeadline(site.productHeadline || "");
-                                        setProductDescription(site.productDescription || "");
-                                        setProductCategory(site.productCategory || "Saúde & Bem-estar");
-                                        setCtaText(site.ctaText || "Ir para o Site Oficial");
-                                        setSupportEmail(site.supportEmail || "");
-                                        setApiToken(site.apiToken || "");
-                                        setStreamCode(site.streamCode || "");
-                                        setSelectedOption(site.selectedOption || "a");
+                                        if (site.selectedOption === "review") {
+                                          setActiveMode("chat");
+                                          setChatProductName(site.productName || "");
+                                          setChatAffiliateUrl(site.destinationUrl || "");
+                                          setChatMessages([
+                                            { role: "assistant", content: `Olá! Carreguei as configurações do produto '${site.productName}' e o link '${site.destinationUrl}' para esta página de review. O que gostaria de alterar ou gerar para ela?` }
+                                          ]);
+                                          setChatGeneratedHtml("");
+                                        } else {
+                                          setDestinationUrl(site.destinationUrl);
+                                          setReferenceUrl(site.referenceUrl || "");
+                                          setScripts(site.scripts.length > 0 ? site.scripts : [""]);
+                                          setProductName(site.productName || "");
+                                          setProductHeadline(site.productHeadline || "");
+                                          setProductDescription(site.productDescription || "");
+                                          setProductCategory(site.productCategory || "Saúde & Bem-estar");
+                                          setCtaText(site.ctaText || "Ir para o Site Oficial");
+                                          setSupportEmail(site.supportEmail || "");
+                                          setApiToken(site.apiToken || "");
+                                          setStreamCode(site.streamCode || "");
+                                          setSelectedOption(site.selectedOption || "a");
+                                          setActiveMode("redirect");
+                                          setStep("form");
+                                        }
                                         setActiveView("create");
-                                        setStep("form");
-                                        toast({ title: "Configuração carregada!", description: "Campos preenchidos com os parâmetros da presell." });
+                                        toast({ title: "Configuração carregada!", description: "Campos preenchidos com os parâmetros selecionados." });
                                       }}
                                       title="Reutilizar / Editar"
                                     >

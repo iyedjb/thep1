@@ -86,9 +86,34 @@ export async function initDb() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS presells (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      reference_url TEXT,
+      destination_url TEXT NOT NULL,
+      product_name VARCHAR(255),
+      product_category VARCHAR(100),
+      selected_option VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Run migrations asynchronously
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS presells (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        reference_url TEXT,
+        destination_url TEXT NOT NULL,
+        product_name VARCHAR(255),
+        product_category VARCHAR(100),
+        selected_option VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (e) {}
   try {
     await db.exec("ALTER TABLE users ADD COLUMN drcash_token VARCHAR(255);");
   } catch (e) {}
