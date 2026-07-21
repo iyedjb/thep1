@@ -102,9 +102,38 @@ router.get("/auth/google-ads/callback", async (req: any, res) => {
       developer_token: developerToken,
     });
     const accessible = await client.listAccessibleCustomers(tokens.refresh_token);
-    const customerIds = (accessible.resource_names || []).map((name: string) => name.split("/").pop() || "").filter(Boolean);
-    if (customerIds.length === 0) throw new Error("No Google Ads accounts are available for this Google user");
-    await saveGoogleAdsConnection(payload.userId, tokens.refresh_token, customerIds);
+    const initialIds = (accessible.resource_names || []).map((name: string) => name.split("/").pop() || "").filter(Boolean);
+    if (initialIds.length === 0) throw new Error("No Google Ads accounts are available for this Google user");
+
+    const allCustomerIds = new Set<string>(initialIds);
+    let mccAccountId: string | null = process.env["GOOGLE_ADS_LOGIN_CUSTOMER_ID"]?.replace(/-/g, "") || null;
+
+    for (const cid of initialIds) {
+      try {
+        const cust = client.Customer({
+          customer_id: cid,
+          login_customer_id: cid,
+          refresh_token: tokens.refresh_token,
+        });
+        const subClients = await cust.query(`
+          SELECT customer_client.client_customer, customer_client.manager, customer_client.status
+          FROM customer_client
+          WHERE customer_client.status = 'ENABLED'
+        `);
+        for (const row of subClients || []) {
+          const childId = row.customer_client?.client_customer?.split("/")?.pop();
+          if (childId) {
+            allCustomerIds.add(childId);
+          }
+          if (row.customer_client?.manager && !mccAccountId) {
+            mccAccountId = cid;
+          }
+        }
+      } catch (_) {}
+    }
+
+    const finalCustomerIds = Array.from(allCustomerIds);
+    await saveGoogleAdsConnection(payload.userId, tokens.refresh_token, finalCustomerIds, mccAccountId);
     res.redirect(`${returnOrigin}/dashboard?googleAds=connected`);
   } catch (error: any) {
     res.redirect(`${returnOrigin}/dashboard?googleAds=error&message=${encodeURIComponent(error.message)}`);

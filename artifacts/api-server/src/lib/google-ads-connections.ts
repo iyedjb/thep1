@@ -38,14 +38,18 @@ export async function saveGoogleAdsConnection(
   userId: number,
   refreshToken: string,
   accessibleCustomerIds: string[],
+  loginCustomerId?: string | null,
 ) {
-  const normalizedIds = accessibleCustomerIds.map((id) => id.replace(/-/g, ""));
+  const normalizedIds = Array.from(new Set(accessibleCustomerIds.map((id) => id.replace(/-/g, ""))));
   const preferredId = process.env["GOOGLE_ADS_CUSTOMER_ID"]?.replace(/-/g, "");
+  const envMccId = process.env["GOOGLE_ADS_LOGIN_CUSTOMER_ID"]?.replace(/-/g, "");
+  const selectedLoginMcc = loginCustomerId ? loginCustomerId.replace(/-/g, "") : (envMccId || null);
+
   const selectedId =
-    normalizedIds.length === 1
-      ? normalizedIds[0]
-      : preferredId && normalizedIds.includes(preferredId)
-        ? preferredId
+    preferredId && normalizedIds.includes(preferredId)
+      ? preferredId
+      : normalizedIds.length > 0
+        ? normalizedIds[0]
         : null;
 
   const db = getDb();
@@ -63,7 +67,7 @@ export async function saveGoogleAdsConnection(
     userId,
     encrypt(refreshToken),
     selectedId,
-    null,
+    selectedLoginMcc,
     JSON.stringify(normalizedIds),
   );
 }
@@ -72,11 +76,12 @@ export async function getGoogleAdsConnection(userId: number): Promise<GoogleAdsC
   const db = getDb();
   const row = await db.prepare("SELECT * FROM google_ads_connections WHERE user_id = ?").get(userId) as any;
   if (!row) return null;
+  const envMccId = process.env["GOOGLE_ADS_LOGIN_CUSTOMER_ID"]?.replace(/-/g, "");
   return {
     userId,
     refreshToken: decrypt(row.refresh_token_encrypted),
     customerId: row.customer_id || null,
-    loginCustomerId: row.login_customer_id || row.customer_id || null,
+    loginCustomerId: row.login_customer_id || envMccId || row.customer_id || null,
     accessibleCustomerIds: JSON.parse(row.accessible_customer_ids || "[]"),
   };
 }
@@ -85,12 +90,15 @@ export async function selectGoogleAdsCustomer(userId: number, customerId: string
   const connection = await getGoogleAdsConnection(userId);
   const normalizedId = customerId.replace(/-/g, "");
   if (!connection || !connection.accessibleCustomerIds.includes(normalizedId)) return false;
+  const envMccId = process.env["GOOGLE_ADS_LOGIN_CUSTOMER_ID"]?.replace(/-/g, "");
+  const mccId = connection.loginCustomerId || envMccId || null;
+
   const db = getDb();
   await db.prepare(`
     UPDATE google_ads_connections
     SET customer_id = ?, login_customer_id = ?, updated_at = CURRENT_TIMESTAMP
     WHERE user_id = ?
-  `).run(normalizedId, null, userId);
+  `).run(normalizedId, mccId, userId);
   return true;
 }
 
