@@ -3699,93 +3699,48 @@ async function queryGroq(messages: any[], jsonMode = false) {
 
 async function rewriteClaimsForCompliance(html: string): Promise<{ html: string; aiFailed: boolean }> {
   try {
-    // Match content containers (h1-h6, p, li, div, td, a, span, button) and extract text
+    interface CandidateItem {
+      raw: string;
+      plain: string;
+    }
+    
+    const candidatesList: CandidateItem[] = [];
+    const seenPlain = new Set<string>();
     const tagRegex = /<(h[1-6]|p|li|div|td|a|span|button)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/gi;
-    
-    // Broad keyword list covering all 6 violation categories in PT, ES, EN, PL, FR, DE, etc.:
-    const keywordRegex = /\b(dias|days|semanas|weeks|perder|lose|peso|weight|emagrecer|queimar|fat|gordura|grasa|kg|kilos|kilo|garantido|guaranteed|garantia|cure|cura|curar|trata|treat|elimina|eliminate|elimine|combate|combat|comprovou|comprovad[ao]|aprovado|approved|comprovado|proven|clinicamente|clinically|efic[aá]cia|efficacy|m[eé]dico|doctor|especialista|specialist|parasita|parasite|verme|worm|toxina|toxin|diabetes|diab[eé]tic[oa]s?|hipertens[aã]o|c[aâ]ncer|artrite|arthritis|a[cç][uú]car|sangue|melhoria|improvement|estudo|study|estudos|studies|particip[ae]ntes?|participants?|ensaio|trial|pesquisa|research|percentagem|porcentagem|n[ií]veis|complicaç|complic|secreto|secret|proibido|escondido|unidades restantes|estoque|expira|expires|melhor do mundo|n[uú]mero 1|efeito colateral|side effect|mortalidade|mortality|morte|death|r[aá]pido|fast|instant[aâ]neo|instant|desconto|discount|promo[cç][aã]o|oferta especial|żylak|żylaki|zylaki|śmierć|smierc|śmiertelnie|smiertelnie|udar|paraliż|paraliz|skrzep|zakrzepica|niebezpieczn|niebiezpieczn|krwawienie|niepłodność|nieplodnosc|skalpel|operacj|chirurg|badani|skutecznoś|skutecznos|udowadniaj|wynik|przed i po|opinia|efekt|lek|lekarstwo|variz|varizes|várices|varices|varicose|trombose|trombosis|thrombosis|cirurgia|cirugia|surgery|cirujano|chirurgien|bisturi|bisturí|scalpel|paralisia|parálisis|paralysis|paralysie|derrame|stroke)\b/i;
-    
-    // We scan using the regex and check against keywords or length to capture the full page copy
-    const candidates = new Set<string>();
     let match;
     tagRegex.lastIndex = 0;
+
     while ((match = tagRegex.exec(html)) !== null) {
       const rawText = match[2];
       if (!rawText) continue;
       const plainText = rawText.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
       if (plainText.length < 8 || plainText.length > 1200) continue;
-      
-      // Collect all copy nodes (> 20 chars or containing keywords) for full page compliance rewriting
-      if (keywordRegex.test(plainText) || plainText.length > 20) {
-        candidates.add(rawText.trim());
+
+      if (!seenPlain.has(plainText)) {
+        seenPlain.add(plainText);
+        candidatesList.push({ raw: rawText.trim(), plain: plainText });
       }
     }
 
-    if (candidates.size === 0) {
-      logger.info("Compliance rewriter: No suspicious claims found in text nodes.");
-      return { html, aiFailed: false };
+    if (candidatesList.length === 0) {
+      logger.info("Compliance rewriter: No text nodes found.");
+      return { html: rewriteClaimsWithLocalDictionary(html), aiFailed: false };
     }
 
-    const candidatesList = Array.from(candidates);
     logger.info({ count: candidatesList.length }, "Compliance rewriter: Found text node candidates for checking");
 
-    // 2. Full agente-copy-compliance training embedded as Groq system prompt
     const COMPLIANCE_SYSTEM_PROMPT = `Você é um especialista em compliance de copy para Google Ads com foco em páginas de afiliados de saúde e bem-estar. Sua função é receber textos extraídos de uma landing page, identificar os que violam as políticas do Google Ads e reescrevê-los com linguagem compliant — preservando idioma original e posicionamento do produto.
 
 ## REGRA PRINCIPAL SOBRE REESCRITA
 SEMPRE gere uma alternativa compliant para textos violadores. NUNCA retorne string vazia ou null. Todo texto violador deve ter uma substituição com copy de qualidade que preserve o tom persuasivo mas dentro das políticas do Google Ads.
 
-## CATEGORIAS DE VIOLAÇÃO — DETECTAR E REESCREVER
-
-### CAT 1 — Alegações médicas, eficácia clínica e estudos
-Proibido: "comprovou sua eficácia", "eliminar complicações relacionadas ao diabetes", "reduzir os níveis de açúcar no sangue", "clinicamente comprovado", "aprovado por médicos", percentuais de eficácia com referência a estudos ("73% dos diabéticos sentiram melhoria"), "X dias após o início do estudo", "melhoria 30 dias", nomes de doenças + promessa de resultado.
-✅ Reescrever como: orientação a ingredientes naturais, bem-estar geral, rotina saudável.
-Exemplos críticos:
-- "O uso de [Produto] comprovou sua eficácia" → "Descubra por que [Produto] é a escolha de quem busca bem-estar"
-- "Para reduzir os níveis de açúcar no sangue e eliminar complicações relacionadas ao diabetes" → "Para quem busca apoio ao equilíbrio metabólico com ingredientes naturais"
-- "Percentagem de diabéticos que sentiram uma melhoria 30 dias após o início do estudo" → [retornar string vazia — esta linha indica seção com stats clínicos a ser removida]
-- "Cura a hipertensão" → "Fórmula com ingredientes associados à saúde cardiovascular"
-- "Elimina parasitas" → "Blend de ervas utilizadas na medicina tradicional para suporte intestinal"
-- "97% de eficácia clínica" → "Escolhido por quem busca uma rotina de bem-estar mais equilibrada"
-- "Clinicamente comprovado" → "Formulado com ingredientes de origem natural"
-- "Combattre efficacement la prostatite et les maladies chroniques du système reproducteur ! Urofarm est un remède naturel conçu pour lutter efficacement contre la prostatite" → "Soutenir le confort urinaire et la vitalité masculine avec une formule d'ingrédients naturels pour la prostate"
-
-### CAT 2 — Urgência falsa e escassez manipuladora
-Proibido: número fixo de unidades, timers em loop, "847 pessoas estão vendo agora", "Preço sobe amanhã".
-✅ Exemplos: "Apenas 7 unidades restantes" → "Condição especial por tempo limitado" | "Preço sobe amanhã" → "Aproveite enquanto o desconto de lançamento está ativo" | Contadores falsos → [string vazia]
-
-### CAT 3 — Superlativos e promessas não comprováveis
-Proibido: "O melhor do mundo", "Número 1", "Resultado garantido em X dias", "Sem efeitos colaterais", "Fórmula secreta", "segredo que médicos escondem".
-✅ Exemplos: "Resultado garantido em 30 dias" → "Para melhores resultados, use por pelo menos 30 dias" | "Sem efeitos colaterais" → "Formulado sem glúten, sem corantes artificiais" | "Fórmula secreta" → "Fórmula exclusiva com blend de ingredientes naturais"
-
-### CAT 4 — Depoimentos com resultados extraordinários
-Proibido: "Perdi 20kg em 30 dias" sem disclaimer.
-✅ Suavizar: "me sinto com mais energia e leveza" (manter experiência subjetiva, remover resultado quantitativo)
-
-### CAT 5 — Medo e pressão psicológica
-Proibido: estatísticas de mortalidade, "Se não agir agora sua saúde piora", sintomas alarmistas com imagens de doenças.
-✅ Exemplos: "Se não tratar pode levar à morte" → "Muitas pessoas buscam alternativas naturais quando sentem cansaço" | Estatísticas de mortalidade → [string vazia]
-
-### CAT 6 — Preços enganosos
-Proibido: preço original inflado sem referência, múltiplos preços riscados.
-✅ Manter apenas: 1 preço original + 1 preço atual com contexto claro.
-
- Cardiovascular: ✅ "Fórmula com magnésio, coenzima Q10 e extrato de alho" ❌ "Controla a pressão arterial", "Previne infartos"
-Emagrecimento: ✅ "Fórmula com café verde, chá verde e gengibre" ❌ "Emagrece X kg em Y dias", "Queima gordura garantida"
-Parasitas/Detox: ✅ "Blend de ervas com propriedades purificantes: boldo, cúrcuma, pau-d'arco" ❌ "Elimina parasitas", "Mata vermes"
-Diabetes/Metabólico: ✅ "Fórmula com berberina, canela e cromo — ingredientes estudados para equilíbrio metabólico" ❌ "Controla glicemia", "Reduz açúcar no sangue garantido"
-Articulações: ✅ "Fórmula com colágeno, cúrcuma e boswellia" ❌ "Cura artrite", "Elimina dor nas juntas em X dias"
-Saúde Masculina / Próstata: ✅ "soutenir le confort urinaire et la prostate" / "apoia a saúde da próstata e o conforto masculino" ❌ "Combattre la prostatite", "maladies chroniques du système reproducteur", "remède naturel contre la prostatite", "lutter contre la prostatite"
-
-## REGRAS INVIOLÁVEIS
-1. Preservar SEMPRE o idioma original (português, espanhol, inglês)
-2. SEMPRE gerar uma substituição de qualidade — nunca retornar string vazia exceto para linhas com stats clínicos (percentagens + referência a estudo)
-3. Nunca inventar ingredientes não mencionados no texto original
-4. Textos que NÃO violam nenhuma categoria: retornar EXATAMENTE como estão
-5. Retornar APENAS JSON válido, sem texto antes ou depois
-
-## FORMATO DE RESPOSTA
-{"texto original exato": "texto reescrito compliance"}`;
+## FORMATO DE RESPOSTA (JSON OBRIGATÓRIO)
+Retorne APENAS um JSON válido no formato:
+{
+  "respostas": [
+    { "original": "texto original exato", "rewritten": "texto reescrito compliant" }
+  ]
+}`;
 
     const systemMessage = {
       role: "system",
@@ -3794,10 +3749,10 @@ Saúde Masculina / Próstata: ✅ "soutenir le confort urinaire et la prostate" 
 
     const userMessage = {
       role: "user",
-      content: `Analise os textos abaixo. Para textos violadores: gere uma alternativa compliant persuasiva (NUNCA retorne string vazia, exceto para linhas com percentagens + referência a estudo clínico). Para textos não violadores: retorne idênticos. Retorne APENAS JSON válido.
+      content: `Analise e reescreva os textos abaixo para cumprirem com as políticas do Google Ads. Para textos violadores: gere uma alternativa compliant persuasiva mantendo o mesmo idioma original. Para textos não violadores: mantenha a propriedade "rewritten" IDÊNTICA à "original".
 
 Textos para analisar:
-${JSON.stringify(candidatesList.map(c => c.trim()), null, 2)}`
+${JSON.stringify(candidatesList.map(c => c.plain), null, 2)}`
     };
 
     let responseText = "";
@@ -3819,7 +3774,7 @@ ${JSON.stringify(candidatesList.map(c => c.trim()), null, 2)}`
       }
     }
 
-    let mapping: Record<string, string> = {};
+    let mapping: { respostas?: Array<{ original?: string; rewritten?: string }> } = {};
     try {
       mapping = JSON.parse(responseText);
     } catch (parseErr: any) {
@@ -3830,12 +3785,19 @@ ${JSON.stringify(candidatesList.map(c => c.trim()), null, 2)}`
     // 3. Apply the rewrites back into the HTML
     let cleanedHtml = html;
     let rewritesCount = 0;
-    for (const [originalTrimmed, rewritten] of Object.entries(mapping)) {
-      const originalFull = candidatesList.find(c => c.trim() === originalTrimmed);
-      if (originalFull && originalTrimmed !== rewritten && rewritten.trim()) {
-        cleanedHtml = cleanedHtml.replaceAll(originalFull, rewritten);
-        rewritesCount++;
-        logger.info({ originalFull, rewritten }, "Compliance rewriter: Rewrote claim");
+    const responsesArray = mapping.respostas || [];
+    
+    for (const item of responsesArray) {
+      if (item.original && item.rewritten && item.original !== item.rewritten && item.rewritten.trim()) {
+        const cand = candidatesList.find(c => c.plain === item.original);
+        if (cand) {
+          cleanedHtml = cleanedHtml.replace(cand.raw, item.rewritten);
+          rewritesCount++;
+          logger.info({ original: item.original, rewritten: item.rewritten }, "Compliance rewriter: Rewrote claim");
+        } else {
+          cleanedHtml = cleanedHtml.replaceAll(item.original, item.rewritten);
+          rewritesCount++;
+        }
       }
     }
     
