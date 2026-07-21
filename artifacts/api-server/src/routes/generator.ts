@@ -3705,7 +3705,7 @@ async function rewriteClaimsForCompliance(html: string): Promise<{ html: string;
     // Broad keyword list covering all 6 violation categories in PT, ES, EN, PL, FR, DE, etc.:
     const keywordRegex = /\b(dias|days|semanas|weeks|perder|lose|peso|weight|emagrecer|queimar|fat|gordura|grasa|kg|kilos|kilo|garantido|guaranteed|garantia|cure|cura|curar|trata|treat|elimina|eliminate|elimine|combate|combat|comprovou|comprovad[ao]|aprovado|approved|comprovado|proven|clinicamente|clinically|efic[aá]cia|efficacy|m[eé]dico|doctor|especialista|specialist|parasita|parasite|verme|worm|toxina|toxin|diabetes|diab[eé]tic[oa]s?|hipertens[aã]o|c[aâ]ncer|artrite|arthritis|a[cç][uú]car|sangue|melhoria|improvement|estudo|study|estudos|studies|particip[ae]ntes?|participants?|ensaio|trial|pesquisa|research|percentagem|porcentagem|n[ií]veis|complicaç|complic|secreto|secret|proibido|escondido|unidades restantes|estoque|expira|expires|melhor do mundo|n[uú]mero 1|efeito colateral|side effect|mortalidade|mortality|morte|death|r[aá]pido|fast|instant[aâ]neo|instant|desconto|discount|promo[cç][aã]o|oferta especial|żylak|żylaki|zylaki|śmierć|smierc|śmiertelnie|smiertelnie|udar|paraliż|paraliz|skrzep|zakrzepica|niebezpieczn|niebiezpieczn|krwawienie|niepłodność|nieplodnosc|skalpel|operacj|chirurg|badani|skutecznoś|skutecznos|udowadniaj|wynik|przed i po|opinia|efekt|lek|lekarstwo|variz|varizes|várices|varices|varicose|trombose|trombosis|thrombosis|cirurgia|cirugia|surgery|cirujano|chirurgien|bisturi|bisturí|scalpel|paralisia|parálisis|paralysis|paralysie|derrame|stroke)\b/i;
     
-    // We scan using the regex and check against keywords.
+    // We scan using the regex and check against keywords or length to capture the full page copy
     const candidates = new Set<string>();
     let match;
     tagRegex.lastIndex = 0;
@@ -3715,7 +3715,8 @@ async function rewriteClaimsForCompliance(html: string): Promise<{ html: string;
       const plainText = rawText.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
       if (plainText.length < 8 || plainText.length > 1200) continue;
       
-      if (keywordRegex.test(plainText)) {
+      // Collect all copy nodes (> 20 chars or containing keywords) for full page compliance rewriting
+      if (keywordRegex.test(plainText) || plainText.length > 20) {
         candidates.add(rawText.trim());
       }
     }
