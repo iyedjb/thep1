@@ -380,22 +380,57 @@ export default function Creator() {
       const zip = new JSZip();
       let html = generatedHtml;
 
-      // 1. Extract style tags and create css/styles.css
+      // 1. Extract inline <style> tags and external <link rel="stylesheet"> CSS
       let cssContent = "";
       const styleRegex = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
-      let match;
-      while ((match = styleRegex.exec(generatedHtml)) !== null) {
-        cssContent += match[1] + "\n\n";
+      let styleMatch;
+      while ((styleMatch = styleRegex.exec(generatedHtml)) !== null) {
+        cssContent += styleMatch[1] + "\n\n";
       }
 
+      // Also extract and fetch external stylesheet links
+      const linkRegex = /<link\s+[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*>/gi;
+      let linkMatch;
+      const cssUrls: string[] = [];
+      while ((linkMatch = linkRegex.exec(generatedHtml)) !== null) {
+        const href = linkMatch[1];
+        if (href && !href.includes("css/styles.css")) {
+          cssUrls.push(href);
+        }
+      }
+
+      // Fetch external CSS files if any
+      for (const cssHref of cssUrls) {
+        try {
+          let fullUrl = cssHref;
+          if (!/^https?:\/\//i.test(cssHref)) {
+            fullUrl = new URL(cssHref, destinationUrl).href;
+          }
+          const res = await fetch(fullUrl);
+          if (res.ok) {
+            const text = await res.text();
+            cssContent += text + "\n\n";
+          }
+        } catch (_) {}
+      }
+
+      // Save css/styles.css in ZIP
       if (cssContent.trim()) {
         zip.file("css/styles.css", cssContent.trim());
-        html = html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "");
-        if (/<head>/i.test(html)) {
-          html = html.replace(/<head>/i, '<head>\n  <link rel="stylesheet" href="css/styles.css">');
-        } else {
-          html = '<link rel="stylesheet" href="css/styles.css">\n' + html;
-        }
+      } else {
+        // Fallback default CSS if no style was found
+        zip.file("css/styles.css", "/* Hostinger Presell Styles */\nbody { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }\nimg { max-width: 100%; height: auto; }\n.container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 15px; }");
+      }
+
+      // Clean HTML: remove old <style> tags and old stylesheet <link> tags
+      html = html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "");
+      html = html.replace(/<link\s+[^>]*rel=["']stylesheet["'][^>]*>/gi, "");
+
+      // Inject single clean <link rel="stylesheet" href="css/styles.css">
+      if (/<head>/i.test(html)) {
+        html = html.replace(/<head>/i, '<head>\n  <link rel="stylesheet" href="css/styles.css">');
+      } else {
+        html = '<link rel="stylesheet" href="css/styles.css">\n' + html;
       }
 
       // 2. Extract Base64 images and save to images/ folder
