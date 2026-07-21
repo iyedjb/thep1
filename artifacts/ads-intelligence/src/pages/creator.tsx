@@ -430,11 +430,12 @@ export default function Creator() {
       let domain = "presell";
       try { domain = new URL(destinationUrl).hostname.replace("www.", "").split(".")[0]; } catch (_) {}
       
+      const prefix = selectedOption === "a" ? "hostinger-cookie" : "hostinger-clone";
       const content = await zip.generateAsync({ type: "blob" });
       const url = URL.createObjectURL(content);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `hostinger-clone-${domain}.zip`;
+      a.download = `${prefix}-${domain}.zip`;
       a.click();
       URL.revokeObjectURL(url);
 
@@ -956,14 +957,12 @@ export default function Creator() {
 
                     {/* Action buttons */}
                     <div className="space-y-2.5">
-                      {selectedOption === "b" && (
-                        <Button variant="default" size="lg"
-                          className="w-full rounded-xl h-11 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2 transition-all shadow-md"
-                          onClick={handleDownloadHostingerZip}
-                        >
-                          <FolderArchive className="h-4 w-4" /> Baixar Pacote Hostinger (.ZIP — HTML + CSS + Imagens)
-                        </Button>
-                      )}
+                      <Button variant="default" size="lg"
+                        className="w-full rounded-xl h-11 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2 transition-all shadow-md"
+                        onClick={handleDownloadHostingerZip}
+                      >
+                        <FolderArchive className="h-4 w-4" /> Baixar Pacote Hostinger (.ZIP — HTML + CSS + Imagens)
+                      </Button>
 
                       <Button variant="outline" size="lg"
                         className="w-full rounded-xl h-11 text-xs font-bold border-border hover:border-primary/40 hover:bg-primary/5 text-foreground flex items-center justify-center gap-2 transition-all"
