@@ -3532,6 +3532,27 @@ function rewriteClaimsWithLocalDictionary(html: string): string {
     { regex: /\b(?:reconstrói|reconstroi|regenera|recupera|restaura|restaurar)\s+(?:o|a|os|as)?\s*(?:exausto\s+)?(?:tecido cartilaginoso|cartilagem)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "auxilia na manutenção articular" },
     { regex: /\b(?:restaura|restaurar)\s+(?:o|a|os|as)?\s*mobilidade(?:\s*(?:de|das|dos)?\s*articulações)?(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "auxilia na movimentação das articulações" },
     
+    // --- POLISH VARICOSE & VASCULAR & FEAR-MONGERING PATTERNS ---
+    { regex: /\b(?:żylaki|zylaki)\s+(?:zabijają|są\s+śmiertelnie|są\s+niebezpieczne|zabijaja|sa\s+smiertelnie|sa\s+niebezpieczne)\b/gi, replacement: "zadbaj o komfort i piękno swoich nóg" },
+    { regex: /\b(?:śmiertelnie|smiertelnie)\s+(?:niebezpiecznie|niebiezpiecznie)!?\b/gi, replacement: "warto zadbać o nogi" },
+    { regex: /\b(?:usuwa|eliminuje|zwalcza|leczy|zapobiega)\s+(?:przyczynę\s+|przyczyne\s+)?(?:żylaków|zylakow)\b/gi, replacement: "wspiera zdrowie nóg i naczyń krwionośnych" },
+    { regex: /\b(?:usuwa|eliminuje)\s+(?:problem\s+)?(?:siatki\s+żylnej|siatki\s+zylnej|pajączków|pajaczkow)\b/gi, replacement: "wspomaga wygląd skóry nóg" },
+    { regex: /\b(?:neutralizuje|alivia)\s+(?:ból|bol)\s+i\s+(?:obrzęk|obrzek)\b/gi, replacement: "łagodzi dyskomfort nóg" },
+    { regex: /\b(?:tworzenie\s+się\s+skrzepów|skrzepów\s+krwi|zakrzepica|udar|paraliż|paraliz|śmierć|smierc|krwawienie)\b/gi, replacement: "komfort naczyniowy" },
+    { regex: /\b(?:nagłe\s+zerwanie\s+zakrzepu|dostanie\s+się\s+do\s+naczyń\s+mózgu|spowodować\s+udar)\b/gi, replacement: "dbanie o prawidłowe krążenie" },
+    { regex: /\b(?:jedyną|jedyna)\s+alternatywą\s+dla\s+zabiegu\s+chirurgicznego\b/gi, replacement: "codzienna pielęgnacja dla Twoich nóg" },
+    { regex: /\bbez\s+skalpela\b/gi, replacement: "delikatna pielęgnacja" },
+    { regex: /\bbez\s+antybiotyków\b/gi, replacement: "formuła roślinna" },
+    { regex: /\bbez\s+kosztownych\s+zabiegów\b/gi, replacement: "wygodne stosowanie w domu" },
+    { regex: /\bwyniki\s+za\s+\d+\s*(?:dni|tygodnie|tygodni)\b/gi, replacement: "Efekty pielęgnacji przy regularnym stosowaniu" },
+    { regex: /\bprzed\s+i\s+po\b/gi, replacement: "efekty pielęgnacji" },
+    { regex: /\b(?:kardiochirurg|flebolog|ekspert\s+medycyny|chirurg|chirurgiem)\b/gi, replacement: "Ekspert ds. pielęgnacji" },
+    { regex: /\bopakowań\s+na\s+promocję:\s*\d+\b/gi, replacement: "Sprawdź dostępność oferty" },
+    { regex: /\bpromocja\s+zakończy\s+się\s+za\b/gi, replacement: "Oferta specjalna" },
+    { regex: /\b\d+\s+osób\s+zamówiło\s+dzisiaj\b/gi, replacement: "Popularny wybór" },
+    { regex: /\bnieuleczalny\b/gi, replacement: "wymaga pielęgnacji" },
+    { regex: /\bniepłodności\b/gi, replacement: "komfortu fizycznego" },
+
     // --- POLISH PATTERNS ---
     // Joints/Pain/Mobility/Cartilage (Polish)
     { regex: /\b(pozbądź\s+się\s+bólu|pozbadz\s+sie\s+bolu|zlikwiduj\s+ból|usuwa\s+ból|ból\s+stawów|bol\s+stawow)(?![a-zA-Z0-9ąęćłńóśźżĄĘĆŁŃÓŚŹŻ])/gi, replacement: "komfort i dobre samopoczucie stawów" },
@@ -3678,28 +3699,24 @@ async function queryGroq(messages: any[], jsonMode = false) {
 
 async function rewriteClaimsForCompliance(html: string): Promise<{ html: string; aiFailed: boolean }> {
   try {
-    // 1. Find potential policy violating text segments inside typical content tags.
-    // We match text between tags that contains no nested HTML tags.
-    const tagRegex = /<([a-z1-6]+)(?:\s[^>]*)?>[\s\n]*([^<>]{10,1000}?)[\s\n]*<\/\1>/gi;
+    // Match content containers (h1-h6, p, li, div, td, a, span, button) and extract text
+    const tagRegex = /<(h[1-6]|p|li|div|td|a|span|button)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/gi;
     
-    // Broad keyword list covering all 6 violation categories from the agente-copy-compliance training:
-    // CAT 1 - Medical claims, cures, clinical efficacy, study results
-    // CAT 2 - Fake urgency / scarcity
-    // CAT 3 - Superlatives / unverifiable claims
-    // CAT 4 - Testimonials with specific results
-    // CAT 5 - Fear / psychological pressure
-    // CAT 6 - Misleading prices
-    const keywordRegex = /\b(dias|days|semanas|weeks|perder|lose|peso|weight|emagrecer|queimar|fat|gordura|grasa|kg|kilos|kilo|garantido|guaranteed|garantia|cure|cura|curar|trata|treat|elimina|eliminate|elimine|combate|combat|comprovou|comprovad[ao]|aprovado|approved|comprovado|proven|clinicamente|clinically|efic[aá]cia|efficacy|m[eé]dico|doctor|especialista|specialist|parasita|parasite|verme|worm|toxina|toxin|diabetes|diab[eé]tic[oa]s?|hipertens[aã]o|c[aâ]ncer|artrite|arthritis|a[cç][uú]car|sangue|melhoria|improvement|estudo|study|estudos|studies|particip[ae]ntes?|participants?|ensaio|trial|pesquisa|research|percentagem|porcentagem|n[ií]veis|complicaç|complic|secreto|secret|proibido|escondido|unidades restantes|estoque|expira|expires|melhor do mundo|n[uú]mero 1|efeito colateral|side effect|mortalidade|mortality|morte|death|r[aá]pido|fast|instant[aâ]neo|instant|desconto|discount|promo[cç][aã]o|oferta especial)\b/i;
+    // Broad keyword list covering all 6 violation categories in PT, ES, EN, PL, FR, DE, etc.:
+    const keywordRegex = /\b(dias|days|semanas|weeks|perder|lose|peso|weight|emagrecer|queimar|fat|gordura|grasa|kg|kilos|kilo|garantido|guaranteed|garantia|cure|cura|curar|trata|treat|elimina|eliminate|elimine|combate|combat|comprovou|comprovad[ao]|aprovado|approved|comprovado|proven|clinicamente|clinically|efic[aá]cia|efficacy|m[eé]dico|doctor|especialista|specialist|parasita|parasite|verme|worm|toxina|toxin|diabetes|diab[eé]tic[oa]s?|hipertens[aã]o|c[aâ]ncer|artrite|arthritis|a[cç][uú]car|sangue|melhoria|improvement|estudo|study|estudos|studies|particip[ae]ntes?|participants?|ensaio|trial|pesquisa|research|percentagem|porcentagem|n[ií]veis|complicaç|complic|secreto|secret|proibido|escondido|unidades restantes|estoque|expira|expires|melhor do mundo|n[uú]mero 1|efeito colateral|side effect|mortalidade|mortality|morte|death|r[aá]pido|fast|instant[aâ]neo|instant|desconto|discount|promo[cç][aã]o|oferta especial|żylak|żylaki|zylaki|śmierć|smierc|śmiertelnie|smiertelnie|udar|paraliż|paraliz|skrzep|zakrzepica|niebezpieczn|niebiezpieczn|krwawienie|niepłodność|nieplodnosc|skalpel|operacj|chirurg|badani|skutecznoś|skutecznos|udowadniaj|wynik|przed i po|opinia|efekt|lek|lekarstwo|variz|varizes|várices|varices|varicose|trombose|trombosis|thrombosis|cirurgia|cirugia|surgery|cirujano|chirurgien|bisturi|bisturí|scalpel|paralisia|parálisis|paralysis|paralysie|derrame|stroke)\b/i;
     
     // We scan using the regex and check against keywords.
     const candidates = new Set<string>();
     let match;
     tagRegex.lastIndex = 0;
     while ((match = tagRegex.exec(html)) !== null) {
-      const text = match[2];
-      if (!text || text.trim().length < 10) continue;
-      if (keywordRegex.test(text)) {
-        candidates.add(text);
+      const rawText = match[2];
+      if (!rawText) continue;
+      const plainText = rawText.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      if (plainText.length < 8 || plainText.length > 1200) continue;
+      
+      if (keywordRegex.test(plainText)) {
+        candidates.add(rawText.trim());
       }
     }
 
