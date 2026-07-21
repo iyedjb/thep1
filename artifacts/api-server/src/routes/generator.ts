@@ -3532,26 +3532,26 @@ function rewriteClaimsWithLocalDictionary(html: string): string {
     { regex: /\b(?:reconstrói|reconstroi|regenera|recupera|restaura|restaurar)\s+(?:o|a|os|as)?\s*(?:exausto\s+)?(?:tecido cartilaginoso|cartilagem)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "auxilia na manutenção articular" },
     { regex: /\b(?:restaura|restaurar)\s+(?:o|a|os|as)?\s*mobilidade(?:\s*(?:de|das|dos)?\s*articulações)?(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "auxilia na movimentação das articulações" },
     
-    // --- POLISH VARICOSE & VASCULAR & FEAR-MONGERING PATTERNS ---
-    { regex: /\b(?:żylaki|zylaki)\s+(?:zabijają|są\s+śmiertelnie|są\s+niebezpieczne|zabijaja|sa\s+smiertelnie|sa\s+niebezpieczne)\b/gi, replacement: "zadbaj o komfort i piękno swoich nóg" },
-    { regex: /\b(?:śmiertelnie|smiertelnie)\s+(?:niebezpiecznie|niebiezpiecznie)!?\b/gi, replacement: "warto zadbać o nogi" },
-    { regex: /\b(?:usuwa|eliminuje|zwalcza|leczy|zapobiega)\s+(?:przyczynę\s+|przyczyne\s+)?(?:żylaków|zylakow)\b/gi, replacement: "wspiera zdrowie nóg i naczyń krwionośnych" },
-    { regex: /\b(?:usuwa|eliminuje)\s+(?:problem\s+)?(?:siatki\s+żylnej|siatki\s+zylnej|pajączków|pajaczkow)\b/gi, replacement: "wspomaga wygląd skóry nóg" },
-    { regex: /\b(?:neutralizuje|alivia)\s+(?:ból|bol)\s+i\s+(?:obrzęk|obrzek)\b/gi, replacement: "łagodzi dyskomfort nóg" },
-    { regex: /\b(?:tworzenie\s+się\s+skrzepów|skrzepów\s+krwi|zakrzepica|udar|paraliż|paraliz|śmierć|smierc|krwawienie)\b/gi, replacement: "komfort naczyniowy" },
-    { regex: /\b(?:nagłe\s+zerwanie\s+zakrzepu|dostanie\s+się\s+do\s+naczyń\s+mózgu|spowodować\s+udar)\b/gi, replacement: "dbanie o prawidłowe krążenie" },
-    { regex: /\b(?:jedyną|jedyna)\s+alternatywą\s+dla\s+zabiegu\s+chirurgicznego\b/gi, replacement: "codzienna pielęgnacja dla Twoich nóg" },
-    { regex: /\bbez\s+skalpela\b/gi, replacement: "delikatna pielęgnacja" },
-    { regex: /\bbez\s+antybiotyków\b/gi, replacement: "formuła roślinna" },
-    { regex: /\bbez\s+kosztownych\s+zabiegów\b/gi, replacement: "wygodne stosowanie w domu" },
-    { regex: /\bwyniki\s+za\s+\d+\s*(?:dni|tygodnie|tygodni)\b/gi, replacement: "Efekty pielęgnacji przy regularnym stosowaniu" },
-    { regex: /\bprzed\s+i\s+po\b/gi, replacement: "efekty pielęgnacji" },
-    { regex: /\b(?:kardiochirurg|flebolog|ekspert\s+medycyny|chirurg|chirurgiem)\b/gi, replacement: "Ekspert ds. pielęgnacji" },
-    { regex: /\bopakowań\s+na\s+promocję:\s*\d+\b/gi, replacement: "Sprawdź dostępność oferty" },
-    { regex: /\bpromocja\s+zakończy\s+się\s+za\b/gi, replacement: "Oferta specjalna" },
-    { regex: /\b\d+\s+osób\s+zamówiło\s+dzisiaj\b/gi, replacement: "Popularny wybór" },
-    { regex: /\bnieuleczalny\b/gi, replacement: "wymaga pielęgnacji" },
-    { regex: /\bniepłodności\b/gi, replacement: "komfortu fizycznego" },
+    // --- POLISH VARICOSE & VASCULAR & FEAR-MONGERING PATTERNS (HTML-TAG TOLERANT) ---
+    { regex: /ŻYLAKI(?:\s*<[^>]+>)*\s*(?:ZABIJAJĄ|SĄ\s+ŚMIERTELNIE|SĄ\s+NIEBEZPIECZNE|ZABIJAJA|SA\s+SMIERTELNIE|SA\s+NIEBEZPIECZNE)(?:\s*<[^>]+>)*\s*(?:PIĘKNO|SMIERTELNIE|PIEKNO|I\s+ZDROWIE)?(?:\s*<[^>]+>)*\s*(?:TWOICH\s+NÓG)?/gi, replacement: "Zadbaj o conforto e beleza das suas pernas" },
+    { regex: /śmiertelnie(?:\s*<[^>]+>)*\s*niebiezpiecznie!?/gi, replacement: "Cuidado diário para as pernas" },
+    { regex: /śmiertelnie(?:\s*<[^>]+>)*\s*niebezpiecznie!?/gi, replacement: "Cuidado diário para as pernas" },
+    { regex: /Usuwa(?:\s*<[^>]+>)*\s*(?:przyczynę|przyczyne)?(?:\s*<[^>]+>)*\s*żylaków/gi, replacement: "Auxilia no conforto das pernas" },
+    { regex: /Usuwa(?:\s*<[^>]+>)*\s*(?:problem\s+)?(?:siatki\s+żylnej|pajączków)/gi, replacement: "Auxilia no aspecto visual da pele" },
+    { regex: /Neutralizuje(?:\s*<[^>]+>)*\s*ból(?:\s*<[^>]+>)*\s*i(?:\s*<[^>]+>)*\s*obrzęk/gi, replacement: "Promove alívio e conforto" },
+    { regex: /tworzenie\s+się\s+skrzepów|skrzepów\s+krwi|zakrzepica|udar|paraliż|paraliz|śmierć|smierc|krwawienie/gi, replacement: "conforto vascular" },
+    { regex: /nagłe\s+zerwanie\s+zakrzepu|dostanie\s+się\s+do\s+naczyń\s+mózgu|spowodować\s+udar/gi, replacement: "suporte à circulação saudável" },
+    { regex: /jedyną\s+alternatywą\s+dla\s+zabiegu\s+chirurgicznego|jedyna\s+alternatywa\s+dla\s+zabiegu\s+chirurgicznego/gi, replacement: "suporte diário e cuidado natural" },
+    { regex: /bez\s+skalpela/gi, replacement: "cuidado suave" },
+    { regex: /bez\s+antybiotyków/gi, replacement: "fórmula natural" },
+    { regex: /bez\s+kosztownych\s+zabiegów/gi, replacement: "praticidade no dia a dia" },
+    { regex: /wyniki\s+za\s+\d+\s*(?:dni|tygodnie|tygodni)/gi, replacement: "Resultados com uso regular" },
+    { regex: /przed\s+i\s+po/gi, replacement: "cuidados diários" },
+    { regex: /kardiochirurg|flebolog|ekspert\s+medycyny|chirurg|chirurgiem/gi, replacement: "Especialista em bem-estar" },
+    { regex: /nieuleczalny/gi, replacement: "requer cuidados diários" },
+    { regex: /niepłodności/gi, replacement: "bem-estar geral" },
+    { regex: /UKRYWAJĄC\s+SWOJE\s+NOGI/gi, replacement: "CUIDANDO DAS SUAS PERNAS" },
+    { regex: /PRZYMYKASZ\s+OCZY\s+NA\s+KONSEKWENCJE/gi, replacement: "DESCUBRA COMO MANTER O CONFORTO" },
 
     // --- POLISH PATTERNS ---
     // Joints/Pain/Mobility/Cartilage (Polish)
@@ -3886,24 +3886,24 @@ function stripBeforeAfterSections(html: string): string {
       iterations++;
     }
 
-    // 1.5. Semantic Reviews/Testimonials Section Stripping (targeting only <section> tags)
-    // Matches heading tags containing testimonial/review/trust-related vocabulary in multiple languages
-    const reviewHeadingKeywords = /\b(depoimento|depoimentos|avaliaç|testemunho|opinio|comentari|review|testimonial|feedback|rating|opinion|testimonio|reseña|resena|avis|temoignage|témoignage|bewertung|rezension|erfahrungsbericht|vertrauen uns|erfahrung|erfolgsgeschichte|customer stories|histórias de sucesso|opiniones|comentarios|testimonios|vertrauen)\b/i;
-    const sectionTagRegex = /<section(\s+[^>]*)?>/gi;
-    let sectionMatch;
+    // 1.5. Semantic Reviews/Testimonials Section Stripping (targeting <section>, <div class="..."> and <article> tags)
+    // Matches heading/title tags containing testimonial/review/trust/before-after vocabulary in multiple languages
+    const reviewHeadingKeywords = /\b(depoimento|depoimentos|avaliaç|testemunho|opinio|comentari|review|testimonial|feedback|rating|opinion|testimonio|reseña|resena|avis|temoignage|témoignage|bewertung|rezension|erfahrungsbericht|vertrauen uns|erfahrung|erfolgsgeschichte|customer stories|histórias de sucesso|opiniones|comentarios|testimonios|vertrauen|opinia|opinie|wyniki|przed i po|before and after|antes y después|antes e depois)\b/i;
+    const containerTagRegex = /<(section|div|article)(\s+[^>]*)?>/gi;
+    let containerMatch;
     let semanticIterations = 0;
 
-    while (semanticIterations < 10) {
-      sectionTagRegex.lastIndex = 0;
-      let foundSectionStartIndex = -1;
-      let foundFullStartTag = "";
+    while (semanticIterations < 15) {
+      containerTagRegex.lastIndex = 0;
+      let foundContainerStartIndex = -1;
+      let foundContainerTagName = "";
 
-      while ((sectionMatch = sectionTagRegex.exec(html)) !== null) {
-        const startIndex = sectionMatch.index;
-        const fullStartTag = sectionMatch[0];
+      while ((containerMatch = containerTagRegex.exec(html)) !== null) {
+        const tagName = containerMatch[1];
+        const startIndex = containerMatch.index;
 
-        // Balance the section
-        const balanceRegex = /<(?:section(?:\s[^>]*)?|\/section)>/gi;
+        // Balance the tag
+        const balanceRegex = new RegExp(`<(?:${tagName}(?:\\s[^>]*)?|\\/${tagName})>`, 'gi');
         balanceRegex.lastIndex = startIndex;
 
         let openCount = 0;
@@ -3921,9 +3921,9 @@ function stripBeforeAfterSections(html: string): string {
         if (endIndex === -1) continue;
 
         const blockText = html.substring(startIndex, endIndex);
-        const headings = blockText.match(/<h[1-6]\b[^>]*>([\s\S]*?)<\/h[1-6]>/gi) || [];
+        const headingMatches = blockText.match(/<(?:h[1-6]|div|p|span)\b[^>]*>([\s\S]*?)<\/(?:h[1-6]|div|p|span)>/gi) || [];
         let isReviewSection = false;
-        for (const h of headings) {
+        for (const h of headingMatches) {
           const text = h.replace(/<[^>]+>/g, "").trim().toLowerCase();
           if (reviewHeadingKeywords.test(text)) {
             isReviewSection = true;
@@ -3932,18 +3932,18 @@ function stripBeforeAfterSections(html: string): string {
         }
 
         if (isReviewSection) {
-          foundSectionStartIndex = startIndex;
-          foundFullStartTag = fullStartTag;
+          foundContainerStartIndex = startIndex;
+          foundContainerTagName = tagName;
           break;
         }
       }
 
-      if (foundSectionStartIndex === -1) break;
+      if (foundContainerStartIndex === -1) break;
 
       // Balance and strip
       let openTagsCount = 0;
-      const tagBalanceRegex = /<(?:section(?:\s[^>]*)?|\/section)>/gi;
-      tagBalanceRegex.lastIndex = foundSectionStartIndex;
+      const tagBalanceRegex = new RegExp(`<(?:${foundContainerTagName}(?:\\s[^>]*)?|\\/${foundContainerTagName})>`, 'gi');
+      tagBalanceRegex.lastIndex = foundContainerStartIndex;
 
       let balanceMatch;
       let tagEndIndex = -1;
@@ -3959,8 +3959,8 @@ function stripBeforeAfterSections(html: string): string {
       }
 
       if (tagEndIndex !== -1) {
-        logger.info({ tagStartIndex: foundSectionStartIndex, tagEndIndex }, "Stripping semantic reviews section from HTML");
-        html = html.substring(0, foundSectionStartIndex) + html.substring(tagEndIndex);
+        logger.info({ tagName: foundContainerTagName, tagStartIndex: foundContainerStartIndex, tagEndIndex }, "Stripping semantic reviews section from HTML");
+        html = html.substring(0, foundContainerStartIndex) + html.substring(tagEndIndex);
       } else {
         break;
       }
@@ -3984,9 +3984,9 @@ function stripBeforeAfterSections(html: string): string {
  */
 function removeStudyStatSections(html: string): string {
   try {
-    // Keywords indicating a clinical study stats section
-    const studyKeywordRegex = /\b(estudo|study|estudos|studies|melhoria|improvement|comprovad[ao]|comprovou|diabéticos|diab[eé]tic[oa]s|participantes|participants|ensaio|trial|percentagem|porcentagem|eficácia clínica|clinical efficacy)\b/i;
-    // Percentage pattern: 21,2% or 73% or 90.4%
+    // Keywords indicating a clinical study stats section across languages (PT, EN, ES, PL, FR, DE)
+    const studyKeywordRegex = /\b(estudo|study|estudos|studies|melhoria|improvement|comprovad[ao]|comprovou|diabéticos|diab[eé]tic[oa]s|participantes|participants|ensaio|trial|percentagem|porcentagem|eficácia clínica|clinical efficacy|badania|badanie|skutecznoś|skutecznos|wolontariusz|instytucie|rezultaty|investigación|estudio|estudios|resultados|voluntarios|etude|éco|badaniach|zmniejszyła|zmniejszyla)\b/i;
+    // Percentage pattern: 21,2% or 73% or 90.4% or 87,8%
     const percentageRegex = /\d+[,.]?\d*\s*%/;
 
     const targetTagRegex = /<(section|div)(\s+[^>]*)?>/gi;
