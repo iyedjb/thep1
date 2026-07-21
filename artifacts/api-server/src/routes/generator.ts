@@ -1265,6 +1265,27 @@ function getThankYouModalCode(
       badge4: "100% natural",
       footerText: `If you cannot answer the call, we will call you again. Questions? Contact us: ${finalSupportEmail}`,
       closeBtn: "Back to website"
+    },
+    "th": {
+      headline: "ขอบคุณ คำสั่งซื้อของคุณ<br>ได้รับการ <span style='color:#16a34a'>บันทึกแล้ว</span>!",
+      subHeadline: "เราได้บันทึกคำสั่งซื้อของคุณเรียบร้อยแล้ว ทีมงานขายจะติดต่อกลับในไม่ช้า และจะดำเนินการจัดส่งตามระยะเวลาที่กำหนด",
+      productTitle: `${productName} - ฝ่ายสนับสนุนอย่างเป็นทางการ`,
+      productDesc: "ราคาโปรโมชัน - ส่วนลด 50%<br>รับประกันความพึงพอใจ - จัดส่งปลอดภัย",
+      discountBadge: "-50% OFF",
+      adviserTitle: "เจ้าหน้าที่ของเราจะโทรหาคุณ!",
+      adviserDesc: "ทีมงานขายของเราจะติดต่อกลับทางโทรศัพท์เพื่อยืนยันคำสั่งซื้อในไม่ช้า และจะดำเนินการจัดส่งตามระยะเวลาที่กำหนด",
+      step1Title: "รับสายจากเจ้าหน้าที่ของเรา",
+      step1Desc: "ทีมงานขายจะโทรหาคุณในไม่ช้าเพื่อยืนยันรายละเอียดคำสั่งซื้อ",
+      step2Title: "จัดส่งภายใน 24 ชั่วโมง",
+      step2Desc: "หลังการยืนยันโดยทีมงาน คำสั่งซื้อของคุณจะถูกจัดส่งเพื่อให้ถึงตามระยะเวลาที่กำหนด",
+      step3Title: "รับสินค้าและชำระเงินปลายทาง",
+      step3Desc: "ชำระเงินเมื่อพัสดุส่งถึงหน้าบ้านคุณเท่านั้น",
+      badge1: "จัดส่งปลอดภัย",
+      badge2: "สินค้าผ่านการรับรอง",
+      badge3: "+2,500 รีวิว",
+      badge4: "ธรรมชาติ 100%",
+      footerText: `หากคุณไม่สามารถรับสายได้ เราจะติดต่อกลับอีกครั้ง มีคำถาม? ติดต่อเรา: ${finalSupportEmail}`,
+      closeBtn: "กลับสู่เว็บไซต์"
     }
   };
 
@@ -2625,12 +2646,50 @@ const COOKIE_LOCALIZATION: Record<string, {
     valOfertaGeneric: "خصم ترويجي خاص متاح في هذه الحملة.",
     labelInfoRelevante: "معلومات هامة",
     valInfoRelevante: "القناة الإخبارية الرسمية للحملة. شروط الضمان وسياسات الاسترداد هي تلك المحددة على الموقع الرسمي."
+  },
+  "th": {
+    title: "🍪 นโยบายคุกกี้",
+    desc: "เราใช้คุกกี้เพื่อปรับปรุงประสบการณ์ของคุณ หากดำเนินการต่อ แสดงว่าคุณยอมรับข้อตกลงของเรา",
+    accept: "ยอมรับ",
+    decline: "ปฏิเสธ",
+    infoBtn: "รายละเอียดข้อเสนอ",
+    infoTitle: "รายละเอียดข้อเสนอ",
+    labelFormula: "สูตร / ส่วนประกอบ",
+    labelEntrega: "ระยะเวลาจัดส่ง",
+    labelEntregaDigital: "วิธีการเข้าถึง",
+    labelPreco: "ราคาและเงื่อนไข",
+    labelOferta: "ข้อเสนอพิเศษ",
+    valFormula: "สูตรที่ได้รับการพัฒนาด้วยสารสกัดและส่วนผสมธรรมชาติที่คัดสรรมาเป็นอย่างดี",
+    valEntregaPhysical: "การจัดส่งเป็นไปตามระยะเวลาและค่าจัดส่งของเว็บไซต์อย่างเป็นทางการ",
+    valEntregaDigital: "เข้าถึงได้ทันทีทางอีเมลหลังยืนยันการชำระเงิน",
+    valPrecoCOD: "ชำระเงินปลายทาง (จ่ายเมื่อได้รับสินค้าเท่านั้น)",
+    valPrecoOnline: "ชำระเงินออนไลน์อย่างปลอดภัย (บัตรเครดิต, PayPal หรือวิธีการชำระเงินในท้องถิ่น)",
+    valOferta: "โปรโมชันพิเศษจำกัดเวลาในช่องทางอย่างเป็นทางการ",
+    formatPreco: "จาก <del>{orig}</del> เหลือเพียง <strong>{prom}</strong>",
+    ctaOffer: "รับส่วนลดทันที! ข้อเสนอมีจำนวนและเวลาจำกัด",
+    descTemplate: "หน้าข้อมูลอย่างเป็นทางการเกี่ยวกับผลิตภัณฑ์ {prod} ดูรายละเอียดข้อเสนอและสั่งซื้อพร้อมการรับประกันของแท้",
+    priceDescFormat: " จาก {orig} เหลือเพียง {prom}",
+    priceValFormat: " (ราคา: {val})",
+    labelGadget: "ข้อมูลจำเพาะทางเทคนิค",
+    valGadget: "ข้อมูลจำเพาะและคุณสมบัติไฮเทคที่พัฒนาโดยผู้ผลิต",
+    labelDigital: "เนื้อหา / คุณสมบัติ",
+    valDigital: "ทรัพยากรและเนื้อหาข้อมูลคุณภาพสูงที่พัฒนาโดยผู้เชี่ยวชาญ",
+    valGenericCampaignInfo: "ตรวจสอบข้อมูลในแคมเปญนี้",
+    valPrecoGeneric: "ราคาราคาโปรโมชันบนช่องทางอย่างเป็นทางการของผู้ผลิต",
+    valPrecoGenericCond: "การชำระเงินที่ปลอดภัยผ่านช่องทางอย่างเป็นทางการ",
+    valPrecoGenericFallback: "ดูรายละเอียดข้อเสนอ",
+    valOfertaGeneric: "ส่วนลดโปรโมชันพิเศษที่มีในแคมเปญนี้",
+    labelInfoRelevante: "ข้อมูลที่เกี่ยวข้อง",
+    valInfoRelevante: "ช่องทางข้อมูลอย่างเป็นทางการของแคมเปญ เงื่อนไขการรับประกันและนโยบายการคืนเงินเป็นไปตามที่เว็บไซต์อย่างเป็นทางการกำหนด"
   }
 };
 
 function detectLanguageFromText(cleanText: string): string {
   if (/[\u0600-\u06FF]/.test(cleanText)) {
     return "ar";
+  }
+  if (/[\u0E00-\u0E7F]/.test(cleanText)) {
+    return "th";
   }
   const scores: Record<string, number> = {
     "pt-BR": 0,
@@ -2641,7 +2700,8 @@ function detectLanguageFromText(cleanText: string): string {
     "ro": 0,
     "pl": 0,
     "en": 0,
-    "ar": 0
+    "ar": 0,
+    "th": 0
   };
 
   // Specific unique trigger words/phrases
@@ -2697,6 +2757,7 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
     const htmlLangMatch = html.match(/<html\s+[^>]*lang=['"]?([a-zA-Z-]{2,5})['"]?/i);
     if (htmlLangMatch) {
       const rawLang = htmlLangMatch[1].toLowerCase();
+      if (rawLang.startsWith("th")) return "th";
       if (rawLang.startsWith("ar")) return "ar";
       if (rawLang.startsWith("es")) return "es";
       if (rawLang.startsWith("pt")) return "pt-BR";
@@ -2712,7 +2773,9 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
   // 3. Try to detect from reference URL
   if (referenceUrl) {
     const urlLower = referenceUrl.toLowerCase();
-    if (urlLower.endsWith(".br") || urlLower.includes(".com.br")) {
+    if (urlLower.endsWith(".th") || urlLower.includes(".co.th") || urlLower.includes("/th/")) {
+      return "th";
+    } else if (urlLower.endsWith(".br") || urlLower.includes(".com.br")) {
       return "pt-BR";
     } else if (urlLower.endsWith(".es") || urlLower.includes(".com.es") || urlLower.includes("/es/")) {
       return "es";

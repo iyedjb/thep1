@@ -663,6 +663,7 @@ export default function Creator() {
                           <option value="ro">Romeno (ro)</option>
                           <option value="pl">Polonês (pl)</option>
                           <option value="ar">Árabe (ar)</option>
+                          <option value="th">Tailandês (th)</option>
                         </select>
                       </div>
 
