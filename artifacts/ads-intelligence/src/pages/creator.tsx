@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import JSZip from "jszip";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Sparkles,
   Download,
+  FolderArchive,
   ExternalLink,
   Copy,
   RefreshCw,
@@ -369,6 +371,76 @@ export default function Creator() {
       toast({ title: "Download Iniciado ⬇️", description: "O arquivo HTML foi baixado com sucesso." });
     } catch (err: any) {
       toast({ title: "Erro ao baixar arquivo", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDownloadHostingerZip = async () => {
+    try {
+      toast({ title: "Gerando Pacote Hostinger 📦", description: "Organizando HTML, pasta CSS e imagens..." });
+      const zip = new JSZip();
+      let html = generatedHtml;
+
+      // 1. Extract style tags and create css/styles.css
+      let cssContent = "";
+      const styleRegex = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
+      let match;
+      while ((match = styleRegex.exec(generatedHtml)) !== null) {
+        cssContent += match[1] + "\n\n";
+      }
+
+      if (cssContent.trim()) {
+        zip.file("css/styles.css", cssContent.trim());
+        html = html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "");
+        if (/<head>/i.test(html)) {
+          html = html.replace(/<head>/i, '<head>\n  <link rel="stylesheet" href="css/styles.css">');
+        } else {
+          html = '<link rel="stylesheet" href="css/styles.css">\n' + html;
+        }
+      }
+
+      // 2. Extract Base64 images and save to images/ folder
+      const imagesFolder = zip.folder("images");
+      let imgCount = 0;
+      const dataUriRegex = /data:(image\/[a-zA-Z0-9\+\-\.]+);base64,([a-zA-Z0-9\+\/=\s]+)/g;
+      
+      const replacedHtml = html.replace(dataUriRegex, (matchStr, mimeType, base64Data) => {
+        imgCount++;
+        const ext = mimeType.split("/")[1]?.replace("+xml", "") || "png";
+        const filename = `img-${imgCount}.${ext}`;
+        const cleanBase64 = base64Data.replace(/\s/g, "");
+        if (imagesFolder) {
+          imagesFolder.file(filename, cleanBase64, { base64: true });
+        }
+        return `images/${filename}`;
+      });
+
+      // 3. Add index.html to zip
+      zip.file("index.html", replacedHtml);
+
+      // If thankYouHtml exists (and not #obrigado modal), add thank-you page as well
+      if (thankYouHtml && thankYouFileName) {
+        let tyHtml = thankYouHtml;
+        if (cssContent.trim() && !/<link[^>]+styles\.css/i.test(tyHtml)) {
+          tyHtml = tyHtml.replace(/<head>/i, '<head>\n  <link rel="stylesheet" href="css/styles.css">');
+        }
+        zip.file(thankYouFileName.replace(/^\.\//, ""), tyHtml);
+      }
+
+      // 4. Generate zip blob and trigger download
+      let domain = "presell";
+      try { domain = new URL(destinationUrl).hostname.replace("www.", "").split(".")[0]; } catch (_) {}
+      
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `hostinger-clone-${domain}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      toast({ title: "Pacote ZIP Pronto 🚀", description: "Descompacte na Hostinger (hPanel). Arquivos index.html, css/ e images/ criados!" });
+    } catch (err: any) {
+      toast({ title: "Erro ao gerar pacote ZIP", description: err.message, variant: "destructive" });
     }
   };
 
@@ -884,11 +956,20 @@ export default function Creator() {
 
                     {/* Action buttons */}
                     <div className="space-y-2.5">
+                      {selectedOption === "b" && (
+                        <Button variant="default" size="lg"
+                          className="w-full rounded-xl h-11 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2 transition-all shadow-md"
+                          onClick={handleDownloadHostingerZip}
+                        >
+                          <FolderArchive className="h-4 w-4" /> Baixar Pacote Hostinger (.ZIP — HTML + CSS + Imagens)
+                        </Button>
+                      )}
+
                       <Button variant="outline" size="lg"
                         className="w-full rounded-xl h-11 text-xs font-bold border-border hover:border-primary/40 hover:bg-primary/5 text-foreground flex items-center justify-center gap-2 transition-all"
                         onClick={handleDownload}
                       >
-                        <Download className="h-4 w-4 text-primary" /> Baixar Código HTML
+                        <Download className="h-4 w-4 text-primary" /> Baixar Código HTML Unificado
                       </Button>
 
                       <Button variant="ghost" size="sm"
