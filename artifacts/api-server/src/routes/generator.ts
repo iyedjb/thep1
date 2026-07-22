@@ -3453,69 +3453,68 @@ async function generateCleanBackgroundPresellHtml(input: {
   ${faviconUrl ? `<link rel="icon" href="${faviconUrl}">` : ""}
   ${input.trackingTags}
   <style id="presell-cookie-styles">
-    *, *::before, *::after { box-sizing: border-box !important; margin: 0 !important; padding: 0 !important; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
-      width: 100vw !important;
-      height: 100vh !important;
-      margin: 0 !important;
-      padding: 0 !important;
+      width: 100vw;
+      height: 100vh;
       overflow: hidden !important;
-      background-color: #ffffff !important;
     }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #ffffff;
+      position: relative;
+    }
+    
+    /* Ambient blurred background layer */
+    .ambient-bg {
+      position: fixed;
+      inset: 0;
+      ${bgUrl ? `background-image: url("${bgUrl}");` : ""}
+      background-size: cover;
+      background-position: center top;
+      filter: blur(50px);
+      opacity: 0.35;
+      z-index: 0;
+      pointer-events: none;
+    }
+    
     .site-background-container {
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      right: 0 !important;
-      bottom: 0 !important;
-      width: 100vw !important;
-      height: 100vh !important;
-      overflow: hidden !important;
-      z-index: 1 !important;
-      background-color: #ffffff !important;
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      z-index: 1;
     }
     .site-background-img {
-      display: block !important;
-      width: 100vw !important;
-      height: 100vh !important;
-      object-fit: cover !important;
-      object-position: center top !important;
-      pointer-events: none !important;
-      -webkit-user-drag: none !important;
-      user-select: none !important;
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      object-position: center top;
+      pointer-events: none;
+      -webkit-user-drag: none;
+      user-select: none;
     }
     .ads-desktop-bg {
-      display: block !important;
-      width: 100vw !important;
-      height: 100vh !important;
-      object-fit: cover !important;
+      display: block;
     }
     .ads-mobile-bg {
-      display: none !important;
-      width: 0 !important;
-      height: 0 !important;
-      position: absolute !important;
-      visibility: hidden !important;
+      display: none;
     }
     @media (max-width: 768px) {
-      .ads-desktop-bg {
-        display: none !important;
-        width: 0 !important;
-        height: 0 !important;
-        position: absolute !important;
-        visibility: hidden !important;
+      .ambient-bg {
+        display: none;
       }
-      .ads-mobile-bg {
-        display: block !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        object-fit: cover !important;
-        visibility: visible !important;
+      .site-background-img.ads-mobile-bg {
+        display: block;
+      }
+      .ads-desktop-bg {
+        display: none;
       }
     }
   </style>
 </head>
 <body>
+  <div class="ambient-bg"></div>
   <div class="site-background-container">
     ${bgUrl ? `<img class="site-background-img ads-desktop-bg" src="${bgUrl}" alt="desktop background" />` : ""}
     ${mobileBgUrl ? `<img class="site-background-img ads-mobile-bg" src="${mobileBgUrl}" alt="mobile background" />` : ""}

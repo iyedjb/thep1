@@ -414,14 +414,6 @@ export default function Creator() {
         } catch (_) {}
       }
 
-      // Save css/styles.css in ZIP
-      if (cssContent.trim()) {
-        zip.file("css/styles.css", cssContent.trim());
-      } else {
-        // Fallback default CSS if no style was found
-        zip.file("css/styles.css", "/* Hostinger Presell Styles */\nbody { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }\nimg { max-width: 100%; height: auto; }\n.container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 15px; }");
-      }
-
       // Clean HTML: extract all inline styles into css/styles.css for separated architecture and maximum loading performance
       html = html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "");
       html = html.replace(/<link\s+[^>]*rel=["']stylesheet["'][^>]*>/gi, "");
@@ -447,6 +439,25 @@ export default function Creator() {
         }
         return `images/${filename}`;
       });
+
+      const replacedCss = cssContent.replace(dataUriRegex, (matchStr, mimeType, base64Data) => {
+        imgCount++;
+        const ext = mimeType.split("/")[1]?.replace("+xml", "") || "png";
+        const filename = `img-${imgCount}.${ext}`;
+        const cleanBase64 = base64Data.replace(/\s/g, "");
+        if (imagesFolder) {
+          imagesFolder.file(filename, cleanBase64, { base64: true });
+        }
+        return `../images/${filename}`;
+      });
+
+      // Save css/styles.css in ZIP
+      if (replacedCss.trim()) {
+        zip.file("css/styles.css", replacedCss.trim());
+      } else {
+        // Fallback default CSS if no style was found
+        zip.file("css/styles.css", "/* Hostinger Presell Styles */\nbody { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }\nimg { max-width: 100%; height: auto; }\n.container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 15px; }");
+      }
 
       // 3. Add index.html to zip
       zip.file("index.html", replacedHtml);
