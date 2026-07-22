@@ -4679,11 +4679,28 @@ async function generateGaryHalbertLandingPageHtml(input: GaryHalbertLandingPageI
       .substring(0, 3500);
   }
 
+  const langCode = (input.popupLanguage || "pt-BR").toLowerCase().substring(0, 2);
+  const langNameMap: Record<string, string> = {
+    pl: "Polonês (Polish)",
+    es: "Espanhol (Spanish)",
+    en: "Inglês (English)",
+    fr: "Francês (French)",
+    de: "Alemão (German)",
+    pt: "Português (Portuguese)",
+    th: "Tailandês (Thai)",
+    it: "Italiano (Italian)"
+  };
+  const targetLangName = langNameMap[langCode] || "Polonês ou o idioma do texto extraído";
+
   const systemPrompt = `Você é um Copywriter de Nível Mundial especialista nos princípios de Gary Halbert (Direct Response Copywriting de Alta Conversão) e Diretor de Compliance de Anúncios para Google Ads.
 Sua missão é criar o conteúdo completo de uma nova Landing Page de Alta Conversão baseada na leitura do produto fornecido.
 
+## IDIOMA OBRIGATÓRIO (CRÍTICO):
+- O IDIOMA DO TEXTO DA LANDING PAGE DEVE SER 100% EM: ${targetLangName}.
+- Se o texto extraído for em Polonês, responda em Polonês. Se for em Espanhol, responda em Espanhol. JAMAIS responda em Português se o texto original for em outro idioma!
+
 ## REGRAS DE COPYWRITING (GARY HALBERT):
-1. MANCHETE ARRASADORA (Big Idea): Crie um título irresistível que desperte curiosidade e desejo imediato.
+1. MANCHETE ARRASADORA (Big Idea): Crie um título irresistível que desperte curiosidade e desejo imediato no idioma ${targetLangName}.
 2. EMPATIA E PROBLEMA: Conecte-se com a dor diária do cliente, mas SEM alarmismo, ameaças de morte, cirurgia ou medo.
 3. MECANISMO ÚNICO E FÓRMULA: Apresente os ingredientes naturais de forma atraente, explicando por que funcionam.
 4. PILHA DE VALOR: Destaque os benefícios práticos para o dia a dia.
@@ -4691,14 +4708,13 @@ Sua missão é criar o conteúdo completo de uma nova Landing Page de Alta Conve
 
 ## REGRAS RÍGIDAS DO GOOGLE ADS (COMPLIANCE OBRIGATÓRIO):
 - PROIBIDO: Palavras como "morte", "derrame", "paralisia", "cirurgia", "bisturi", "cura milagrosa", "100% garantido para sempre".
-- PROIBIDO: Estatísticas de estudos clínicos falsas (ex: "87% dos pacientes curados").
+- PROIBIDO: Estatísticas de estudos clínicos falsas (ex: "87% curados").
 - OBRIGATÓRIO: Linguagem de suporte ao bem-estar diário, conforto e estética da pele/corpo.
-- IDIOMA: Mantenha a copy no mesmo idioma detectado no texto original (se o texto for em Polonês, responda em Polonês; se for Português, responda em Português; se for Espanhol, responda em Espanhol).
 
 ## FORMATO DE RESPOSTA (JSON OBRIGATÓRIO):
 Retorne APENAS um JSON válido no formato:
 {
-  "headline": "Título arrasador e compliant",
+  "headline": "Título arrasador no idioma ${targetLangName}",
   "subheadline": "Subtítulo atraente com promessa clara de bem-estar",
   "badgeText": "Fórmula Natural • Cuidado Diário",
   "problemTitle": "Sente desconforto ao longo do dia?",
@@ -4723,6 +4739,7 @@ Retorne APENAS um JSON válido no formato:
 
   const userPrompt = `Produto: ${input.productName}
 URL de Referência: ${input.referenceUrl}
+Idioma Solicitado: ${targetLangName}
 Texto extraído da página original:
 ${extractedText || "Produto de saúde e bem-estar natural."}`;
 
@@ -4747,35 +4764,139 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
     }
   }
 
-  // Fallbacks if AI fails or returns partial data
-  const headline = copyData.headline || `Descubra a Fórmula Natural para o Conforto e Bem-Estar das Suas Pernas`;
-  const subheadline = copyData.subheadline || `Uma combinação exclusiva de extratos botânicos desenvolvida para apoiar sua rotina diária com máxima leveza.`;
-  const badgeText = copyData.badgeText || `Fórmula Botânica Natural • Alta Absorção`;
-  const problemTitle = copyData.problemTitle || `Cansaço e desconforto corporal ao final do dia?`;
-  const problemText = copyData.problemText || `Passar longas horas em pé ou sentado pode sobrecarregar suas pernas e causar sensação de peso. Manter um cuidado diário é essencial para recuperar o conforto natural.`;
-  const solutionTitle = copyData.solutionTitle || `Conheça o ${input.productName}`;
-  const solutionText = copyData.solutionText || `Desenvolvido com ingredientes selecionados, o ${input.productName} proporciona uma experiência revigorante, promovendo hidratação, frescor e sensação de alívio imediato.`;
+  // Multilingual UI Dictionary for static labels
+  const uiDict: Record<string, {
+    topBar: string;
+    nameLabel: string;
+    namePlaceholder: string;
+    phoneLabel: string;
+    phonePlaceholder: string;
+    securityBadge: string;
+    footerDisclaimer: string;
+    footerRights: string;
+    privacy: string;
+    terms: string;
+    contact: string;
+    formulaTitle: string;
+  }> = {
+    pl: {
+      topBar: "🔥 Oferta Specjalna Ograniczona Czasowo",
+      nameLabel: "Imię i Nazwisko",
+      namePlaceholder: "Wpisz swoje imię i nazwisko",
+      phoneLabel: "Numer Telefonu",
+      phonePlaceholder: "Wpisz numer telefonu",
+      securityBadge: "🔒 Twoje Dane Są Bezpieczne • Płatność Przy Odbiorze",
+      footerDisclaimer: "Zastrzeżenie: Ten produkt jest suplementem/kosmetykiem codziennego wsparcia i nie zastępuje diagnozy ani leczenia medycznego.",
+      footerRights: "Wszelkie prawa zastrzeżone.",
+      privacy: "Polityka Prywatności",
+      terms: "Regulamin",
+      contact: "Kontakt",
+      formulaTitle: "Formuła z Wyselekcjonowanymi Składnikami"
+    },
+    es: {
+      topBar: "🔥 Oferta Especial de Lanzamiento por Tiempo Limitado",
+      nameLabel: "Nombre Completo",
+      namePlaceholder: "Ingrese su nombre completo",
+      phoneLabel: "Teléfono / WhatsApp",
+      phonePlaceholder: "Ingrese su número de teléfono",
+      securityBadge: "🔒 Sus Datos Están Protegidos • Pago Contra Entrega",
+      footerDisclaimer: "Descargo de responsabilidad: Este producto es un suplemento/cosmético de soporte diario y no reemplaza diagnósticos o tratamientos médicos.",
+      footerRights: "Todos los derechos reservados.",
+      privacy: "Política de Privacidad",
+      terms: "Términos de Uso",
+      contact: "Contacto",
+      formulaTitle: "Fórmula con Ingredientes Seleccionados"
+    },
+    en: {
+      topBar: "🔥 Special Limited Time Offer",
+      nameLabel: "Full Name",
+      namePlaceholder: "Enter your full name",
+      phoneLabel: "Phone Number",
+      phonePlaceholder: "Enter your phone number",
+      securityBadge: "🔒 Your Data Is Protected • Cash On Delivery Available",
+      footerDisclaimer: "Disclaimer: This product is a daily support supplement/cosmetic and does not replace medical diagnosis or treatment.",
+      footerRights: "All rights reserved.",
+      privacy: "Privacy Policy",
+      terms: "Terms of Use",
+      contact: "Contact Us",
+      formulaTitle: "Formula With Selected Ingredients"
+    },
+    fr: {
+      topBar: "🔥 Offre Spéciale à Durée Limitée",
+      nameLabel: "Nom Complet",
+      namePlaceholder: "Entrez votre nom complet",
+      phoneLabel: "Numéro de Téléphone",
+      phonePlaceholder: "Entrez votre numéro de téléphone",
+      securityBadge: "🔒 Vos Données Sont Protégées • Paiement à la Livraison",
+      footerDisclaimer: "Avertissement : Ce produit est un supplément/cosmétique de soutien quotidien et ne remplace pas un diagnostic ou un traitement médical.",
+      footerRights: "Tous droits réservés.",
+      privacy: "Politique de Confidentialité",
+      terms: "Conditions d'Utilisation",
+      contact: "Contact",
+      formulaTitle: "Formule Aux Ingrédients Sélectionnés"
+    },
+    de: {
+      topBar: "🔥 Befristetes Sonderangebot",
+      nameLabel: "Vollständiger Name",
+      namePlaceholder: "Geben Sie Ihren vollständigen Namen ein",
+      phoneLabel: "Telefonnummer",
+      phonePlaceholder: "Geben Sie Ihre Telefonnummer ein",
+      securityBadge: "🔒 Ihre Daten Sind Geschützt • Zahlung bei Lieferung",
+      footerDisclaimer: "Haftungsausschluss: Dieses Produkt ist ein Nahrungsergänzungsmittel/Kosmetikum zur täglichen Unterstützung und ersetzt keine medizinische Diagnose oder Behandlung.",
+      footerRights: "Alle Rechte vorbehalten.",
+      privacy: "Datenschutz-Bestimmungen",
+      terms: "Nutzungsbedingungen",
+      contact: "Kontakt",
+      formulaTitle: "Formel Mit Ausgewählten Inhaltsstoffen"
+    },
+    pt: {
+      topBar: "🔥 Condição Especial de Lançamento por Tempo Limitado",
+      nameLabel: "Nome Completo",
+      namePlaceholder: "Digite seu nome completo",
+      phoneLabel: "Telefone / WhatsApp",
+      phonePlaceholder: "Digite seu telefone com DDD",
+      securityBadge: "🔒 Seus Dados Estão Protegidos • Garantia de Entrega no Pagamento",
+      footerDisclaimer: "Isenção de Responsabilidade: Este produto é um suplemento/cosmético de suporte diário e não substitui diagnósticos ou tratamentos médicos recomendados por profissionais de saúde.",
+      footerRights: "Todos os direitos reservados.",
+      privacy: "Política de Privacidade",
+      terms: "Termos de Uso",
+      contact: "Contato",
+      formulaTitle: "Fórmula com Ingredientes Selecionados"
+    }
+  };
+
+  const ui = uiDict[langCode] || (langCode === "pl" ? uiDict.pl : (langCode === "es" ? uiDict.es : (langCode === "en" ? uiDict.en : uiDict.pl)));
+
+  // Fallbacks if AI fails or returns partial data (per language)
+  const isPolish = langCode === "pl";
+  const headline = copyData.headline || (isPolish ? `Odkryj Naturalną Formułę dla Komfortu i Piękna Twoich Nóg` : `Descubra a Fórmula Natural para o Conforto e Bem-Estar das Suas Pernas`);
+  const subheadline = copyData.subheadline || (isPolish ? `Wyjątkowe połączenie ekstraktów roślinnych stworzone, aby wspierać codzienną lekkość.` : `Uma combinação exclusiva de extratos botânicos desenvolvida para apoiar sua rotina diária com máxima leveza.`);
+  const badgeText = copyData.badgeText || (isPolish ? `Naturalna Formuła • Codzienna Pielęgnacja` : `Fórmula Botânica Natural • Alta Absorção`);
+  const problemTitle = copyData.problemTitle || (isPolish ? `Odczuwasz zmęczenie i ciężkość nóg pod koniec dnia?` : `Cansaço e desconforto corporal ao final do dia?`);
+  const problemText = copyData.problemText || (isPolish ? `Wielogodzinne stanie lub siedzenie może obciążać Twoje nogi. Codzienna pielęgnacja jest kluczowa dla utrzymania naturalnej lekkości.` : `Passar longas horas em pé ou sentado pode sobrecarregar suas pernas e causar sensação de peso. Manter um cuidado diário é essencial para recuperar o conforto natural.`);
+  const solutionTitle = copyData.solutionTitle || (isPolish ? `Poznaj ${input.productName}` : `Conheça o ${input.productName}`);
+  const solutionText = copyData.solutionText || (isPolish ? `Stworzony z wyselekcjonowanych składników, ${input.productName} zapewnia uczucie odświeżenia, nawilżenia i ulgi.` : `Desenvolvido com ingredientes selecionados, o ${input.productName} proporciona uma experiência revigorante, promovendo hidratação, frescor e sensação de alívio imediato.`);
   
   const ingredients: Array<{ name: string; benefit: string }> = Array.isArray(copyData.ingredients) && copyData.ingredients.length > 0 
     ? copyData.ingredients 
     : [
-        { name: "Extrato Natural Ativo", benefit: "Auxilia no alívio da sensação de peso e fadiga." },
-        { name: "Complexo Hidratante", benefit: "Nutre e suaviza o aspecto da pele." },
-        { name: "Agente Refrescante", benefit: "Proporciona frescor e conforto prolongado." }
+        { name: isPolish ? "Aktywny Ekstrakt Roślinny" : "Extrato Natural Ativo", benefit: isPolish ? "Wspomaga uczucie lekkości i świeżości." : "Auxilia no alívio da sensação de peso e fadiga." },
+        { name: isPolish ? "Kompleks Nawilżający" : "Complexo Hidratante", benefit: isPolish ? "Pielęgnuje i wygładza skórę." : "Nutre e suaviza o aspecto da pele." },
+        { name: isPolish ? "Składnik Odświeżający" : "Agente Refrescante", benefit: isPolish ? "Zapewnia długotrwały komfort." : "Proporciona frescor e conforto prolongado." }
       ];
 
   const bullets: string[] = Array.isArray(copyData.bullets) && copyData.bullets.length > 0 
     ? copyData.bullets 
     : [
-        "Alívio e sensação de leveza diária",
-        "Fórmula suave à base de ingredientes naturais",
-        "Textura leve de rápida absorção",
-        "Uso prático em qualquer momento do dia"
+        isPolish ? "Codzienne uczucie lekkości i ulgi" : "Alívio e sensação de leveza diária",
+        isPolish ? "Delikatna formuła z ekologicznych składników" : "Fórmula suave à base de ingredientes naturais",
+        isPolish ? "Szybka absorpcja bez tłustej warstwy" : "Textura leve de rápida absorção",
+        isPolish ? "Wygodne stosowanie każdego dnia" : "Uso prático em qualquer momento do dia"
       ];
 
-  const formTitle = copyData.formTitle || `Solicite o Seu ${input.productName} Hoje`;
-  const formSubtitle = copyData.formSubtitle || `Preencha os dados abaixo para receber as informações da oferta exclusiva com pagamento na entrega.`;
-  const ctaButton = copyData.ctaButton || `SOLICITAR OFERTA AGORA`;
+  const formTitle = copyData.formTitle || (isPolish ? `Zamów ${input.productName} Dzisiaj` : `Solicite o Seu ${input.productName} Hoje`);
+  const formSubtitle = copyData.formSubtitle || (isPolish ? `Wypełnij poniższe dane, aby otrzymać ofertę promocyjną z płatnością przy odbiorze.` : `Preencha os dados abaixo para receber as informações da oferta exclusiva com pagamento na entrega.`);
+  const ctaButton = copyData.ctaButton || (isPolish ? `ZAMÓW Z RABATEM TERAZ` : `SOLICITAR OFERTA AGORA`);
 
   const primaryColor = input.primaryColor || "#16a34a";
   const hasDrCash = !!(input.apiToken && input.streamCode);
@@ -4786,7 +4907,7 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
     : `<div class="product-placeholder">📦<span>${input.productName}</span></div>`;
 
   const html = `<!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="${langCode}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -4869,7 +4990,7 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
 </head>
 <body>
   <div class="top-bar">
-    🔥 Condição Especial de Lançamento por Tempo Limitado
+    ${ui.topBar}
   </div>
 
   <div class="container">
@@ -4899,7 +5020,7 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
       <p>${solutionText}</p>
     </div>
 
-    <h2 style="font-size: 1.6rem; text-align: center; margin: 40px 0 20px;">Fórmula com Ingredientes Selecionados</h2>
+    <h2 style="font-size: 1.6rem; text-align: center; margin: 40px 0 20px;">${ui.formulaTitle}</h2>
     <div class="ingredients-grid">
       ${ingredients.map((ing: { name: string; benefit: string }) => `
         <div class="ingredient-card">
@@ -4920,32 +5041,32 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
         ${hasDrCash ? `<input type="hidden" name="apiToken" value="${input.apiToken}">\n<input type="hidden" name="streamCode" value="${input.streamCode}">` : ""}
         
         <div class="form-group">
-          <label for="input-name">Nome Completo</label>
-          <input type="text" id="input-name" name="name" placeholder="Digite seu nome completo" required>
+          <label for="input-name">${ui.nameLabel}</label>
+          <input type="text" id="input-name" name="name" placeholder="${ui.namePlaceholder}" required>
         </div>
 
         <div class="form-group">
-          <label for="input-phone">Telefone / WhatsApp</label>
-          <input type="tel" id="input-phone" name="phone" placeholder="Digite seu telefone com DDD" required>
+          <label for="input-phone">${ui.phoneLabel}</label>
+          <input type="tel" id="input-phone" name="phone" placeholder="${ui.phonePlaceholder}" required>
         </div>
 
         <button type="submit" class="btn-cta">${ctaButton}</button>
       </form>
 
       <div class="security-badge">
-        🔒 Seus Dados Estão Protegidos • Garantia de Entrega no Pagamento
+        ${ui.securityBadge}
       </div>
     </div>
   </div>
 
   <footer>
     <div class="container">
-      <p>© ${new Date().getFullYear()} ${input.productName}. Todos os direitos reservados.</p>
-      <p>Isenção de Responsabilidade: Este produto é um suplemento/cosmético de suporte diário e não substitui diagnósticos ou tratamentos médicos recomendados por profissionais de saúde.</p>
+      <p>© ${new Date().getFullYear()} ${input.productName}. ${ui.footerRights}</p>
+      <p>${ui.footerDisclaimer}</p>
       <div class="footer-links">
-        <a href="#">Política de Privacidade</a>
-        <a href="#">Termos de Uso</a>
-        <a href="#">Contato</a>
+        <a href="#">${ui.privacy}</a>
+        <a href="#">${ui.terms}</a>
+        <a href="#">${ui.contact}</a>
       </div>
     </div>
   </footer>
