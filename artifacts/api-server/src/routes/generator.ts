@@ -5006,19 +5006,34 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
     "50% OFF"
   );
 
-  const bgDarkColor = input.backgroundColor && input.backgroundColor !== "transparent" ? input.backgroundColor : "#0f172a";
+  const rawBg = input.backgroundColor && input.backgroundColor !== "transparent" ? input.backgroundColor.toLowerCase() : "";
+  const isExplicitDark = rawBg.startsWith("#0") || rawBg.startsWith("#1") || rawBg.includes("15,23,42") || rawBg.includes("17,24,39");
+
+  const isLightBg = !isExplicitDark;
+  const bgDark = isLightBg ? (rawBg && !rawBg.includes("0f172a") ? rawBg : "#f8fafc") : rawBg;
+  const cardBg = isLightBg ? "#ffffff" : "#1e293b";
+  const textMain = isLightBg ? "#0f172a" : "#f8fafc";
+  const textMuted = isLightBg ? "#475569" : "#94a3b8";
+  const borderColor = isLightBg ? "#e2e8f0" : "#334155";
+  const cardShadow = isLightBg ? "0 10px 30px rgba(0,0,0,0.06)" : "0 10px 25px rgba(0,0,0,0.3)";
+  const inputBg = isLightBg ? "#ffffff" : "#090d16";
+  const inputBorder = isLightBg ? "#cbd5e1" : "#334155";
+  const inputText = isLightBg ? "#0f172a" : "#ffffff";
+  const formBg = isLightBg ? "#ffffff" : "linear-gradient(145deg, #1e293b, #0f172a)";
+  const priceBoxBg = isLightBg ? "rgba(22, 163, 74, 0.05)" : "rgba(255,255,255,0.06)";
+  const priceToColor = isLightBg ? "#15803d" : "#4ade80";
 
   const hasDrCash = !!(input.apiToken && input.streamCode);
-  const formAction = hasDrCash ? "#" : (input.affiliateUrl || "#");
+  const formAction = hasDrCash ? "#" : (input.thankYouUrl || "./Obrigado.html");
 
   const productImgHtml = input.productImageUrl
     ? `<img src="${input.productImageUrl}" alt="${input.productName}" class="product-img">`
     : `<div class="product-placeholder">📦<span>${input.productName}</span></div>`;
 
-  const priceBoxHtml = `<div style="margin: 15px 0 20px; padding: 16px 20px; background: rgba(255,255,255,0.06); border-radius: 12px; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+  const priceBoxHtml = `<div style="margin: 15px 0 20px; padding: 16px 20px; background: ${priceBoxBg}; border-radius: 12px; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
       <div>
         <span style="font-size: 0.85rem; color: var(--text-muted); text-decoration: line-through; display: block;">${ui.priceFrom}: ${origPriceDisplay}</span>
-        <span style="font-size: 1.65rem; font-weight: 900; color: #4ade80;">${ui.priceTo}: ${promoPriceDisplay}</span>
+        <span style="font-size: 1.65rem; font-weight: 900; color: ${priceToColor};">${ui.priceTo}: ${promoPriceDisplay}</span>
       </div>
       <span style="background: var(--accent-gold); color: #000; font-weight: 800; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem;">${offerTagDisplay}</span>
     </div>`;
@@ -5038,12 +5053,17 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
       --primary: ${primaryColor};
       --cta-btn: ${ctaColor};
       --primary-dark: #15803d;
-      --bg-dark: #0f172a;
-      --card-bg: #1e293b;
-      --text-main: #f8fafc;
-      --text-muted: #94a3b8;
-      --border-color: #334155;
+      --bg-dark: ${bgDark};
+      --card-bg: ${cardBg};
+      --text-main: ${textMain};
+      --text-muted: ${textMuted};
+      --border-color: ${borderColor};
       --accent-gold: #f59e0b;
+      --card-shadow: ${cardShadow};
+      --input-bg: ${inputBg};
+      --input-border: ${inputBorder};
+      --input-text: ${inputText};
+      --form-bg: ${formBg};
     }
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
     body { background-color: var(--bg-dark); color: var(--text-main); line-height: 1.6; }
@@ -5053,8 +5073,8 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
     .container { width: 100%; max-width: 1100px; margin: 0 auto; padding: 0 20px; }
     
     .hero { padding: 40px 0 30px; text-align: center; }
-    .badge { display: inline-flex; align-items: center; gap: 6px; background-color: rgba(22, 163, 74, 0.15); border: 1px solid var(--primary); color: #4ade80; padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; margin-bottom: 20px; }
-    .hero h1 { font-size: 2.3rem; font-weight: 800; line-height: 1.25; margin-bottom: 16px; color: #ffffff; }
+    .badge { display: inline-flex; align-items: center; gap: 6px; background-color: rgba(22, 163, 74, 0.12); border: 1px solid var(--primary); color: #16a34a; padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 700; margin-bottom: 20px; }
+    .hero h1 { font-size: 2.3rem; font-weight: 800; line-height: 1.25; margin-bottom: 16px; color: var(--text-main); }
     .hero p.subheadline { font-size: 1.15rem; color: var(--text-muted); max-width: 800px; margin: 0 auto 30px; }
     
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; margin: 30px 0; }
@@ -5063,51 +5083,51 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
       .grid-2 { grid-template-columns: 1fr; gap: 25px; }
     }
     
-    .product-box { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 25px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+    .product-box { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 25px; text-align: center; box-shadow: var(--card-shadow); }
     .product-img { max-width: 100%; height: auto; max-height: 320px; border-radius: 12px; object-fit: contain; }
-    .product-placeholder { height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 3rem; background-color: rgba(255,255,255,0.03); border-radius: 12px; }
+    .product-placeholder { height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 3rem; background-color: rgba(0,0,0,0.03); border-radius: 12px; }
     .product-placeholder span { font-size: 1.2rem; font-weight: 700; margin-top: 10px; color: var(--text-main); }
     
-    .narrative-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 30px; margin-bottom: 30px; }
-    .narrative-card h2 { font-size: 1.5rem; color: #ffffff; margin-bottom: 14px; font-weight: 700; border-left: 4px solid var(--primary); padding-left: 12px; }
+    .narrative-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 30px; margin-bottom: 30px; box-shadow: var(--card-shadow); }
+    .narrative-card h2 { font-size: 1.5rem; color: var(--text-main); margin-bottom: 14px; font-weight: 700; border-left: 4px solid var(--primary); padding-left: 12px; }
     .narrative-card p { color: var(--text-muted); font-size: 1rem; margin-bottom: 16px; }
     
     .ingredients-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin: 30px 0; }
-    .ingredient-card { background: rgba(30, 41, 59, 0.6); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; }
-    .ingredient-card h3 { font-size: 1.1rem; color: #4ade80; margin-bottom: 8px; font-weight: 700; }
+    .ingredient-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; box-shadow: var(--card-shadow); }
+    .ingredient-card h3 { font-size: 1.1rem; color: #16a34a; margin-bottom: 8px; font-weight: 700; }
     .ingredient-card p { font-size: 0.9rem; color: var(--text-muted); }
     
     .trust-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin: 30px 0; }
-    .trust-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 14px; padding: 22px; text-align: left; }
-    .trust-card h3 { font-size: 1.1rem; color: #ffffff; margin-bottom: 6px; font-weight: 700; }
+    .trust-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 14px; padding: 22px; text-align: left; box-shadow: var(--card-shadow); }
+    .trust-card h3 { font-size: 1.1rem; color: var(--text-main); margin-bottom: 6px; font-weight: 700; }
     .trust-card p { font-size: 0.9rem; color: var(--text-muted); }
 
     .bullets-list { list-style: none; margin: 20px 0; }
-    .bullets-list li { display: flex; align-items: center; gap: 12px; font-size: 1.05rem; font-weight: 600; color: #ffffff; margin-bottom: 12px; }
+    .bullets-list li { display: flex; align-items: center; gap: 12px; font-size: 1.05rem; font-weight: 600; color: var(--text-main); margin-bottom: 12px; }
     .check-icon { width: 22px; height: 22px; background-color: var(--primary); color: #ffffff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 900; flex-shrink: 0; }
     
     /* FORM SECTION */
-    .form-wrapper { background: linear-gradient(145deg, #1e293b, #0f172a); border: 2px solid var(--primary); border-radius: 20px; padding: 35px 25px; margin: 40px 0; box-shadow: 0 15px 35px rgba(22, 163, 74, 0.2); }
+    .form-wrapper { background: var(--form-bg); border: 2px solid var(--primary); border-radius: 20px; padding: 35px 25px; margin: 40px 0; box-shadow: 0 15px 35px rgba(22, 163, 74, 0.15); }
     .form-header { text-align: center; margin-bottom: 25px; }
-    .form-header h2 { font-size: 1.7rem; font-weight: 800; color: #ffffff; margin-bottom: 8px; }
+    .form-header h2 { font-size: 1.7rem; font-weight: 800; color: var(--text-main); margin-bottom: 8px; }
     .form-header p { font-size: 0.95rem; color: var(--text-muted); }
     
     .order-form { display: flex; flex-direction: column; gap: 16px; max-width: 500px; margin: 0 auto; }
     .form-group { display: flex; flex-direction: column; gap: 6px; }
-    .form-group label { font-size: 0.85rem; font-weight: 700; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.5px; }
-    .form-group input { width: 100%; padding: 14px 16px; background-color: #090d16; border: 1px solid var(--border-color); border-radius: 10px; color: #ffffff; font-size: 1rem; outline: none; transition: border-color 0.2s; }
+    .form-group label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .form-group input { width: 100%; padding: 14px 16px; background-color: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; color: var(--input-text); font-size: 1rem; outline: none; transition: border-color 0.2s; }
     .form-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2); }
     
     .btn-cta { width: 100%; padding: 18px 24px; background: linear-gradient(180deg, var(--cta-btn), var(--primary)); color: #ffffff; border: none; border-radius: 12px; font-size: 1.15rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4); margin-top: 10px; }
     .btn-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(34, 197, 94, 0.5); }
     
-    .security-badge { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.82rem; color: #94a3b8; margin-top: 14px; text-align: center; }
+    .security-badge { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.82rem; color: var(--text-muted); margin-top: 14px; text-align: center; }
     
     footer { border-top: 1px solid var(--border-color); padding: 30px 0; text-align: center; color: var(--text-muted); font-size: 0.8rem; margin-top: 50px; }
     footer p { margin-bottom: 8px; }
     .footer-links { display: flex; justify-content: center; gap: 20px; margin-top: 12px; }
     .footer-links a { color: var(--text-muted); text-decoration: none; }
-    .footer-links a:hover { color: #ffffff; }
+    .footer-links a:hover { color: var(--text-main); }
   </style>
   ${input.trackingTags || ""}
 </head>
@@ -5236,31 +5256,20 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
     const meta: PageMetadata = rawHtmlString ? extractPageMetadata(rawHtmlString, finalUrl) : { productName: productHint || extractProductName(finalUrl), primaryColor: "#16a34a", ctaButtonColor: "#16a34a", backgroundColor: "", productImageUrl: "" };
     const resolvedProductName = productHint || meta.productName || extractProductName(finalUrl);
 
-    let finalThankYouUrl = thankYouUrl;
-    let thankYouFileName = "";
-    let thankYouHtml = "";
-    let shouldInjectThanksModal = false;
-
-    if (!finalThankYouUrl || finalThankYouUrl === "./Obrigado.html" || finalThankYouUrl === "#obrigado") {
-      finalThankYouUrl = "#obrigado";
-      shouldInjectThanksModal = true;
-    } else {
-      thankYouFileName = finalThankYouUrl.replace(/^\.\//, "");
-    }
-
     const detectedLang = detectLandingPageLanguage(rawHtmlString || "", finalUrl, popupLanguage, meta);
 
-    if (!shouldInjectThanksModal) {
-      thankYouHtml = generateThankYouHtml({
-        productName: resolvedProductName,
-        primaryColor: meta.primaryColor,
-        productImageUrl: meta.productImageUrl,
-        referenceUrl: finalUrl,
-        popupLanguage: detectedLang,
-        supportEmail: "",
-        trackingTags: trackingTags
-      });
-    }
+    const finalThankYouUrl = (thankYouUrl && thankYouUrl !== "#obrigado") ? thankYouUrl : "./Obrigado.html";
+    const thankYouFileName = "Obrigado.html";
+
+    const thankYouHtml = generateThankYouHtml({
+      productName: resolvedProductName,
+      primaryColor: meta.primaryColor || "#16a34a",
+      productImageUrl: meta.productImageUrl || "",
+      referenceUrl: finalUrl,
+      popupLanguage: detectedLang,
+      supportEmail: "",
+      trackingTags: trackingTags
+    });
 
     // Generate Gary Halbert High-Converting Landing Page HTML
     const garyResult = await generateGaryHalbertLandingPageHtml({
@@ -5284,9 +5293,9 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
 
     let finalHtml = garyResult.html;
 
-    // Inject thank you modal code if Dr.Cash is enabled or thankYouUrl is #obrigado
+    // Inject thank you modal code if Dr.Cash is enabled
     const hasDrCash = !!(apiToken && streamCode);
-    if ((meta as any)?.isCod || hasDrCash || shouldInjectThanksModal) {
+    if ((meta as any)?.isCod || hasDrCash) {
       const modalCode = getThankYouModalCode(
         resolvedProductName,
         meta.primaryColor || "#16a34a",
