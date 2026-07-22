@@ -3456,7 +3456,21 @@ async function generateCleanBackgroundPresellHtml(input: {
       margin: 0;
       padding: 0;
       overflow: hidden !important;
-      background-color: #0f172a;
+      background-color: #ffffff;
+    }
+    
+    /* Ambient color-matched background blur layer to seamlessly fill margins */
+    .ambient-bg {
+      position: fixed;
+      inset: -20px;
+      background-image: url('${bgUrl}');
+      background-size: cover;
+      background-position: center top;
+      filter: blur(40px) brightness(0.95);
+      opacity: 0.75;
+      z-index: 0;
+      pointer-events: none;
+      transform: scale(1.1);
     }
     
     /* Single centered cloned site screenshot container */
@@ -3465,12 +3479,12 @@ async function generateCleanBackgroundPresellHtml(input: {
       inset: 0;
       overflow: hidden;
       z-index: 1;
-      background-color: #0f172a;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
     }
     .site-background-img {
-      position: absolute;
-      top: 0;
-      left: 0;
+      display: block;
       width: 100vw;
       height: 100vh;
       object-fit: cover;
@@ -3486,16 +3500,24 @@ async function generateCleanBackgroundPresellHtml(input: {
       display: none !important;
     }
     @media (max-width: 768px) {
+      .ambient-bg {
+        display: none !important;
+      }
       .ads-desktop-bg {
         display: none !important;
       }
       .ads-mobile-bg {
         display: block !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        object-fit: cover !important;
+        object-position: center top !important;
       }
     }
   </style>
 </head>
 <body>
+  <div class="ambient-bg"></div>
   <div class="site-background-container">
     ${bgUrl ? `<img class="site-background-img ads-desktop-bg" src="${bgUrl}" alt="desktop background" />` : ""}
     ${mobileBgUrl ? `<img class="site-background-img ads-mobile-bg" src="${mobileBgUrl}" alt="mobile background" />` : ""}
