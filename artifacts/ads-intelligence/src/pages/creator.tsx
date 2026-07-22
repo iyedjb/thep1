@@ -422,15 +422,22 @@ export default function Creator() {
         zip.file("css/styles.css", "/* Hostinger Presell Styles */\nbody { margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }\nimg { max-width: 100%; height: auto; }\n.container { width: 100%; max-width: 1200px; margin: 0 auto; padding: 15px; }");
       }
 
-      // Clean HTML: remove old <style> tags and old stylesheet <link> tags
-      html = html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "");
-      html = html.replace(/<link\s+[^>]*rel=["']stylesheet["'][^>]*>/gi, "");
+      // For Option A (Cookie Presell), preserve inline <style> tags so index.html is 100% self-contained and never breaks if css/styles.css is blocked or cached on Hostinger
+      if (selectedOption !== "a") {
+        html = html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "");
+        html = html.replace(/<link\s+[^>]*rel=["']stylesheet["'][^>]*>/gi, "");
 
-      // Inject single clean <link rel="stylesheet" href="css/styles.css">
-      if (/<head>/i.test(html)) {
-        html = html.replace(/<head>/i, '<head>\n  <link rel="stylesheet" href="css/styles.css">');
+        if (/<head>/i.test(html)) {
+          html = html.replace(/<head>/i, '<head>\n  <link rel="stylesheet" href="css/styles.css">');
+        } else {
+          html = '<link rel="stylesheet" href="css/styles.css">\n' + html;
+        }
       } else {
-        html = '<link rel="stylesheet" href="css/styles.css">\n' + html;
+        if (!/<link[^>]+styles\.css/i.test(html)) {
+          if (/<head>/i.test(html)) {
+            html = html.replace(/<head>/i, '<head>\n  <link rel="stylesheet" href="css/styles.css">');
+          }
+        }
       }
 
       // 2. Extract Base64 images and save to images/ folder

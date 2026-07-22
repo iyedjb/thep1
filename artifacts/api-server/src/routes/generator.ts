@@ -3486,16 +3486,31 @@ async function generateCleanBackgroundPresellHtml(input: {
     }
     .ads-desktop-bg {
       display: block !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      object-fit: cover !important;
     }
     .ads-mobile-bg {
       display: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      position: absolute !important;
+      visibility: hidden !important;
     }
     @media (max-width: 768px) {
       .ads-desktop-bg {
         display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+        position: absolute !important;
+        visibility: hidden !important;
       }
       .ads-mobile-bg {
         display: block !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        object-fit: cover !important;
+        visibility: visible !important;
       }
     }
   </style>
