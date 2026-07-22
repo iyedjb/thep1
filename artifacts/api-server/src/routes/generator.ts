@@ -3470,12 +3470,10 @@ async function generateCleanBackgroundPresellHtml(input: {
     .site-background-img {
       position: absolute;
       top: 0;
-      left: 50%;
-      transform: translateX(-50%);
+      left: 0;
+      width: 100vw;
       height: 100vh;
-      width: auto;
-      max-width: 100vw;
-      object-fit: contain;
+      object-fit: cover;
       object-position: center top;
       pointer-events: none;
       -webkit-user-drag: none;
