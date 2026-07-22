@@ -3453,64 +3453,51 @@ async function generateCleanBackgroundPresellHtml(input: {
     html, body {
       width: 100vw;
       height: 100vh;
+      margin: 0;
+      padding: 0;
       overflow: hidden !important;
-    }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background-color: #ffffff;
-      position: relative;
+      background-color: #0f172a;
     }
     
-    /* Ambient blurred background layer */
-    .ambient-bg {
-      position: fixed;
-      inset: 0;
-      background-image: url('${bgUrl}');
-      background-size: cover;
-      background-position: center top;
-      filter: blur(50px);
-      opacity: 0.35;
-      z-index: 0;
-      pointer-events: none;
-    }
-    
+    /* Single centered cloned site screenshot container */
     .site-background-container {
       position: fixed;
       inset: 0;
       overflow: hidden;
       z-index: 1;
+      background-color: #0f172a;
     }
     .site-background-img {
-      display: block;
-      width: 100vw;
+      position: absolute;
+      top: 0;
+      left: 50%;
+      transform: translateX(-50%);
       height: 100vh;
-      object-fit: cover;
+      width: auto;
+      max-width: 100vw;
+      object-fit: contain;
       object-position: center top;
       pointer-events: none;
       -webkit-user-drag: none;
       user-select: none;
     }
     .ads-desktop-bg {
-      display: block;
+      display: block !important;
     }
     .ads-mobile-bg {
-      display: none;
+      display: none !important;
     }
     @media (max-width: 768px) {
-      .ambient-bg {
-        display: none;
-      }
-      .site-background-img.ads-mobile-bg {
-        display: block;
-      }
       .ads-desktop-bg {
-        display: none;
+        display: none !important;
+      }
+      .ads-mobile-bg {
+        display: block !important;
       }
     }
   </style>
 </head>
 <body>
-  <div class="ambient-bg"></div>
   <div class="site-background-container">
     ${bgUrl ? `<img class="site-background-img ads-desktop-bg" src="${bgUrl}" alt="desktop background" />` : ""}
     ${mobileBgUrl ? `<img class="site-background-img ads-mobile-bg" src="${mobileBgUrl}" alt="mobile background" />` : ""}
@@ -4169,9 +4156,7 @@ function injectCookieConsentOverlay(
     left: 50%;
     transform: translate(-50%, -50%);
     background: #ffffff;
-    background: color-mix(in srgb, ${primaryColor} 6%, #ffffff);
-    border: 1px solid rgba(0,0,0,0.06);
-    border: 1px solid color-mix(in srgb, ${primaryColor} 15%, #ffffff);
+    border: 1px solid #e2e8f0;
     border-top: 4px solid ${primaryColor};
     border-radius: 20px;
     padding: 36px 28px 28px;
