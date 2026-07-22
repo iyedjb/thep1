@@ -69,7 +69,9 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
     await new Promise(resolve => setTimeout(resolve, 3000));
     
     // Hide scrollbars before screenshot
-    await desktopPage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
+    try {
+      await desktopPage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
+    } catch (_) {}
 
     const desktopBuffer = (await desktopPage.screenshot({ fullPage: false, type: 'jpeg', quality: 95 })) as Buffer;
     const desktopBase64 = `data:image/jpeg;base64,${desktopBuffer.toString('base64')}`;
@@ -134,7 +136,9 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
     }
 
     // Hide scrollbars
-    await mobilePage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
+    try {
+      await mobilePage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
+    } catch (_) {}
 
     const mobileBuffer = (await mobilePage.screenshot({ fullPage: false, type: 'jpeg', quality: 95 })) as Buffer;
     const mobileBase64 = `data:image/jpeg;base64,${mobileBuffer.toString('base64')}`;
