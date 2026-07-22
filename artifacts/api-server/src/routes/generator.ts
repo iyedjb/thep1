@@ -29,7 +29,7 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
 
   try {
     const desktopPage = await browser.newPage();
-    await desktopPage.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
+    await desktopPage.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 2 });
     
     // Set User-Agent to standard desktop browser
     await desktopPage.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
@@ -71,7 +71,7 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
     // Hide scrollbars before screenshot
     await desktopPage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
 
-    const desktopBuffer = (await desktopPage.screenshot({ fullPage: false, type: 'jpeg', quality: 70 })) as Buffer;
+    const desktopBuffer = (await desktopPage.screenshot({ fullPage: false, type: 'jpeg', quality: 95 })) as Buffer;
     const desktopBase64 = `data:image/jpeg;base64,${desktopBuffer.toString('base64')}`;
 
     const mobilePage = await browser.newPage();
@@ -82,7 +82,7 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
       height: 844,
       isMobile: true,
       hasTouch: true,
-      deviceScaleFactor: 1
+      deviceScaleFactor: 2
     });
     
     // Set standard mobile User-Agent
@@ -136,7 +136,7 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
     // Hide scrollbars
     await mobilePage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
 
-    const mobileBuffer = (await mobilePage.screenshot({ fullPage: false, type: 'jpeg', quality: 70 })) as Buffer;
+    const mobileBuffer = (await mobilePage.screenshot({ fullPage: false, type: 'jpeg', quality: 95 })) as Buffer;
     const mobileBase64 = `data:image/jpeg;base64,${mobileBuffer.toString('base64')}`;
 
     logger.info("Puppeteer screenshots captured successfully!");
@@ -3458,30 +3458,12 @@ async function generateCleanBackgroundPresellHtml(input: {
       overflow: hidden !important;
       background-color: #ffffff;
     }
-    
-    /* Ambient color-matched background blur layer to seamlessly fill margins */
-    .ambient-bg {
-      position: fixed;
-      inset: -20px;
-      background-image: url('${bgUrl}');
-      background-size: cover;
-      background-position: center top;
-      filter: blur(40px) brightness(0.95);
-      opacity: 0.75;
-      z-index: 0;
-      pointer-events: none;
-      transform: scale(1.1);
-    }
-    
-    /* Single centered cloned site screenshot container */
     .site-background-container {
       position: fixed;
       inset: 0;
       overflow: hidden;
       z-index: 1;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
+      background-color: #ffffff;
     }
     .site-background-img {
       display: block;
@@ -3500,24 +3482,16 @@ async function generateCleanBackgroundPresellHtml(input: {
       display: none !important;
     }
     @media (max-width: 768px) {
-      .ambient-bg {
-        display: none !important;
-      }
       .ads-desktop-bg {
         display: none !important;
       }
       .ads-mobile-bg {
         display: block !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        object-fit: cover !important;
-        object-position: center top !important;
       }
     }
   </style>
 </head>
 <body>
-  <div class="ambient-bg"></div>
   <div class="site-background-container">
     ${bgUrl ? `<img class="site-background-img ads-desktop-bg" src="${bgUrl}" alt="desktop background" />` : ""}
     ${mobileBgUrl ? `<img class="site-background-img ads-mobile-bg" src="${mobileBgUrl}" alt="mobile background" />` : ""}
