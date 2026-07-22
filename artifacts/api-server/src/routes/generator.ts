@@ -1047,8 +1047,29 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     }
   }
 
-  // Attempt to parse price from HTML
-  const priceRegex = /(?:(?:R\$|\$|€|£|¥|S\/\.?|PEN|MXN|COP|CLP|ARS|EUR|PLN|RON|CZK|HUF)\s*\d+(?:[.,]\d{2})?|\d+(?:[.,]\d{2})?\s*(?:zł|€|\$|£|¥|lei|Kč|Ft|EUR|eur|Eur|PLN|pln|RON|ron|CZK|czk|лв|BGN|bgn|din|RSD|rsd|HUF|huf|PEN|pen|S\/\.?))/gi;
+  // 1. Check direct HTML CSS selectors for prices (Dr.Cash / affiliate landing page standard classes)
+  const oldPriceMatch = html.match(/class=["'][^"']*(?:price-old|price_old|price-before|old-price)[^"']*["'][^>]*>([\s\S]*?)<\/p>/i) ||
+                        html.match(/class=["'][^"']*(?:price-old|price_old|price-before|old-price)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i) ||
+                        html.match(/<(?:del|s|strike)[^>]*>([\s\S]*?)<\/(?:del|s|strike)>/i);
+  if (oldPriceMatch && oldPriceMatch[1]) {
+    const rawOld = oldPriceMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+    if (/\d/.test(rawOld)) {
+      originalPrice = rawOld;
+    }
+  }
+
+  const newPriceMatch = html.match(/class=["'][^"']*(?:price-new|price_new|price-current|new-price|promo-price)[^"']*["'][^>]*>([\s\S]*?)<\/p>/i) ||
+                        html.match(/class=["'][^"']*(?:price-new|price_new|price-current|new-price|promo-price)[^"']*["'][^>]*>([\s\S]*?)<\/div>/i);
+  if (newPriceMatch && newPriceMatch[1]) {
+    const rawNew = newPriceMatch[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+    if (/\d/.test(rawNew)) {
+      promotionalPrice = rawNew;
+      extractedPrice = rawNew;
+    }
+  }
+
+  // 2. Fallback regex to parse price from HTML text
+  const priceRegex = /(?:(?:R\$|\$|€|£|¥|S\/\.?|PEN|MXN|COP|CLP|ARS|EUR|PLN|RON|CZK|HUF|GTQ|BOB|DOP|CRC|PYG|UYU|HNL|NIO)\s*\d+(?:[.,]\d{2})?|\d+(?:[.,]\d{2})?\s*(?:zł|€|\$|£|¥|lei|Kč|Ft|EUR|eur|Eur|PLN|pln|RON|ron|CZK|czk|лв|BGN|bgn|din|RSD|rsd|HUF|huf|PEN|pen|GTQ|gtq|S\/\.?))/gi;
   const parseVal = (str: string): number => {
     const m = str.match(/\d+/);
     return m ? parseInt(m[0], 10) : 0;
@@ -1067,27 +1088,29 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     const uniquePrices = Array.from(new Set(priceMatches.map(p => p.trim())))
       .filter(p => parseVal(p) > 0);
 
-    if (uniquePrices.length === 1) {
-      extractedPrice = uniquePrices[0];
-      promotionalPrice = uniquePrices[0];
-    } else if (uniquePrices.length >= 2) {
-      const p1 = uniquePrices[0];
-      const p2 = uniquePrices[1];
-      const v1 = parseVal(p1);
-      const v2 = parseVal(p2);
-      
-      if (v1 > 0 && v2 > 0) {
-        if (v1 > v2) {
-          originalPrice = p1;
-          promotionalPrice = p2;
+    if (!originalPrice && !promotionalPrice) {
+      if (uniquePrices.length === 1) {
+        extractedPrice = uniquePrices[0];
+        promotionalPrice = uniquePrices[0];
+      } else if (uniquePrices.length >= 2) {
+        const p1 = uniquePrices[0];
+        const p2 = uniquePrices[1];
+        const v1 = parseVal(p1);
+        const v2 = parseVal(p2);
+        
+        if (v1 > 0 && v2 > 0) {
+          if (v1 > v2) {
+            originalPrice = p1;
+            promotionalPrice = p2;
+          } else {
+            originalPrice = p2;
+            promotionalPrice = p1;
+          }
+          extractedPrice = promotionalPrice;
         } else {
-          originalPrice = p2;
+          extractedPrice = p1;
           promotionalPrice = p1;
         }
-        extractedPrice = promotionalPrice;
-      } else {
-        extractedPrice = p1;
-        promotionalPrice = p1;
       }
     }
   }
@@ -2714,19 +2737,19 @@ function detectLanguageFromText(cleanText: string): string {
   };
 
   // Specific unique trigger words/phrases
-  if (/\b(?:preço|desconto|composição|garantia|prazo|entrega|pague na entrega)\b/i.test(cleanText)) scores["pt-BR"] += 15;
-  if (/\b(?:precio|descuento|composición|garantía|plazo|contra entrega|pago contrareembolso)\b/i.test(cleanText)) scores["es"] += 15;
-  if (/\b(?:prezzo|sconto|composizione|garanzia|consegna|pagamento alla consegna)\b/i.test(cleanText)) scores["it"] += 15;
-  if (/\b(?:prix|remise|composition|garantie|livraison|paiement à la livraison|réduction|commander|officiel|produit|offre)\b/i.test(cleanText)) scores["fr"] += 15;
-  if (/\b(?:preis|rabatt|zusammensetzung|garantie|lieferzeit|zahlung bei lieferung)\b/i.test(cleanText)) scores["de"] += 15;
-  if (/\b(?:preț|reducere|compoziție|garanție|timp de livrare|plată la livrare)\b/i.test(cleanText)) scores["ro"] += 15;
-  if (/\b(?:cena|rabat|skład|gwarancja|czas dostawy|płatność przy odbiorze)\b/i.test(cleanText)) scores["pl"] += 15;
+  if (/\b(?:preço|desconto|composição|garantia|prazo|entrega|pague na entrega|cápsulas|articulações)\b/i.test(cleanText)) scores["pt-BR"] += 25;
+  if (/\b(?:precio|descuento|composición|garantía|plazo|contra entrega|pago|pedir|articulaciones|cápsulas|dolor|hinchazón|solicitud|recibirlo|anterior|actual)\b/i.test(cleanText)) scores["es"] += 25;
+  if (/\b(?:prezzo|sconto|composizione|garanzia|consegna|pagamento alla consegna)\b/i.test(cleanText)) scores["it"] += 25;
+  if (/\b(?:prix|remise|composition|garantie|livraison|paiement à la livraison|réduction|commander|officiel|produit|offre)\b/i.test(cleanText)) scores["fr"] += 25;
+  if (/\b(?:preis|rabatt|zusammensetzung|garantie|lieferzeit|zahlung bei lieferung)\b/i.test(cleanText)) scores["de"] += 25;
+  if (/\b(?:preț|reducere|compoziție|garanție|timp de livrare|plată la livrare)\b/i.test(cleanText)) scores["ro"] += 25;
+  if (/\b(?:cena|rabat|skład|gwarancja|czas dostawy|płatność przy odbiorze)\b/i.test(cleanText)) scores["pl"] += 25;
 
   // Split and count high frequency unique words/conjunctions
   const words = cleanText.split(/\s+/);
   for (const w of words) {
-    if (w === "y" || w === "con" || w === "para" || w === "los" || w === "las" || w === "del") scores["es"]++;
-    if (w === "o" || w === "com" || w === "para" || w === "os" || w === "as" || w === "dos" || w === "das") scores["pt-BR"]++;
+    if (w === "y" || w === "con" || w === "para" || w === "los" || w === "las" || w === "del" || w === "el" || w === "la" || w === "un" || w === "una" || w === "por" || w === "sin") scores["es"]++;
+    if (w === "o" || w === "com" || w === "para" || w === "os" || w === "as" || w === "dos" || w === "das" || w === "um" || w === "uma" || w === "por" || w === "sem") scores["pt-BR"]++;
     if (w === "il" || w === "di" || w === "in" || w === "con" || w === "per" || w === "i" || w === "gli") scores["it"]++;
     if (w === "le" || w === "la" || w === "du" || w === "et" || w === "pour" || w === "avec" || w === "les" || w === "des" || w === "un" || w === "une" || w === "est" || w === "en") scores["fr"]++;
     if (w === "der" || w === "die" || w === "das" || w === "und" || w === "mit" || w === "für" || w === "von") scores["de"]++;
@@ -2756,7 +2779,7 @@ function detectLandingPageLanguage(html: string | null, referenceUrl: string, ch
       .replace(/<[^>]+>/g, " ")
       .toLowerCase();
     const langFromHtmlText = detectLanguageFromText(cleanText);
-    if (langFromHtmlText && langFromHtmlText !== "en") {
+    if (langFromHtmlText && (langFromHtmlText !== "en" || !/<html\s+[^>]*lang=['"]?([a-zA-Z-]{2,5})['"]?/i.test(html))) {
       return langFromHtmlText;
     }
   }
@@ -5191,8 +5214,11 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
         <p>${formSubtitle}</p>
       </div>
 
-      <form action="${formAction}" method="POST" class="order-form orderForm">
-        ${hasDrCash ? `<input type="hidden" name="apiToken" value="${input.apiToken}">\n<input type="hidden" name="streamCode" value="${input.streamCode}">` : ""}
+      <form action="./Obrigado.html" method="POST" class="order-form orderForm">
+        <input type="hidden" name="api_token" value="${input.apiToken || ""}">
+        <input type="hidden" name="apiToken" value="${input.apiToken || ""}">
+        <input type="hidden" name="stream_code" value="${input.streamCode || ""}">
+        <input type="hidden" name="streamCode" value="${input.streamCode || ""}">
         
         <div class="form-group">
           <label for="input-name">${ui.nameLabel}</label>
@@ -5224,6 +5250,53 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
       </div>
     </div>
   </footer>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      var forms = document.querySelectorAll("form.orderForm, form.order-form");
+      forms.forEach(function(form) {
+        form.addEventListener("submit", function(e) {
+          var nameInput = form.querySelector('input[name="name"]');
+          var phoneInput = form.querySelector('input[name="phone"]');
+          var apiTokenInput = form.querySelector('input[name="api_token"]') || form.querySelector('input[name="apiToken"]');
+          var streamCodeInput = form.querySelector('input[name="stream_code"]') || form.querySelector('input[name="streamCode"]');
+
+          var name = nameInput ? nameInput.value.trim() : "";
+          var phone = phoneInput ? phoneInput.value.trim() : "";
+          var apiToken = apiTokenInput ? apiTokenInput.value.trim() : "";
+          var streamCode = streamCodeInput ? streamCodeInput.value.trim() : "";
+
+          if (apiToken && streamCode) {
+            e.preventDefault();
+            var btn = form.querySelector('button[type="submit"]');
+            if (btn) {
+              btn.disabled = true;
+              btn.innerHTML = "⏳ Enviando...";
+            }
+
+            fetch("https://order.drcash.sh/v1/order", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + apiToken
+              },
+              body: JSON.stringify({
+                stream_code: streamCode,
+                client: {
+                  name: name,
+                  phone: phone
+                }
+              })
+            }).then(function() {
+              window.location.href = "./Obrigado.html";
+            }).catch(function() {
+              window.location.href = "./Obrigado.html";
+            });
+          }
+        });
+      });
+    });
+  </script>
 </body>
 </html>`;
 
