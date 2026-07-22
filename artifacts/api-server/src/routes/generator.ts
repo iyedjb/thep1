@@ -4530,14 +4530,12 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         screenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=false&viewport.width=1920&viewport.height=1080&embed=screenshot.url`;
         mobileScreenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=false&viewport.width=390&viewport.height=844&viewport.isMobile=true&viewport.hasTouch=true&viewport.userAgent=Mozilla%2F5.0+%28iPhone%3B+CPU+iPhone+OS+15_0+like+Mac+OS+X%29+AppleWebKit%2F605.1.15+%28KHTML%2C+like+Gecko%29+Version%2F15.0+Mobile%2F15E148+Safari%2F604.1&embed=screenshot.url`;
 
-        // Check if Microlink works, otherwise fallback to thum.io
         try {
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 15000);
           const testRes = await fetch(screenshotUrl, { method: "HEAD", signal: controller.signal });
           clearTimeout(timeoutId);
           if (testRes.status !== 200) {
-            logger.warn({ status: testRes.status }, "Microlink checked, status not 200, falling back to thum.io");
             const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
             const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
             const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
@@ -4545,7 +4543,6 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
             mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/${finalUrl}`;
           }
         } catch (err) {
-          logger.warn({ err: (err as Error).message }, "Microlink checked, threw error/timeout, falling back to thum.io");
           const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
           const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
           const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
@@ -4556,28 +4553,18 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       
       if (!puppeteerSuccess) {
         try {
-          logger.info("Downloading fallback desktop screenshot as base64...");
           screenshotUrl = await downloadAsBase64(screenshotUrl);
         } catch (err: any) {
-          logger.error({ err: err.message }, "Failed to inline fallback desktop screenshot");
-          throw new Error("Failed to download and inline fallback desktop screenshot: " + err.message);
+          throw new Error("Failed to download fallback desktop screenshot: " + err.message);
         }
 
         try {
-          logger.info("Downloading fallback mobile screenshot as base64...");
           mobileScreenshotUrl = await downloadAsBase64(mobileScreenshotUrl);
         } catch (err: any) {
-          logger.error({ err: err.message }, "Failed to inline fallback mobile screenshot");
-          throw new Error("Failed to download and inline fallback mobile screenshot: " + err.message);
+          throw new Error("Failed to download fallback mobile screenshot: " + err.message);
         }
       }
 
-      // Ensure that under no circumstances can an external screenshot URL leak into the HTML
-      if (!screenshotUrl.startsWith("data:image/") || !mobileScreenshotUrl.startsWith("data:image/")) {
-        throw new Error("Screenshots are not inlined as base64 data URLs");
-      }
-
-      // Generate extremely clean, policy-compliant presell page with background image only
       let cleanHtml = await generateCleanBackgroundPresellHtml({
         productName: resolvedProductName,
         referenceUrl: finalUrl,
@@ -4589,10 +4576,8 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         meta: meta
       });
 
-      // Inject cookie consent overlay (locks scroll, pops up consent card with close button)
       let finalHtml = injectCookieConsentOverlay(cleanHtml, normalizedAffiliate, finalUrl, detectedLang, meta);
 
-      // Inject the thank you modal code only if the reference page is detected as a COD offer
       const isCodOffer = "isCod" in meta && (meta as any).isCod;
       if (isCodOffer) {
         const modalCode = getThankYouModalCode(
@@ -4609,12 +4594,9 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         }
       }
 
-      // Inline assets using the captured cookies (inlines the background image and logo styles)
       try {
         finalHtml = await inlinePageAssets(finalHtml, finalUrl, cookies);
-      } catch (inlineErr: any) {
-        logger.warn({ err: inlineErr.message }, "Option A: Asset inlining failed, keeping raw URLs");
-      }
+      } catch (inlineErr: any) {}
 
       res.json({
         html: finalHtml,
@@ -4628,27 +4610,21 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       });
       return;
     } catch (err: any) {
-      // Fallback: screenshot bridge if site can't be fetched/cloned
-      logger.warn({ err: err.message }, "Option A clone failed, falling back to screenshot bridge");
-      try {
-        const html = await generateScreenshotBridgeHtml({
-          referenceUrl: normalizedReference,
-          affiliateUrl: normalizedAffiliate,
-          trackingTags,
-          productHint,
-          popupLanguage
-        });
-        res.json({
-          html,
-          mode: "presell",
-          productName: productHint || "Oferta Oficial",
-          language: detectedLang || "pt-BR",
-          designSummary: "Screenshot bridge (site could not be cloned — bot protection detected).",
-          research: { enabled: false, results: [] }
-        });
-      } catch (fallbackErr: any) {
-        res.status(500).json({ error: fallbackErr.message || "Failed to generate Option A page" });
-      }
+      const html = await generateScreenshotBridgeHtml({
+        referenceUrl: normalizedReference,
+        affiliateUrl: normalizedAffiliate,
+        trackingTags,
+        productHint,
+        popupLanguage
+      });
+      res.json({
+        html,
+        mode: "presell",
+        productName: productHint || "Oferta Oficial",
+        language: detectedLang || "pt-BR",
+        designSummary: "Screenshot bridge.",
+        research: { enabled: false, results: [] }
+      });
       return;
     }
   }
@@ -4656,6 +4632,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
 interface GaryHalbertLandingPageInput {
   productName: string;
   primaryColor: string;
+  ctaButtonColor?: string;
   productImageUrl: string;
   referenceUrl: string;
   affiliateUrl: string;
@@ -4665,6 +4642,9 @@ interface GaryHalbertLandingPageInput {
   popupLanguage?: string;
   trackingTags?: string;
   rawHtml?: string;
+  originalPrice?: string;
+  promotionalPrice?: string;
+  extractedOffer?: string;
 }
 
 async function generateGaryHalbertLandingPageHtml(input: GaryHalbertLandingPageInput): Promise<{ html: string; aiFailed: boolean }> {
@@ -4699,12 +4679,13 @@ Sua missão é criar o conteúdo completo de uma nova Landing Page de Alta Conve
 - O IDIOMA DO TEXTO DA LANDING PAGE DEVE SER 100% EM: ${targetLangName}.
 - Se o texto extraído for em Polonês, responda em Polonês. Se for em Espanhol, responda em Espanhol. JAMAIS responda em Português se o texto original for em outro idioma!
 
-## REGRAS DE COPYWRITING (GARY HALBERT):
+## REGRAS DE COPYWRITING PERSUASIVO (GARY HALBERT):
 1. MANCHETE ARRASADORA (Big Idea): Crie um título irresistível que desperte curiosidade e desejo imediato no idioma ${targetLangName}.
 2. EMPATIA E PROBLEMA: Conecte-se com a dor diária do cliente, mas SEM alarmismo, ameaças de morte, cirurgia ou medo.
 3. MECANISMO ÚNICO E FÓRMULA: Apresente os ingredientes naturais de forma atraente, explicando por que funcionam.
-4. PILHA DE VALOR: Destaque os benefícios práticos para o dia a dia.
-5. CHAMADA PARA AÇÃO (CTA): Botão persuasivo de ação clara.
+4. ARGUMENTOS PERSUASIVOS (PILHA DE VALOR): Destaque 5 a 6 motivos convincentes para adquirir o produto hoje.
+5. GARANTIA E CONFIANÇA: Reforce a segurança da compra e facilidade de pagamento na entrega.
+6. CHAMADA PARA AÇÃO (CTA): Botão persuasivo de ação clara.
 
 ## REGRAS RÍGIDAS DO GOOGLE ADS (COMPLIANCE OBRIGATÓRIO):
 - PROIBIDO: Palavras como "morte", "derrame", "paralisia", "cirurgia", "bisturi", "cura milagrosa", "100% garantido para sempre".
@@ -4730,7 +4711,14 @@ Retorne APENAS um JSON válido no formato:
     "Sensação imediata de leveza e bem-estar",
     "Fórmula exclusiva com botânicos selecionados",
     "Absorção rápida sem sensação oleosa",
-    "Fácil de aplicar na rotina diária"
+    "Fácil de aplicar na rotina diária",
+    "Suporte natural para o seu conforto ao longo do dia"
+  ],
+  "trustTitle": "Por que escolher a nossa solução?",
+  "trustItems": [
+    { "title": "Fórmula Botânica Selecionada", "desc": "Ingredientes de alta pureza testados para o cuidado diário." },
+    { "title": "Pagamento Seguro na Entrega", "desc": "Você só paga quando receber o produto na sua casa." },
+    { "title": "Envio Rápido e Discreto", "desc": "Embalagem protegida e entrega garantida até a sua porta." }
   ],
   "formTitle": "Garanta a Sua Oferta Especial Hoje",
   "formSubtitle": "Preencha seus dados abaixo para solicitar o seu pedido com frete rápido",
@@ -4778,6 +4766,9 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
     terms: string;
     contact: string;
     formulaTitle: string;
+    priceFrom: string;
+    priceTo: string;
+    trustTitle: string;
   }> = {
     pl: {
       topBar: "🔥 Oferta Specjalna Ograniczona Czasowo",
@@ -4791,7 +4782,10 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
       privacy: "Polityka Prywatności",
       terms: "Regulamin",
       contact: "Kontakt",
-      formulaTitle: "Formuła z Wyselekcjonowanymi Składnikami"
+      formulaTitle: "Formuła z Wyselekcjonowanymi Składnikami",
+      priceFrom: "Cena regularna",
+      priceTo: "Cena promocyjna",
+      trustTitle: "Dlaczego Warto Wybrać Nasz Produkt?"
     },
     es: {
       topBar: "🔥 Oferta Especial de Lanzamiento por Tiempo Limitado",
@@ -4805,7 +4799,10 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
       privacy: "Política de Privacidad",
       terms: "Términos de Uso",
       contact: "Contacto",
-      formulaTitle: "Fórmula con Ingredientes Seleccionados"
+      formulaTitle: "Fórmula con Ingredientes Seleccionados",
+      priceFrom: "Precio regular",
+      priceTo: "Precio oferta",
+      trustTitle: "¿Por qué elegir nuestra solución?"
     },
     en: {
       topBar: "🔥 Special Limited Time Offer",
@@ -4819,7 +4816,10 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
       privacy: "Privacy Policy",
       terms: "Terms of Use",
       contact: "Contact Us",
-      formulaTitle: "Formula With Selected Ingredients"
+      formulaTitle: "Formula With Selected Ingredients",
+      priceFrom: "Regular price",
+      priceTo: "Special price",
+      trustTitle: "Why Choose Our Solution?"
     },
     fr: {
       topBar: "🔥 Offre Spéciale à Durée Limitée",
@@ -4833,7 +4833,10 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
       privacy: "Politique de Confidentialité",
       terms: "Conditions d'Utilisation",
       contact: "Contact",
-      formulaTitle: "Formule Aux Ingrédients Sélectionnés"
+      formulaTitle: "Formule Aux Ingrédients Sélectionnés",
+      priceFrom: "Prix habituel",
+      priceTo: "Prix réduit",
+      trustTitle: "Pourquoi Choisir Notre Produit ?"
     },
     de: {
       topBar: "🔥 Befristetes Sonderangebot",
@@ -4847,7 +4850,10 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
       privacy: "Datenschutz-Bestimmungen",
       terms: "Nutzungsbedingungen",
       contact: "Kontakt",
-      formulaTitle: "Formel Mit Ausgewählten Inhaltsstoffen"
+      formulaTitle: "Formel Mit Ausgewählten Inhaltsstoffen",
+      priceFrom: "Regulärer Preis",
+      priceTo: "Sonderpreis",
+      trustTitle: "Warum Unsere Lösung Wählen?"
     },
     pt: {
       topBar: "🔥 Condição Especial de Lançamento por Tempo Limitado",
@@ -4861,13 +4867,15 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
       privacy: "Política de Privacidade",
       terms: "Termos de Uso",
       contact: "Contato",
-      formulaTitle: "Fórmula com Ingredientes Selecionados"
+      formulaTitle: "Fórmula com Ingredientes Selecionados",
+      priceFrom: "De",
+      priceTo: "Por Apenas",
+      trustTitle: "Por que escolher a nossa solução?"
     }
   };
 
   const ui = uiDict[langCode] || (langCode === "pl" ? uiDict.pl : (langCode === "es" ? uiDict.es : (langCode === "en" ? uiDict.en : uiDict.pl)));
 
-  // Fallbacks if AI fails or returns partial data (per language)
   const isPolish = langCode === "pl";
   const headline = copyData.headline || (isPolish ? `Odkryj Naturalną Formułę dla Komfortu i Piękna Twoich Nóg` : `Descubra a Fórmula Natural para o Conforto e Bem-Estar das Suas Pernas`);
   const subheadline = copyData.subheadline || (isPolish ? `Wyjątkowe połączenie ekstraktów roślinnych stworzone, aby wspierać codzienną lekkość.` : `Uma combinação exclusiva de extratos botânicos desenvolvida para apoiar sua rotina diária com máxima leveza.`);
@@ -4891,7 +4899,17 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
         isPolish ? "Codzienne uczucie lekkości i ulgi" : "Alívio e sensação de leveza diária",
         isPolish ? "Delikatna formuła z ekologicznych składników" : "Fórmula suave à base de ingredientes naturais",
         isPolish ? "Szybka absorpcja bez tłustej warstwy" : "Textura leve de rápida absorção",
-        isPolish ? "Wygodne stosowanie każdego dnia" : "Uso prático em qualquer momento do dia"
+        isPolish ? "Wygodne stosowanie każdego dnia" : "Uso prático em qualquer momento do dia",
+        isPolish ? "Gwarancja bezpiecznego płatności przy odbiorze" : "Pagamento 100% seguro no momento da entrega"
+      ];
+
+  const trustTitle = copyData.trustTitle || ui.trustTitle;
+  const trustItems: Array<{ title: string; desc: string }> = Array.isArray(copyData.trustItems) && copyData.trustItems.length > 0
+    ? copyData.trustItems
+    : [
+        { title: isPolish ? "Wyselekcjonowane Składniki" : "Ingredientes Botânicos Selecionados", desc: isPolish ? "Wysoka jakość i delikatne wsparcie dla Twojego ciała." : "Fórmula desenvolvida com extratos de alta pureza." },
+        { title: isPolish ? "Płatność Przy Odbiorze" : "Pagamento Seguro na Entrega", desc: isPolish ? "Płacisz dopiero w momencie dostawy do Twoich rąk." : "Sem necessidade de cartão prévio. Pague ao receber." },
+        { title: isPolish ? "Szybka Dostawa" : "Entrega Rápida e Discreta", desc: isPolish ? "Starannie zapakowana przesyłka trafia prosto do Twojego domu." : "Embalagem segura entregue com rapidez no seu endereço." }
       ];
 
   const formTitle = copyData.formTitle || (isPolish ? `Zamów ${input.productName} Dzisiaj` : `Solicite o Seu ${input.productName} Hoje`);
@@ -4899,12 +4917,23 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
   const ctaButton = copyData.ctaButton || (isPolish ? `ZAMÓW Z RABATEM TERAZ` : `SOLICITAR OFERTA AGORA`);
 
   const primaryColor = input.primaryColor || "#16a34a";
+  const ctaColor = input.ctaButtonColor || primaryColor;
   const hasDrCash = !!(input.apiToken && input.streamCode);
   const formAction = hasDrCash ? "#" : (input.affiliateUrl || "#");
 
   const productImgHtml = input.productImageUrl
     ? `<img src="${input.productImageUrl}" alt="${input.productName}" class="product-img">`
     : `<div class="product-placeholder">📦<span>${input.productName}</span></div>`;
+
+  const priceBoxHtml = (input.originalPrice || input.promotionalPrice)
+    ? `<div style="margin: 15px 0 20px; padding: 16px 20px; background: rgba(255,255,255,0.04); border-radius: 12px; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+        <div>
+          ${input.originalPrice ? `<span style="font-size: 0.85rem; color: var(--text-muted); text-decoration: line-through; display: block;">${ui.priceFrom}: ${input.originalPrice}</span>` : ""}
+          ${input.promotionalPrice ? `<span style="font-size: 1.6rem; font-weight: 900; color: #4ade80;">${ui.priceTo}: ${input.promotionalPrice}</span>` : ""}
+        </div>
+        ${input.extractedOffer ? `<span style="background: var(--accent-gold); color: #000; font-weight: 800; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem;">${input.extractedOffer}</span>` : ""}
+      </div>`
+    : "";
 
   const html = `<!DOCTYPE html>
 <html lang="${langCode}">
@@ -4919,6 +4948,7 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
   <style>
     :root {
       --primary: ${primaryColor};
+      --cta-btn: ${ctaColor};
       --primary-dark: #15803d;
       --bg-dark: #0f172a;
       --card-bg: #1e293b;
@@ -4930,7 +4960,7 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
     body { background-color: var(--bg-dark); color: var(--text-main); line-height: 1.6; }
     
-    .top-bar { background: linear-gradient(90deg, var(--primary), #059669); color: #ffffff; text-align: center; padding: 10px 15px; font-weight: 700; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    .top-bar { background: linear-gradient(90deg, var(--primary), var(--cta-btn)); color: #ffffff; text-align: center; padding: 10px 15px; font-weight: 700; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; }
     
     .container { width: 100%; max-width: 1100px; margin: 0 auto; padding: 0 20px; }
     
@@ -4959,6 +4989,11 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
     .ingredient-card h3 { font-size: 1.1rem; color: #4ade80; margin-bottom: 8px; font-weight: 700; }
     .ingredient-card p { font-size: 0.9rem; color: var(--text-muted); }
     
+    .trust-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin: 30px 0; }
+    .trust-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 14px; padding: 22px; text-align: left; }
+    .trust-card h3 { font-size: 1.1rem; color: #ffffff; margin-bottom: 6px; font-weight: 700; }
+    .trust-card p { font-size: 0.9rem; color: var(--text-muted); }
+
     .bullets-list { list-style: none; margin: 20px 0; }
     .bullets-list li { display: flex; align-items: center; gap: 12px; font-size: 1.05rem; font-weight: 600; color: #ffffff; margin-bottom: 12px; }
     .check-icon { width: 22px; height: 22px; background-color: var(--primary); color: #ffffff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 900; flex-shrink: 0; }
@@ -4975,7 +5010,7 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
     .form-group input { width: 100%; padding: 14px 16px; background-color: #090d16; border: 1px solid var(--border-color); border-radius: 10px; color: #ffffff; font-size: 1rem; outline: none; transition: border-color 0.2s; }
     .form-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2); }
     
-    .btn-cta { width: 100%; padding: 18px 24px; background: linear-gradient(180deg, #22c55e, #15803d); color: #ffffff; border: none; border-radius: 12px; font-size: 1.15rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4); margin-top: 10px; }
+    .btn-cta { width: 100%; padding: 18px 24px; background: linear-gradient(180deg, var(--cta-btn), var(--primary)); color: #ffffff; border: none; border-radius: 12px; font-size: 1.15rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4); margin-top: 10px; }
     .btn-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(34, 197, 94, 0.5); }
     
     .security-badge { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.82rem; color: #94a3b8; margin-top: 14px; text-align: center; }
@@ -5009,6 +5044,7 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
         <ul class="bullets-list">
           ${bullets.map((b: string) => `<li><span class="check-icon">✓</span> ${b}</li>`).join("")}
         </ul>
+        ${priceBoxHtml}
         <a href="#form-order" class="btn-cta" style="display:inline-block; text-align:center; text-decoration:none;">${ctaButton}</a>
       </div>
     </div>
@@ -5026,6 +5062,16 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
         <div class="ingredient-card">
           <h3>🌱 ${ing.name}</h3>
           <p>${ing.benefit}</p>
+        </div>
+      `).join("")}
+    </div>
+
+    <h2 style="font-size: 1.6rem; text-align: center; margin: 40px 0 20px;">${trustTitle}</h2>
+    <div class="trust-grid">
+      ${trustItems.map((item: { title: string; desc: string }) => `
+        <div class="trust-card">
+          <h3>🛡️ ${item.title}</h3>
+          <p>${item.desc}</p>
         </div>
       `).join("")}
     </div>
