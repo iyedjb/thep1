@@ -3876,8 +3876,11 @@ function stripBeforeAfterSections(html: string): string {
       }
       
       if (tagEndIndex !== -1) {
-        logger.info({ tagName: foundTagName, tagStartIndex: foundTagStartIndex, tagEndIndex }, "Stripping before/after section from HTML");
-        html = html.substring(0, foundTagStartIndex) + html.substring(tagEndIndex);
+        const blockLen = tagEndIndex - foundTagStartIndex;
+        if (blockLen < html.length * 0.35) {
+          logger.info({ tagName: foundTagName, tagStartIndex: foundTagStartIndex, tagEndIndex }, "Stripping before/after section from HTML");
+          html = html.substring(0, foundTagStartIndex) + html.substring(tagEndIndex);
+        }
       } else {
         // If we couldn't balance, we must break to avoid infinite loop
         break;
@@ -3921,6 +3924,10 @@ function stripBeforeAfterSections(html: string): string {
         if (endIndex === -1) continue;
 
         const blockText = html.substring(startIndex, endIndex);
+
+        // SAFETY: Ignore root container wrappers that comprise more than 35% of the total HTML
+        if (blockText.length >= html.length * 0.35) continue;
+
         const headingMatches = blockText.match(/<(?:h[1-6]|div|p|span)\b[^>]*>([\s\S]*?)<\/(?:h[1-6]|div|p|span)>/gi) || [];
         let isReviewSection = false;
         for (const h of headingMatches) {
@@ -3959,8 +3966,11 @@ function stripBeforeAfterSections(html: string): string {
       }
 
       if (tagEndIndex !== -1) {
-        logger.info({ tagName: foundContainerTagName, tagStartIndex: foundContainerStartIndex, tagEndIndex }, "Stripping semantic reviews section from HTML");
-        html = html.substring(0, foundContainerStartIndex) + html.substring(tagEndIndex);
+        const blockLen = tagEndIndex - foundContainerStartIndex;
+        if (blockLen < html.length * 0.35) {
+          logger.info({ tagName: foundContainerTagName, tagStartIndex: foundContainerStartIndex, tagEndIndex }, "Stripping semantic reviews section from HTML");
+          html = html.substring(0, foundContainerStartIndex) + html.substring(tagEndIndex);
+        }
       } else {
         break;
       }
@@ -4021,6 +4031,9 @@ function removeStudyStatSections(html: string): string {
         if (endIndex === -1) continue;
 
         const blockText = html.substring(startIndex, endIndex);
+
+        // SAFETY: Ignore root container wrappers that comprise more than 35% of the total HTML
+        if (blockText.length >= html.length * 0.35) continue;
 
         // Remove if block contains BOTH study keywords AND percentage stats
         if (studyKeywordRegex.test(blockText) && percentageRegex.test(blockText)) {
