@@ -800,6 +800,7 @@ interface PageMetadata {
   productName: string;
   primaryColor: string;
   ctaButtonColor?: string;
+  backgroundColor?: string;
   productImageUrl: string;
   seoDescription?: string;
   productDetails?: string[];
@@ -1152,6 +1153,14 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     extractedDelivery = deliveryMatch[1].trim();
   }
 
+  let backgroundColor = "";
+  const bgMatch = html.match(/body[^{}]*\{[^}]*background(?:-color)?\s*:\s*(#(?:[0-9a-fA-F]{3}){1,2}|rgba?\([^)]+\)|[a-z]+)/i) ||
+                  html.match(/<body[^>]*style=["'][^"']*background(?:-color)?\s*:\s*(#(?:[0-9a-fA-F]{3}){1,2}|rgba?\([^)]+\)|[a-z]+)/i) ||
+                  html.match(/(?:\.bg-[a-z0-9-]+|\.wrapper|\.site-content|\.page-bg)[^{}]*\{[^}]*background(?:-color)?\s*:\s*(#(?:[0-9a-fA-F]{3}){1,2})/i);
+  if (bgMatch && bgMatch[1]) {
+    backgroundColor = bgMatch[1].toLowerCase();
+  }
+
   if (!seoDescription && productDetails.length > 0) {
     seoDescription = productDetails.slice(0, 3).join(". ");
   }
@@ -1160,7 +1169,7 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     seoDescription = filterNonCompliantSentences(seoDescription);
   }
 
-  return { productName, primaryColor, ctaButtonColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice, isGadget, isDigital, isCod, extractedDelivery };
+  return { productName, primaryColor, ctaButtonColor, backgroundColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice, isGadget, isDigital, isCod, extractedDelivery };
 }
 
 function getThankYouModalCode(
@@ -4633,6 +4642,7 @@ interface GaryHalbertLandingPageInput {
   productName: string;
   primaryColor: string;
   ctaButtonColor?: string;
+  backgroundColor?: string;
   productImageUrl: string;
   referenceUrl: string;
   affiliateUrl: string;
@@ -4876,48 +4886,128 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
 
   const ui = uiDict[langCode] || (langCode === "pl" ? uiDict.pl : (langCode === "es" ? uiDict.es : (langCode === "en" ? uiDict.en : uiDict.pl)));
 
+  const isSpanish = langCode === "es";
   const isPolish = langCode === "pl";
-  const headline = copyData.headline || (isPolish ? `Odkryj Naturalną Formułę dla Komfortu i Piękna Twoich Nóg` : `Descubra a Fórmula Natural para o Conforto e Bem-Estar das Suas Pernas`);
-  const subheadline = copyData.subheadline || (isPolish ? `Wyjątkowe połączenie ekstraktów roślinnych stworzone, aby wspierać codzienną lekkość.` : `Uma combinação exclusiva de extratos botânicos desenvolvida para apoiar sua rotina diária com máxima leveza.`);
-  const badgeText = copyData.badgeText || (isPolish ? `Naturalna Formuła • Codzienna Pielęgnacja` : `Fórmula Botânica Natural • Alta Absorção`);
-  const problemTitle = copyData.problemTitle || (isPolish ? `Odczuwasz zmęczenie i ciężkość nóg pod koniec dnia?` : `Cansaço e desconforto corporal ao final do dia?`);
-  const problemText = copyData.problemText || (isPolish ? `Wielogodzinne stanie lub siedzenie może obciążać Twoje nogi. Codzienna pielęgnacja jest kluczowa dla utrzymania naturalnej lekkości.` : `Passar longas horas em pé ou sentado pode sobrecarregar suas pernas e causar sensação de peso. Manter um cuidado diário é essencial para recuperar o conforto natural.`);
-  const solutionTitle = copyData.solutionTitle || (isPolish ? `Poznaj ${input.productName}` : `Conheça o ${input.productName}`);
-  const solutionText = copyData.solutionText || (isPolish ? `Stworzony z wyselekcjonowanych składników, ${input.productName} zapewnia uczucie odświeżenia, nawilżenia i ulgi.` : `Desenvolvido com ingredientes selecionados, o ${input.productName} proporciona uma experiência revigorante, promovendo hidratação, frescor e sensação de alívio imediato.`);
+  const isFrench = langCode === "fr";
+  const isGerman = langCode === "de";
+
+  const headline = copyData.headline || (
+    isSpanish ? `Descubra la Fórmula Natural para el Confort y Bienestar de sus Piernas` :
+    isPolish ? `Odkryj Naturalną Formułę dla Komfortu i Piękna Twoich Nóg` :
+    isFrench ? `Découvrez la Formule Naturelle pour le Confort et le Bien-être de vos Jambes` :
+    isGerman ? `Entdecken Sie die natürliche Formel für den Komfort und das Wohlbefinden Ihrer Beine` :
+    `Descubra a Fórmula Natural para o Conforto e Bem-Estar das Suas Pernas`
+  );
+
+  const subheadline = copyData.subheadline || (
+    isSpanish ? `Una combinación exclusiva de extractos botánicos desarrollada para apoyar su rutina diaria con la máxima ligereza.` :
+    isPolish ? `Wyjątkowe połączenie ekstraktów roślinnych stworzone, aby wspierać codzienną lekkość.` :
+    isFrench ? `Une combinaison exclusive d'extraits botaniques développée pour soutenir votre routine quotidienne.` :
+    isGerman ? `Eine exklusive Kombination botanischer Extrakte zur Unterstützung Ihrer täglichen Routine.` :
+    `Uma combinação exclusiva de extratos botânicos desenvolvida para apoiar sua rotina diária com máxima leveza.`
+  );
+
+  const badgeText = copyData.badgeText || (
+    isSpanish ? `Fórmula Botánica Natural • Alta Absorción` :
+    isPolish ? `Naturalna Formuła • Codzienna Pielęgnacja` :
+    `Fórmula Botânica Natural • Alta Absorção`
+  );
+
+  const problemTitle = copyData.problemTitle || (
+    isSpanish ? `¿Cansancio y pesadez corporal al final del día?` :
+    isPolish ? `Odczuwasz zmęczenie i ciężkość nóg pod koniec dnia?` :
+    `Cansaço e desconforto corporal ao final do dia?`
+  );
+
+  const problemText = copyData.problemText || (
+    isSpanish ? `Pasar largas horas de pie o sentado puede recargar sus piernas. El cuidado diario es esencial para recuperar la ligereza natural.` :
+    isPolish ? `Wielogodzinne stanie lub siedzenie może obciążać Twoje nogi. Codzienna pielęgnacja jest kluczowa dla utrzymania naturalnej lekkości.` :
+    `Passar longas horas em pé ou sentado pode sobrecarregar suas pernas e causar sensação de peso. Manter um cuidado diário é essencial para recuperar o conforto natural.`
+  );
+
+  const solutionTitle = copyData.solutionTitle || (
+    isSpanish ? `Conozca ${input.productName}` :
+    isPolish ? `Poznaj ${input.productName}` :
+    `Conheça o ${input.productName}`
+  );
+
+  const solutionText = copyData.solutionText || (
+    isSpanish ? `Desarrollado con ingredientes seleccionados, ${input.productName} proporciona una experiencia reconfortante, hidratación y sensación de alivio inmediato.` :
+    isPolish ? `Stworzony z wyselekcjonowanych składników, ${input.productName} zapewnia uczucie odświeżenia, nawilżenia i ulgi.` :
+    `Desenvolvido com ingredientes selecionados, o ${input.productName} proporciona uma experiência revigorante, promovendo hidratação, frescor e sensação de alívio imediato.`
+  );
   
   const ingredients: Array<{ name: string; benefit: string }> = Array.isArray(copyData.ingredients) && copyData.ingredients.length > 0 
     ? copyData.ingredients 
     : [
-        { name: isPolish ? "Aktywny Ekstrakt Roślinny" : "Extrato Natural Ativo", benefit: isPolish ? "Wspomaga uczucie lekkości i świeżości." : "Auxilia no alívio da sensação de peso e fadiga." },
-        { name: isPolish ? "Kompleks Nawilżający" : "Complexo Hidratante", benefit: isPolish ? "Pielęgnuje i wygładza skórę." : "Nutre e suaviza o aspecto da pele." },
-        { name: isPolish ? "Składnik Odświeżający" : "Agente Refrescante", benefit: isPolish ? "Zapewnia długotrwały komfort." : "Proporciona frescor e conforto prolongado." }
+        { name: isSpanish ? "Extracto Botánico Activo" : (isPolish ? "Aktywny Ekstrakt Roślinny" : "Extrato Natural Ativo"), benefit: isSpanish ? "Ayuda a mantener la sensación de ligereza y frescura." : (isPolish ? "Wspomaga uczucie lekkości i świeżości." : "Auxilia no alívio da sensação de peso e fadiga.") },
+        { name: isSpanish ? "Complejo Hidratante" : (isPolish ? "Kompleks Nawilżający" : "Complexo Hidratante"), benefit: isSpanish ? "Nutre y suaviza el aspecto de la piel." : (isPolish ? "Pielęgnuje i wygładza skórę." : "Nutre e suaviza o aspecto da pele.") },
+        { name: isSpanish ? "Agente Refrescante" : (isPolish ? "Składnik Odświeżający" : "Agente Refrescante"), benefit: isSpanish ? "Proporciona frescura y confort prolongado." : (isPolish ? "Zapewnia długotrwały komfort." : "Proporciona frescor e conforto prolongado.") }
       ];
 
   const bullets: string[] = Array.isArray(copyData.bullets) && copyData.bullets.length > 0 
     ? copyData.bullets 
     : [
-        isPolish ? "Codzienne uczucie lekkości i ulgi" : "Alívio e sensação de leveza diária",
-        isPolish ? "Delikatna formuła z ekologicznych składników" : "Fórmula suave à base de ingredientes naturais",
-        isPolish ? "Szybka absorpcja bez tłustej warstwy" : "Textura leve de rápida absorção",
-        isPolish ? "Wygodne stosowanie każdego dnia" : "Uso prático em qualquer momento do dia",
-        isPolish ? "Gwarancja bezpiecznego płatności przy odbiorze" : "Pagamento 100% seguro no momento da entrega"
+        isSpanish ? "Alivio y sensación de ligereza diaria" : (isPolish ? "Codzienne uczucie lekkości i ulgi" : "Alívio e sensação de leveza diária"),
+        isSpanish ? "Fórmula suave a base de ingredientes naturales" : (isPolish ? "Delikatna formuła z ekologicznych składników" : "Fórmula suave à base de ingredientes naturais"),
+        isSpanish ? "Textura ligera de rápida absorción" : (isPolish ? "Szybka absorpcja bez tłustej warstwy" : "Textura leve de rápida absorção"),
+        isSpanish ? "Uso práctico en cualquier momento del día" : (isPolish ? "Wygodne stosowanie każdego dnia" : "Uso prático em qualquer momento do dia"),
+        isSpanish ? "Pago 100% seguro al momento de la entrega" : (isPolish ? "Gwarancja bezpiecznego płatności przy odbiorze" : "Pagamento 100% seguro no momento da entrega")
       ];
 
   const trustTitle = copyData.trustTitle || ui.trustTitle;
   const trustItems: Array<{ title: string; desc: string }> = Array.isArray(copyData.trustItems) && copyData.trustItems.length > 0
     ? copyData.trustItems
     : [
-        { title: isPolish ? "Wyselekcjonowane Składniki" : "Ingredientes Botânicos Selecionados", desc: isPolish ? "Wysoka jakość i delikatne wsparcie dla Twojego ciała." : "Fórmula desenvolvida com extratos de alta pureza." },
-        { title: isPolish ? "Płatność Przy Odbiorze" : "Pagamento Seguro na Entrega", desc: isPolish ? "Płacisz dopiero w momencie dostawy do Twoich rąk." : "Sem necessidade de cartão prévio. Pague ao receber." },
-        { title: isPolish ? "Szybka Dostawa" : "Entrega Rápida e Discreta", desc: isPolish ? "Starannie zapakowana przesyłka trafia prosto do Twojego domu." : "Embalagem segura entregue com rapidez no seu endereço." }
+        { title: isSpanish ? "Ingredientes Seleccionados" : (isPolish ? "Wyselekcjonowane Składniki" : "Ingredientes Botânicos Selecionados"), desc: isSpanish ? "Fórmula de alta pureza desarrollada para el cuidado diario." : (isPolish ? "Wysoka jakość i delikatne wsparcie dla Twojego ciała." : "Fórmula desenvolvida com extratos de alta pureza.") },
+        { title: isSpanish ? "Pago Seguro Contra Entrega" : (isPolish ? "Płatność Przy Odbiorze" : "Pagamento Seguro na Entrega"), desc: isSpanish ? "Pague únicamente al recibir el producto en sus manos." : (isPolish ? "Płacisz dopiero w momencie dostawy do Twoich rąk." : "Sem necessidade de cartão prévio. Pague ao receber.") },
+        { title: isSpanish ? "Envío Rápido y Discreto" : (isPolish ? "Szybka Dostawa" : "Entrega Rápida e Discreta"), desc: isSpanish ? "Paquete protegido entregado directamente en su domicilio." : (isPolish ? "Starannie zapakowana przesyłka trafia prosto do Twojego domu." : "Embalagem segura entregue com rapidez no seu endereço.") }
       ];
 
-  const formTitle = copyData.formTitle || (isPolish ? `Zamów ${input.productName} Dzisiaj` : `Solicite o Seu ${input.productName} Hoje`);
-  const formSubtitle = copyData.formSubtitle || (isPolish ? `Wypełnij poniższe dane, aby otrzymać ofertę promocyjną z płatnością przy odbiorze.` : `Preencha os dados abaixo para receber as informações da oferta exclusiva com pagamento na entrega.`);
-  const ctaButton = copyData.ctaButton || (isPolish ? `ZAMÓW Z RABATEM TERAZ` : `SOLICITAR OFERTA AGORA`);
+  const formTitle = copyData.formTitle || (
+    isSpanish ? `Solicite su ${input.productName} Hoy` :
+    isPolish ? `Zamów ${input.productName} Dzisiaj` :
+    `Solicite o Seu ${input.productName} Hoje`
+  );
+
+  const formSubtitle = copyData.formSubtitle || (
+    isSpanish ? `Complete sus datos a continuación para recibir la información de la oferta exclusiva con pago contra entrega.` :
+    isPolish ? `Wypełnij poniższe dane, aby otrzymać ofertę promocyjną z płatnością przy odbiorze.` :
+    `Preencha os dados abaixo para receber as informações da oferta exclusiva com pagamento na entrega.`
+  );
+
+  const ctaButton = copyData.ctaButton || (
+    isSpanish ? `SOLICITAR OFERTA AHORA` :
+    isPolish ? `ZAMÓW Z RABATEM TERAZ` :
+    `SOLICITAR OFERTA AGORA`
+  );
 
   const primaryColor = input.primaryColor || "#16a34a";
   const ctaColor = input.ctaButtonColor || primaryColor;
+
+  // Extract prices or generate realistic fallback prices matching language currency
+  const origPriceDisplay = input.originalPrice || (
+    isSpanish ? "78 €" :
+    isPolish ? "278 zł" :
+    isFrench || isGerman ? "78 €" :
+    "R$ 297"
+  );
+
+  const promoPriceDisplay = input.promotionalPrice || (
+    isSpanish ? "39 €" :
+    isPolish ? "139 zł" :
+    isFrench || isGerman ? "39 €" :
+    "R$ 147"
+  );
+
+  const offerTagDisplay = input.extractedOffer || (
+    isSpanish ? "50% DESCUENTO" :
+    isPolish ? "-50% RABAT" :
+    "50% OFF"
+  );
+
+  const bgDarkColor = input.backgroundColor && input.backgroundColor !== "transparent" ? input.backgroundColor : "#0f172a";
+
   const hasDrCash = !!(input.apiToken && input.streamCode);
   const formAction = hasDrCash ? "#" : (input.affiliateUrl || "#");
 
@@ -4925,15 +5015,13 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
     ? `<img src="${input.productImageUrl}" alt="${input.productName}" class="product-img">`
     : `<div class="product-placeholder">📦<span>${input.productName}</span></div>`;
 
-  const priceBoxHtml = (input.originalPrice || input.promotionalPrice)
-    ? `<div style="margin: 15px 0 20px; padding: 16px 20px; background: rgba(255,255,255,0.04); border-radius: 12px; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-        <div>
-          ${input.originalPrice ? `<span style="font-size: 0.85rem; color: var(--text-muted); text-decoration: line-through; display: block;">${ui.priceFrom}: ${input.originalPrice}</span>` : ""}
-          ${input.promotionalPrice ? `<span style="font-size: 1.6rem; font-weight: 900; color: #4ade80;">${ui.priceTo}: ${input.promotionalPrice}</span>` : ""}
-        </div>
-        ${input.extractedOffer ? `<span style="background: var(--accent-gold); color: #000; font-weight: 800; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem;">${input.extractedOffer}</span>` : ""}
-      </div>`
-    : "";
+  const priceBoxHtml = `<div style="margin: 15px 0 20px; padding: 16px 20px; background: rgba(255,255,255,0.06); border-radius: 12px; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+      <div>
+        <span style="font-size: 0.85rem; color: var(--text-muted); text-decoration: line-through; display: block;">${ui.priceFrom}: ${origPriceDisplay}</span>
+        <span style="font-size: 1.65rem; font-weight: 900; color: #4ade80;">${ui.priceTo}: ${promoPriceDisplay}</span>
+      </div>
+      <span style="background: var(--accent-gold); color: #000; font-weight: 800; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem;">${offerTagDisplay}</span>
+    </div>`;
 
   const html = `<!DOCTYPE html>
 <html lang="${langCode}">
@@ -5145,7 +5233,7 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
       }
     }
 
-    const meta = rawHtmlString ? extractPageMetadata(rawHtmlString, finalUrl) : { productName: productHint || extractProductName(finalUrl), primaryColor: "#16a34a", productImageUrl: "" };
+    const meta: PageMetadata = rawHtmlString ? extractPageMetadata(rawHtmlString, finalUrl) : { productName: productHint || extractProductName(finalUrl), primaryColor: "#16a34a", ctaButtonColor: "#16a34a", backgroundColor: "", productImageUrl: "" };
     const resolvedProductName = productHint || meta.productName || extractProductName(finalUrl);
 
     let finalThankYouUrl = thankYouUrl;
@@ -5178,6 +5266,8 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
     const garyResult = await generateGaryHalbertLandingPageHtml({
       productName: resolvedProductName,
       primaryColor: meta.primaryColor || "#16a34a",
+      ctaButtonColor: meta.ctaButtonColor || meta.primaryColor || "#16a34a",
+      backgroundColor: meta.backgroundColor,
       productImageUrl: meta.productImageUrl || "",
       referenceUrl: finalUrl,
       affiliateUrl: normalizedAffiliate,
@@ -5186,7 +5276,10 @@ ${extractedText || "Produto de saúde e bem-estar natural."}`;
       thankYouUrl: finalThankYouUrl,
       popupLanguage: detectedLang,
       trackingTags,
-      rawHtml: rawHtmlString
+      rawHtml: rawHtmlString,
+      originalPrice: meta.originalPrice,
+      promotionalPrice: meta.promotionalPrice || meta.extractedPrice,
+      extractedOffer: meta.extractedOffer
     });
 
     let finalHtml = garyResult.html;
