@@ -3448,32 +3448,37 @@ async function generateCleanBackgroundPresellHtml(input: {
   <meta name="robots" content="index, follow" />
   ${faviconUrl ? `<link rel="icon" href="${faviconUrl}">` : ""}
   ${input.trackingTags}
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  <style id="presell-cookie-styles">
+    *, *::before, *::after { box-sizing: border-box !important; margin: 0 !important; padding: 0 !important; }
     html, body {
-      width: 100vw;
-      height: 100vh;
-      margin: 0;
-      padding: 0;
+      width: 100vw !important;
+      height: 100vh !important;
+      margin: 0 !important;
+      padding: 0 !important;
       overflow: hidden !important;
-      background-color: #ffffff;
+      background-color: #ffffff !important;
     }
     .site-background-container {
-      position: fixed;
-      inset: 0;
-      overflow: hidden;
-      z-index: 1;
-      background-color: #ffffff;
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      overflow: hidden !important;
+      z-index: 1 !important;
+      background-color: #ffffff !important;
     }
     .site-background-img {
-      display: block;
-      width: 100vw;
-      height: 100vh;
-      object-fit: cover;
-      object-position: center top;
-      pointer-events: none;
-      -webkit-user-drag: none;
-      user-select: none;
+      display: block !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      object-fit: cover !important;
+      object-position: center top !important;
+      pointer-events: none !important;
+      -webkit-user-drag: none !important;
+      user-select: none !important;
     }
     .ads-desktop-bg {
       display: block !important;
@@ -4605,9 +4610,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         }
       }
 
-      try {
-        finalHtml = await inlinePageAssets(finalHtml, finalUrl, cookies);
-      } catch (inlineErr: any) {}
+      // Option A is self-contained with base64 images; no external stylesheet inlining needed
 
       res.json({
         html: finalHtml,
