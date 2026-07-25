@@ -24,6 +24,18 @@ export function requireAuth(req: any, res: any, next: any) {
   }
 }
 
+export function optionalAuth(req: any, res: any, next: any) {
+  const auth = req.headers["authorization"] as string | undefined;
+  if (auth?.startsWith("Bearer ")) {
+    const token = auth.slice(7);
+    try {
+      const payload = jwt.verify(token, JWT_SECRET) as { userId: number };
+      req.userId = payload.userId;
+    } catch (_) {}
+  }
+  next();
+}
+
 router.post("/auth/register", async (req, res) => {
   const { name, email, password } = req.body;
   if (!name || !email || !password) {

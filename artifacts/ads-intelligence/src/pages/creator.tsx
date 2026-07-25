@@ -388,30 +388,32 @@ export default function Creator() {
         cssContent += styleMatch[1] + "\n\n";
       }
 
-      // Also extract and fetch external stylesheet links
-      const linkRegex = /<link\s+[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*>/gi;
-      let linkMatch;
-      const cssUrls: string[] = [];
-      while ((linkMatch = linkRegex.exec(generatedHtml)) !== null) {
-        const href = linkMatch[1];
-        if (href && !href.includes("css/styles.css")) {
-          cssUrls.push(href);
+      // Only fetch external stylesheet links for full page clones/reviews (selectedOption !== "a")
+      if (selectedOption !== "a") {
+        const linkRegex = /<link\s+[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*>/gi;
+        let linkMatch;
+        const cssUrls: string[] = [];
+        while ((linkMatch = linkRegex.exec(generatedHtml)) !== null) {
+          const href = linkMatch[1];
+          if (href && !href.includes("css/styles.css")) {
+            cssUrls.push(href);
+          }
         }
-      }
 
-      // Fetch external CSS files if any
-      for (const cssHref of cssUrls) {
-        try {
-          let fullUrl = cssHref;
-          if (!/^https?:\/\//i.test(cssHref)) {
-            fullUrl = new URL(cssHref, destinationUrl).href;
-          }
-          const res = await fetch(fullUrl);
-          if (res.ok) {
-            const text = await res.text();
-            cssContent += text + "\n\n";
-          }
-        } catch (_) {}
+        // Fetch external CSS files if any
+        for (const cssHref of cssUrls) {
+          try {
+            let fullUrl = cssHref;
+            if (!/^https?:\/\//i.test(cssHref)) {
+              fullUrl = new URL(cssHref, destinationUrl).href;
+            }
+            const res = await fetch(fullUrl);
+            if (res.ok) {
+              const text = await res.text();
+              cssContent += text + "\n\n";
+            }
+          } catch (_) {}
+        }
       }
 
       // Clean HTML: extract all inline styles into css/styles.css for separated architecture and maximum loading performance
