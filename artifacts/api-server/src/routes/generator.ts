@@ -889,6 +889,29 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
       }
     }
   }
+  // Fallback: the most-repeated capitalized word in the body text. Needed for pages hosted on a
+  // third-party page-builder/tracking domain (e.g. "kw5nx.doctorbuyer.com") where neither the
+  // <title>/og:title nor the domain itself reveals the real brand — but the brand name still
+  // appears dozens of times in the copy itself (headings, testimonials, CTA text, etc).
+  if (!productName) {
+    const bodyText = html.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gi, "")
+      .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, "")
+      .replace(/<[^>]+>/g, " ");
+    const genericWords = new Set(["Solo", "Para", "Con", "Como", "Antes", "Ahora", "Nuestro", "Nuestra", "Este", "Esta", "Todos", "Todas", "Ordena", "Ordenar", "Precio", "Especial", "Descuento", "Comprar", "Recupera", "Copyright"]);
+    const wordCounts: Record<string, number> = {};
+    const wordRegex = /\b([A-ZÁ-Ú][a-zá-úA-ZÁ-Ú]{3,20})\b/g;
+    let wMatch;
+    while ((wMatch = wordRegex.exec(bodyText)) !== null) {
+      const word = wMatch[1];
+      if (genericWords.has(word)) continue;
+      wordCounts[word] = (wordCounts[word] || 0) + 1;
+    }
+    const sortedWords = Object.entries(wordCounts).sort((a, b) => b[1] - a[1]);
+    if (sortedWords.length > 0 && sortedWords[0][1] >= 4) {
+      productName = sortedWords[0][0];
+    }
+  }
+
   // Fallback to domain name
   if (!productName) {
     productName = extractProductName(referenceUrl);
@@ -953,44 +976,58 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
   }
 
   // Extract main product image
+  // Priority: (1) an <img> whose src OR alt matches a product-ish keyword — many landing-page
+  // builders emit hashed/CDN filenames with no descriptive src (e.g. "image21.png") but keep a
+  // literal alt="product" — (2) og:image, (3) first plausible non-icon image. og:image is
+  // optimized for social-share appeal (often a lifestyle photo, not the product itself), so it's
+  // deliberately tried after the keyword match, not before.
   let productImageUrl = "";
-  const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i) ||
-                       html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i);
-  if (ogImageMatch && ogImageMatch[1]) {
-    productImageUrl = ogImageMatch[1].trim();
+  const imgRegex = /<img\s+([^>]+)>/gi;
+  const productKeywords = [/product/i, /prod/i, /pack/i, /bottle/i, /garrafa/i, /pot/i, /capsule/i, /gel/i, /box/i, /kit/i, /main/i, /hero/i, /comprar/i, /oferta/i, /cardiox/i];
+  const altCandidates: string[] = [];
+  const srcCandidates: string[] = [];
+  let imgMatch;
+  while ((imgMatch = imgRegex.exec(html)) !== null) {
+    const attrs = imgMatch[1];
+    const src = getAttributeValue(attrs, 'data-original') ||
+                getAttributeValue(attrs, 'data-lazy-src') ||
+                getAttributeValue(attrs, 'data-src') ||
+                getAttributeValue(attrs, 'src');
+    if (!src || !isValidImageSrc(src)) continue;
+    const alt = getAttributeValue(attrs, 'alt') || "";
+    if (productKeywords.some(kw => kw.test(alt))) {
+      altCandidates.push(src);
+    } else if (productKeywords.some(kw => kw.test(src))) {
+      srcCandidates.push(src);
+    }
+  }
+  // An explicit alt="product"-style hint is a stronger signal than a keyword that merely happens
+  // to appear in the (often auto-generated) file path, so it's preferred when both are present.
+  if (altCandidates.length > 0) {
+    productImageUrl = altCandidates[0];
+  } else if (srcCandidates.length > 0) {
+    productImageUrl = srcCandidates[0];
   }
 
   if (!productImageUrl) {
-    const imgRegex = /<img\s+([^>]+)>/gi;
-    const productKeywords = [/product/i, /prod/i, /pack/i, /bottle/i, /garrafa/i, /pot/i, /capsule/i, /gel/i, /box/i, /kit/i, /main/i, /hero/i, /comprar/i, /oferta/i, /cardiox/i];
-    const candidates: string[] = [];
-    let imgMatch;
+    const ogImageMatch = html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i) ||
+                         html.match(/<meta\s+content=["']([^"']+)["']\s+property=["']og:image["']/i);
+    if (ogImageMatch && ogImageMatch[1]) {
+      productImageUrl = ogImageMatch[1].trim();
+    }
+  }
+
+  if (!productImageUrl) {
+    imgRegex.lastIndex = 0;
     while ((imgMatch = imgRegex.exec(html)) !== null) {
       const attrs = imgMatch[1];
       const src = getAttributeValue(attrs, 'data-original') ||
                   getAttributeValue(attrs, 'data-lazy-src') ||
                   getAttributeValue(attrs, 'data-src') ||
                   getAttributeValue(attrs, 'src');
-      if (src && isValidImageSrc(src)) {
-        if (productKeywords.some(kw => kw.test(src))) {
-          candidates.push(src);
-        }
-      }
-    }
-    if (candidates.length > 0) {
-      productImageUrl = candidates[0];
-    } else {
-      imgRegex.lastIndex = 0;
-      while ((imgMatch = imgRegex.exec(html)) !== null) {
-        const attrs = imgMatch[1];
-        const src = getAttributeValue(attrs, 'data-original') ||
-                    getAttributeValue(attrs, 'data-lazy-src') ||
-                    getAttributeValue(attrs, 'data-src') ||
-                    getAttributeValue(attrs, 'src');
-        if (src && isValidImageSrc(src) && !src.includes("icon") && !src.includes("logo") && !src.includes("avatar") && !src.endsWith(".svg")) {
-          productImageUrl = src;
-          break;
-        }
+      if (src && isValidImageSrc(src) && !src.includes("icon") && !src.includes("logo") && !src.includes("avatar") && !src.endsWith(".svg")) {
+        productImageUrl = src;
+        break;
       }
     }
   }
@@ -1084,7 +1121,13 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
   }
 
   // 2. Fallback regex to parse price from HTML text
-  const priceRegex = /(?:(?:R\$|\$|€|£|¥|S\/\.?|PEN|MXN|COP|CLP|ARS|EUR|PLN|RON|CZK|HUF|GTQ|BOB|DOP|CRC|PYG|UYU|HNL|NIO|XOF|CFA|FCFA|USDT)\s*\d+(?:[.,]\d{2})?|\d+(?:[.,]\d{2})?\s*(?:zł|€|\$|£|¥|lei|Kč|Ft|EUR|eur|Eur|PLN|pln|RON|ron|CZK|czk|лв|BGN|bgn|din|RSD|rsd|HUF|huf|PEN|pen|GTQ|gtq|XOF|xof|CFA|cfa|FCFA|fcfa|S\/\.?))/gi;
+  // Both "currency-then-number" (e.g. "$100", "MXN 1180") AND "number-then-currency" (e.g.
+  // "1180 MXN") orderings are matched — several Latin American currencies (MXN, COP, CLP, ARS,
+  // BOB, DOP, CRC, PYG, UYU, HNL, NIO, R$) are conventionally written with the code AFTER the
+  // amount, and were previously only recognized in the "before" position, so a page like a
+  // Mexican offer showing "1180 MXN" / "590 MXN" matched nothing and silently fell back to a
+  // hardcoded generic placeholder price/currency instead.
+  const priceRegex = /(?:(?:R\$|\$|€|£|¥|S\/\.?|PEN|MXN|COP|CLP|ARS|EUR|PLN|RON|CZK|HUF|GTQ|BOB|DOP|CRC|PYG|UYU|HNL|NIO|XOF|CFA|FCFA|USDT)\s*\d+(?:[.,]\d{2})?|\d+(?:[.,]\d{2})?\s*(?:zł|€|\$|£|¥|lei|Kč|Ft|EUR|eur|Eur|PLN|pln|RON|ron|CZK|czk|лв|BGN|bgn|din|RSD|rsd|HUF|huf|PEN|pen|GTQ|gtq|MXN|mxn|COP|cop|CLP|clp|ARS|ars|R\$|BOB|bob|DOP|dop|CRC|crc|PYG|pyg|UYU|uyu|HNL|hnl|NIO|nio|USDT|usdt|XOF|xof|CFA|cfa|FCFA|fcfa|S\/\.?))/gi;
   const parseVal = (str: string): number => {
     const m = str.match(/\d+/);
     return m ? parseInt(m[0], 10) : 0;
@@ -2732,12 +2775,6 @@ const COOKIE_LOCALIZATION: Record<string, {
 };
 
 function detectLanguageFromText(cleanText: string): string {
-  if (/[\u0600-\u06FF]/.test(cleanText)) {
-    return "ar";
-  }
-  if (/[\u0E00-\u0E7F]/.test(cleanText)) {
-    return "th";
-  }
   const scores: Record<string, number> = {
     "pt-BR": 0,
     "es": 0,
@@ -2746,9 +2783,7 @@ function detectLanguageFromText(cleanText: string): string {
     "de": 0,
     "ro": 0,
     "pl": 0,
-    "en": 0,
-    "ar": 0,
-    "th": 0
+    "en": 0
   };
 
   // Specific unique trigger words/phrases
@@ -2773,10 +2808,26 @@ function detectLanguageFromText(cleanText: string): string {
     if (w === "the" || w === "and" || w === "of" || w === "with" || w === "for" || w === "to") scores["en"]++;
   }
 
+  // Latin-script word evidence is checked BEFORE Arabic/Thai detection: real, visible copy in one
+  // of these languages is a far stronger signal than raw character presence, which can come from
+  // hidden multi-locale template content, tracking snippets, or (confirmed in a real reference
+  // page) an <html lang> attribute that is simply wrong while every word on screen is Spanish.
   const best = Object.entries(scores).sort((a, b) => b[1] - a[1]);
   if (best[0][1] > 3) {
     return best[0][0];
   }
+
+  // Only trust Arabic/Thai once there is no meaningful Latin-language evidence, and even then
+  // require real density (not a single stray codepoint) before committing to it.
+  const arabicMatches = cleanText.match(/[؀-ۿ]/g);
+  if (arabicMatches && arabicMatches.length >= 15) {
+    return "ar";
+  }
+  const thaiMatches = cleanText.match(/[฀-๿]/g);
+  if (thaiMatches && thaiMatches.length >= 15) {
+    return "th";
+  }
+
   return "en";
 }
 
@@ -4726,6 +4777,357 @@ interface GaryHalbertLandingPageInput {
   seoDescription?: string;
 }
 
+// New text needed by Option B only (GDPR consent, cookie banner, compliance modals, SDK feedback,
+// countdown label) — same 10-language coverage as COOKIE_LOCALIZATION/detectLandingPageLanguage,
+// kept as a separate dictionary so Option A's COOKIE_LOCALIZATION is never touched.
+const UPSELL_LOCALIZATION: Record<string, {
+  consentText: string;
+  consentLinkText: string;
+  consentInvalidMsg: string;
+  cookieBannerText: string;
+  cookiePolicyLinkText: string;
+  cookieAcceptBtn: string;
+  cookieDeclineBtn: string;
+  modalPrivacyTitle: string;
+  modalPrivacyBody: string;
+  modalTermsTitle: string;
+  modalTermsBody: string;
+  modalContactTitle: string;
+  modalContactBody: string;
+  modalCloseBtn: string;
+  sdkSendingText: string;
+  sdkSuccessText: string;
+  sdkErrorText: string;
+  timerLabel: string;
+}> = {
+  "pt-BR": {
+    consentText: "Concordo com o tratamento dos meus dados pessoais (nome e telefone) para processamento do pedido e contato pela equipe de vendas, conforme a",
+    consentLinkText: "Política de Privacidade",
+    consentInvalidMsg: "Por favor, marque esta caixa para continuar.",
+    cookieBannerText: "Este site usa cookies para melhorar sua experiência. Leia nossa",
+    cookiePolicyLinkText: "Política de Privacidade",
+    cookieAcceptBtn: "Aceitar todos",
+    cookieDeclineBtn: "Apenas necessários",
+    modalPrivacyTitle: "Política de Privacidade",
+    modalPrivacyBody: "Coletamos apenas os dados necessários (nome e telefone) para processar seu pedido e entrar em contato sobre ele. Seus dados não são vendidos a terceiros e são usados exclusivamente para essa finalidade, em conformidade com a LGPD/GDPR. Para dúvidas ou solicitações sobre seus dados, entre em contato pelo e-mail {email}.",
+    modalTermsTitle: "Termos de Uso",
+    modalTermsBody: "Ao enviar este formulário, você concorda em ser contatado pela equipe de vendas para confirmar seu pedido. As informações do produto nesta página têm caráter informativo e publicitário. Preços e condições podem variar conforme disponibilidade.",
+    modalContactTitle: "Contato",
+    modalContactBody: "Precisa falar conosco? Envie um e-mail para {email} e responderemos o mais breve possível.",
+    modalCloseBtn: "Fechar",
+    sdkSendingText: "Enviando...",
+    sdkSuccessText: "Pedido enviado!",
+    sdkErrorText: "Falha ao enviar. Toque para tentar novamente.",
+    timerLabel: "Oferta expira em:"
+  },
+  es: {
+    consentText: "Acepto el tratamiento de mis datos personales (nombre y teléfono) para procesar el pedido y ser contactado por el equipo de ventas, conforme a la",
+    consentLinkText: "Política de Privacidad",
+    consentInvalidMsg: "Por favor, marque esta casilla para continuar.",
+    cookieBannerText: "Este sitio usa cookies para mejorar su experiencia. Lea nuestra",
+    cookiePolicyLinkText: "Política de Privacidad",
+    cookieAcceptBtn: "Aceptar todo",
+    cookieDeclineBtn: "Solo necesarios",
+    modalPrivacyTitle: "Política de Privacidad",
+    modalPrivacyBody: "Recopilamos únicamente los datos necesarios (nombre y teléfono) para procesar su pedido y contactarlo al respecto. Sus datos no se venden a terceros y se usan exclusivamente para este fin, conforme al GDPR. Para dudas o solicitudes sobre sus datos, escriba a {email}.",
+    modalTermsTitle: "Términos de Uso",
+    modalTermsBody: "Al enviar este formulario, usted acepta ser contactado por el equipo de ventas para confirmar su pedido. La información del producto en esta página tiene carácter informativo y publicitario. Precios y condiciones pueden variar según disponibilidad.",
+    modalContactTitle: "Contacto",
+    modalContactBody: "¿Necesita hablar con nosotros? Escriba a {email} y responderemos lo antes posible.",
+    modalCloseBtn: "Cerrar",
+    sdkSendingText: "Enviando...",
+    sdkSuccessText: "¡Pedido enviado!",
+    sdkErrorText: "Error al enviar. Toque para intentar de nuevo.",
+    timerLabel: "La oferta expira en:"
+  },
+  en: {
+    consentText: "I agree to the processing of my personal data (name and phone number) to process this order and be contacted by the sales team, per the",
+    consentLinkText: "Privacy Policy",
+    consentInvalidMsg: "Please check this box to continue.",
+    cookieBannerText: "This site uses cookies to improve your experience. Read our",
+    cookiePolicyLinkText: "Privacy Policy",
+    cookieAcceptBtn: "Accept all",
+    cookieDeclineBtn: "Essential only",
+    modalPrivacyTitle: "Privacy Policy",
+    modalPrivacyBody: "We only collect the data needed (name and phone) to process your order and contact you about it. Your data is never sold to third parties and is used solely for this purpose, in line with GDPR. For questions or data requests, contact {email}.",
+    modalTermsTitle: "Terms of Use",
+    modalTermsBody: "By submitting this form, you agree to be contacted by the sales team to confirm your order. Product information on this page is for informational and advertising purposes. Prices and conditions may vary based on availability.",
+    modalContactTitle: "Contact",
+    modalContactBody: "Need to reach us? Email {email} and we'll respond as soon as possible.",
+    modalCloseBtn: "Close",
+    sdkSendingText: "Sending...",
+    sdkSuccessText: "Order placed!",
+    sdkErrorText: "Failed to send. Tap to try again.",
+    timerLabel: "Offer expires in:"
+  },
+  it: {
+    consentText: "Acconsento al trattamento dei miei dati personali (nome e telefono) per elaborare l'ordine ed essere contattato dal team vendite, in conformità con la",
+    consentLinkText: "Informativa sulla Privacy",
+    consentInvalidMsg: "Seleziona questa casella per continuare.",
+    cookieBannerText: "Questo sito usa i cookie per migliorare la tua esperienza. Leggi la nostra",
+    cookiePolicyLinkText: "Informativa sulla Privacy",
+    cookieAcceptBtn: "Accetta tutto",
+    cookieDeclineBtn: "Solo necessari",
+    modalPrivacyTitle: "Informativa sulla Privacy",
+    modalPrivacyBody: "Raccogliamo solo i dati necessari (nome e telefono) per elaborare il tuo ordine e contattarti al riguardo. I tuoi dati non vengono venduti a terzi e sono usati esclusivamente per questo scopo, in conformità al GDPR. Per domande o richieste sui tuoi dati, scrivi a {email}.",
+    modalTermsTitle: "Termini di Utilizzo",
+    modalTermsBody: "Inviando questo modulo, accetti di essere contattato dal team vendite per confermare il tuo ordine. Le informazioni sul prodotto in questa pagina hanno carattere informativo e pubblicitario. Prezzi e condizioni possono variare in base alla disponibilità.",
+    modalContactTitle: "Contatti",
+    modalContactBody: "Hai bisogno di parlarci? Scrivi a {email} e risponderemo il prima possibile.",
+    modalCloseBtn: "Chiudi",
+    sdkSendingText: "Invio in corso...",
+    sdkSuccessText: "Ordine inviato!",
+    sdkErrorText: "Invio non riuscito. Tocca per riprovare.",
+    timerLabel: "L'offerta scade tra:"
+  },
+  fr: {
+    consentText: "J'accepte le traitement de mes données personnelles (nom et téléphone) pour traiter cette commande et être contacté par l'équipe commerciale, conformément à la",
+    consentLinkText: "Politique de Confidentialité",
+    consentInvalidMsg: "Veuillez cocher cette case pour continuer.",
+    cookieBannerText: "Ce site utilise des cookies pour améliorer votre expérience. Lisez notre",
+    cookiePolicyLinkText: "Politique de Confidentialité",
+    cookieAcceptBtn: "Tout accepter",
+    cookieDeclineBtn: "Essentiels uniquement",
+    modalPrivacyTitle: "Politique de Confidentialité",
+    modalPrivacyBody: "Nous ne collectons que les données nécessaires (nom et téléphone) pour traiter votre commande et vous contacter à ce sujet. Vos données ne sont jamais vendues à des tiers et sont utilisées uniquement à cette fin, conformément au RGPD. Pour toute question ou demande, contactez {email}.",
+    modalTermsTitle: "Conditions d'Utilisation",
+    modalTermsBody: "En soumettant ce formulaire, vous acceptez d'être contacté par l'équipe commerciale pour confirmer votre commande. Les informations produit de cette page sont à caractère informatif et publicitaire. Les prix et conditions peuvent varier selon la disponibilité.",
+    modalContactTitle: "Contact",
+    modalContactBody: "Besoin de nous contacter ? Écrivez à {email} et nous répondrons dans les meilleurs délais.",
+    modalCloseBtn: "Fermer",
+    sdkSendingText: "Envoi en cours...",
+    sdkSuccessText: "Commande envoyée !",
+    sdkErrorText: "Échec de l'envoi. Touchez pour réessayer.",
+    timerLabel: "L'offre expire dans :"
+  },
+  de: {
+    consentText: "Ich stimme der Verarbeitung meiner personenbezogenen Daten (Name und Telefonnummer) zur Bearbeitung dieser Bestellung und zur Kontaktaufnahme durch das Verkaufsteam gemäß der",
+    consentLinkText: "Datenschutzerklärung",
+    consentInvalidMsg: "Bitte aktivieren Sie dieses Kästchen, um fortzufahren.",
+    cookieBannerText: "Diese Website verwendet Cookies, um Ihr Erlebnis zu verbessern. Lesen Sie unsere",
+    cookiePolicyLinkText: "Datenschutzerklärung",
+    cookieAcceptBtn: "Alle akzeptieren",
+    cookieDeclineBtn: "Nur notwendige",
+    modalPrivacyTitle: "Datenschutzerklärung",
+    modalPrivacyBody: "Wir erheben nur die notwendigen Daten (Name und Telefon), um Ihre Bestellung zu bearbeiten und Sie diesbezüglich zu kontaktieren. Ihre Daten werden niemals an Dritte verkauft und ausschließlich zu diesem Zweck gemäß der DSGVO verwendet. Bei Fragen oder Datenanfragen wenden Sie sich an {email}.",
+    modalTermsTitle: "Nutzungsbedingungen",
+    modalTermsBody: "Mit dem Absenden dieses Formulars stimmen Sie zu, vom Verkaufsteam zur Bestätigung Ihrer Bestellung kontaktiert zu werden. Die Produktinformationen auf dieser Seite dienen Informations- und Werbezwecken. Preise und Konditionen können je nach Verfügbarkeit variieren.",
+    modalContactTitle: "Kontakt",
+    modalContactBody: "Möchten Sie uns kontaktieren? Schreiben Sie an {email}, wir antworten so schnell wie möglich.",
+    modalCloseBtn: "Schließen",
+    sdkSendingText: "Wird gesendet...",
+    sdkSuccessText: "Bestellung gesendet!",
+    sdkErrorText: "Senden fehlgeschlagen. Tippen, um es erneut zu versuchen.",
+    timerLabel: "Angebot endet in:"
+  },
+  ro: {
+    consentText: "Sunt de acord cu prelucrarea datelor mele personale (nume și telefon) pentru procesarea comenzii și contactul din partea echipei de vânzări, conform",
+    consentLinkText: "Politicii de Confidențialitate",
+    consentInvalidMsg: "Vă rugăm să bifați această căsuță pentru a continua.",
+    cookieBannerText: "Acest site folosește cookie-uri pentru a vă îmbunătăți experiența. Citiți",
+    cookiePolicyLinkText: "Politica de Confidențialitate",
+    cookieAcceptBtn: "Acceptă tot",
+    cookieDeclineBtn: "Doar esențiale",
+    modalPrivacyTitle: "Politica de Confidențialitate",
+    modalPrivacyBody: "Colectăm doar datele necesare (nume și telefon) pentru a procesa comanda dvs. și a vă contacta în legătură cu aceasta. Datele dvs. nu sunt vândute niciodată terților și sunt folosite exclusiv în acest scop, conform GDPR. Pentru întrebări sau solicitări, contactați {email}.",
+    modalTermsTitle: "Termeni de Utilizare",
+    modalTermsBody: "Prin trimiterea acestui formular, sunteți de acord să fiți contactat de echipa de vânzări pentru confirmarea comenzii. Informațiile despre produs de pe această pagină au caracter informativ și publicitar. Prețurile și condițiile pot varia în funcție de disponibilitate.",
+    modalContactTitle: "Contact",
+    modalContactBody: "Aveți nevoie să ne contactați? Scrieți la {email} și vă vom răspunde cât mai curând posibil.",
+    modalCloseBtn: "Închide",
+    sdkSendingText: "Se trimite...",
+    sdkSuccessText: "Comandă trimisă!",
+    sdkErrorText: "Trimiterea a eșuat. Atingeți pentru a încerca din nou.",
+    timerLabel: "Oferta expiră în:"
+  },
+  pl: {
+    consentText: "Wyrażam zgodę na przetwarzanie moich danych osobowych (imię i numer telefonu) w celu realizacji zamówienia i kontaktu ze strony zespołu sprzedaży, zgodnie z",
+    consentLinkText: "Polityką Prywatności",
+    consentInvalidMsg: "Zaznacz to pole, aby kontynuować.",
+    cookieBannerText: "Ta strona używa plików cookie, aby poprawić Twoje doświadczenia. Przeczytaj naszą",
+    cookiePolicyLinkText: "Politykę Prywatności",
+    cookieAcceptBtn: "Akceptuj wszystkie",
+    cookieDeclineBtn: "Tylko niezbędne",
+    modalPrivacyTitle: "Polityka Prywatności",
+    modalPrivacyBody: "Zbieramy wyłącznie dane niezbędne (imię i telefon) do realizacji zamówienia i kontaktu w tej sprawie. Twoje dane nigdy nie są sprzedawane osobom trzecim i są wykorzystywane wyłącznie w tym celu, zgodnie z RODO. W razie pytań lub wniosków dotyczących danych skontaktuj się pod adresem {email}.",
+    modalTermsTitle: "Regulamin",
+    modalTermsBody: "Wysyłając ten formularz, zgadzasz się na kontakt ze strony zespołu sprzedaży w celu potwierdzenia zamówienia. Informacje o produkcie na tej stronie mają charakter informacyjny i reklamowy. Ceny i warunki mogą się różnić w zależności od dostępności.",
+    modalContactTitle: "Kontakt",
+    modalContactBody: "Chcesz się z nami skontaktować? Napisz na {email}, odpowiemy najszybciej jak to możliwe.",
+    modalCloseBtn: "Zamknij",
+    sdkSendingText: "Wysyłanie...",
+    sdkSuccessText: "Zamówiono!",
+    sdkErrorText: "Wysyłka nie powiodła się. Dotknij, aby spróbować ponownie.",
+    timerLabel: "Oferta wygasa za:"
+  },
+  ar: {
+    consentText: "أوافق على معالجة بياناتي الشخصية (الاسم ورقم الهاتف) لمعالجة هذا الطلب والتواصل معي من قبل فريق المبيعات، وفقًا لـ",
+    consentLinkText: "سياسة الخصوصية",
+    consentInvalidMsg: "يرجى تحديد هذا المربع للمتابعة.",
+    cookieBannerText: "يستخدم هذا الموقع ملفات تعريف الارتباط لتحسين تجربتك. اقرأ",
+    cookiePolicyLinkText: "سياسة الخصوصية",
+    cookieAcceptBtn: "قبول الكل",
+    cookieDeclineBtn: "الضرورية فقط",
+    modalPrivacyTitle: "سياسة الخصوصية",
+    modalPrivacyBody: "نجمع فقط البيانات اللازمة (الاسم والهاتف) لمعالجة طلبك والتواصل معك بشأنه. لا يتم بيع بياناتك أبدًا لأطراف ثالثة وتُستخدم حصريًا لهذا الغرض. لأي استفسارات، تواصل معنا عبر {email}.",
+    modalTermsTitle: "شروط الاستخدام",
+    modalTermsBody: "بإرسال هذا النموذج، فإنك توافق على أن يتواصل معك فريق المبيعات لتأكيد طلبك. معلومات المنتج في هذه الصفحة لأغراض إعلامية وإعلانية. قد تختلف الأسعار والشروط حسب التوفر.",
+    modalContactTitle: "اتصل بنا",
+    modalContactBody: "هل تحتاج إلى التواصل معنا؟ راسلنا عبر {email} وسنرد في أقرب وقت ممكن.",
+    modalCloseBtn: "إغلاق",
+    sdkSendingText: "جارٍ الإرسال...",
+    sdkSuccessText: "تم إرسال الطلب!",
+    sdkErrorText: "فشل الإرسال. اضغط للمحاولة مرة أخرى.",
+    timerLabel: "ينتهي العرض خلال:"
+  },
+  th: {
+    consentText: "ฉันยินยอมให้มีการประมวลผลข้อมูลส่วนบุคคลของฉัน (ชื่อและหมายเลขโทรศัพท์) เพื่อดำเนินการตามคำสั่งซื้อนี้และให้ทีมขายติดต่อกลับ ตาม",
+    consentLinkText: "นโยบายความเป็นส่วนตัว",
+    consentInvalidMsg: "กรุณาทำเครื่องหมายในช่องนี้เพื่อดำเนินการต่อ",
+    cookieBannerText: "เว็บไซต์นี้ใช้คุกกี้เพื่อปรับปรุงประสบการณ์ของคุณ อ่าน",
+    cookiePolicyLinkText: "นโยบายความเป็นส่วนตัว",
+    cookieAcceptBtn: "ยอมรับทั้งหมด",
+    cookieDeclineBtn: "เฉพาะที่จำเป็น",
+    modalPrivacyTitle: "นโยบายความเป็นส่วนตัว",
+    modalPrivacyBody: "เราเก็บเฉพาะข้อมูลที่จำเป็น (ชื่อและโทรศัพท์) เพื่อดำเนินการตามคำสั่งซื้อและติดต่อคุณเกี่ยวกับเรื่องนี้ ข้อมูลของคุณจะไม่ถูกขายให้บุคคลที่สามและใช้เพื่อจุดประสงค์นี้เท่านั้น หากมีคำถามหรือคำขอเกี่ยวกับข้อมูล ติดต่อ {email}",
+    modalTermsTitle: "ข้อกำหนดการใช้งาน",
+    modalTermsBody: "การส่งแบบฟอร์มนี้ถือว่าคุณยินยอมให้ทีมขายติดต่อเพื่อยืนยันคำสั่งซื้อของคุณ ข้อมูลผลิตภัณฑ์ในหน้านี้มีไว้เพื่อวัตถุประสงค์ในการให้ข้อมูลและโฆษณา ราคาและเงื่อนไขอาจแตกต่างกันไปตามความพร้อมจำหน่าย",
+    modalContactTitle: "ติดต่อเรา",
+    modalContactBody: "ต้องการติดต่อเรา? ส่งอีเมลถึง {email} แล้วเราจะตอบกลับโดยเร็วที่สุด",
+    modalCloseBtn: "ปิด",
+    sdkSendingText: "กำลังส่ง...",
+    sdkSuccessText: "ส่งคำสั่งซื้อแล้ว!",
+    sdkErrorText: "ส่งไม่สำเร็จ แตะเพื่อลองอีกครั้ง",
+    timerLabel: "ข้อเสนอหมดอายุใน:"
+  }
+};
+
+function escapeUpsellHtml(value: any): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+// One order form instance, class="orderForm" required by the Dr.Cash SDK's global submit
+// listener; called multiple times (hero/mid/final) with a unique formId to avoid id collisions.
+function buildOrderFormMarkup(params: {
+  formId: string;
+  nameLabel: string;
+  namePlaceholder: string;
+  phoneLabel: string;
+  phonePlaceholder: string;
+  securityBadge: string;
+  upsell: typeof UPSELL_LOCALIZATION[string];
+  ctaButton: string;
+  formAction: string;
+}): string {
+  const e = escapeUpsellHtml;
+  const id = escapeUpsellHtml(params.formId);
+  return `
+      <form class="orderForm order-form" id="f-${id}" action="${e(params.formAction)}" method="POST">
+        <div class="form-group">
+          <label for="name-${id}">${e(params.nameLabel)}</label>
+          <input class="field-input" type="text" id="name-${id}" name="name" placeholder="${e(params.namePlaceholder)}" required autocomplete="given-name">
+        </div>
+        <div class="form-group">
+          <label for="phone-${id}">${e(params.phoneLabel)}</label>
+          <input class="field-input" type="tel" id="phone-${id}" name="phone" placeholder="${e(params.phonePlaceholder)}" minlength="5" required autocomplete="tel">
+        </div>
+        <label class="consent-row" for="consent-${id}">
+          <input type="checkbox" id="consent-${id}" name="consent" class="consent-checkbox" required>
+          <span>${e(params.upsell.consentText)} <a href="#privacy">${e(params.upsell.consentLinkText)}</a></span>
+        </label>
+        <button type="submit" class="btn-cta btn-order">${e(params.ctaButton)}</button>
+        <div class="success-msg" id="ok-${id}" style="display:none;">✔ ${e(params.upsell.sdkSuccessText)}</div>
+        <div class="security-badge">${e(params.securityBadge)}</div>
+      </form>`;
+}
+
+// Structural skeleton adapted from getThankYouModalCode's proven overlay/card pattern, reused
+// here for three brand-new compliance modals (privacy/terms/contact) that didn't exist before.
+function buildComplianceModals(upsell: typeof UPSELL_LOCALIZATION[string], primaryColor: string, contactEmail: string): string {
+  const e = escapeUpsellHtml;
+  const withEmail = (body: string) => e(body).replace(/\{email\}/g, e(contactEmail));
+
+  const modal = (hash: string, title: string, body: string) => `
+  <div id="${hash}" class="legal-modal-overlay">
+    <div class="legal-modal-content">
+      <a href="#" class="legal-modal-close" aria-label="${e(upsell.modalCloseBtn)}">&times;</a>
+      <h2>${e(title)}</h2>
+      <p>${body}</p>
+    </div>
+  </div>`;
+
+  return `
+  <style>
+    .legal-modal-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.85); z-index: 999999; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box; overflow-y: auto; }
+    .legal-modal-overlay.legal-modal-open { display: flex; }
+    .legal-modal-content { background: #ffffff; border-radius: 20px; width: 100%; max-width: 560px; padding: 32px 28px; position: relative; color: #0f172a; text-align: left; }
+    .legal-modal-content h2 { font-size: 1.3rem; margin-bottom: 14px; color: ${primaryColor}; }
+    .legal-modal-content p { font-size: 0.92rem; line-height: 1.6; color: #334155; }
+    .legal-modal-close { position: absolute; top: 14px; right: 18px; font-size: 1.5rem; color: #94a3b8; text-decoration: none; line-height: 1; }
+    .legal-modal-close:hover { color: #0f172a; }
+  </style>
+  ${modal("privacy", upsell.modalPrivacyTitle, withEmail(upsell.modalPrivacyBody))}
+  ${modal("terms", upsell.modalTermsTitle, withEmail(upsell.modalTermsBody))}
+  ${modal("contact", upsell.modalContactTitle, withEmail(upsell.modalContactBody))}
+  <script>
+    (function() {
+      var hashes = ["privacy", "terms", "contact"];
+      function syncModals() {
+        var current = window.location.hash.replace("#", "");
+        hashes.forEach(function(h) {
+          var el = document.getElementById(h);
+          if (!el) return;
+          el.classList.toggle("legal-modal-open", h === current);
+        });
+      }
+      window.addEventListener("hashchange", syncModals);
+      document.addEventListener("DOMContentLoaded", syncModals);
+    })();
+  </script>`;
+}
+
+// Non-blocking cookie bar — deliberately separate from Option A's injectCookieConsentOverlay,
+// which renders a blocking central card; this is a dismissible bottom bar instead.
+function buildCookieBanner(upsell: typeof UPSELL_LOCALIZATION[string], primaryColor: string): string {
+  const e = escapeUpsellHtml;
+  return `
+  <style>
+    .ob-cookie-bar { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 99998; background: #0f172a; color: #f8fafc; padding: 14px 20px; font-size: 0.82rem; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+    .ob-cookie-bar.ob-cookie-visible { display: flex; }
+    .ob-cookie-bar a { color: ${primaryColor}; font-weight: 700; }
+    .ob-cookie-actions { display: flex; gap: 10px; flex-shrink: 0; }
+    .ob-cookie-btn { border: 1px solid rgba(255,255,255,0.25); background: transparent; color: #f8fafc; padding: 8px 16px; border-radius: 8px; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+    .ob-cookie-accept { background: ${primaryColor}; border-color: ${primaryColor}; color: #ffffff; }
+  </style>
+  <div id="ob-cookie-bar" class="ob-cookie-bar">
+    <p>${e(upsell.cookieBannerText)} <a href="#privacy">${e(upsell.cookiePolicyLinkText)}</a></p>
+    <div class="ob-cookie-actions">
+      <button type="button" class="ob-cookie-btn" data-choice="declined">${e(upsell.cookieDeclineBtn)}</button>
+      <button type="button" class="ob-cookie-btn ob-cookie-accept" data-choice="accepted">${e(upsell.cookieAcceptBtn)}</button>
+    </div>
+  </div>
+  <script>
+    (function() {
+      var bar = document.getElementById("ob-cookie-bar");
+      if (!bar) return;
+      try {
+        if (!localStorage.getItem("ob_cookie_choice")) {
+          bar.classList.add("ob-cookie-visible");
+        }
+      } catch (_) { bar.classList.add("ob-cookie-visible"); }
+      bar.querySelectorAll(".ob-cookie-btn").forEach(function(btn) {
+        btn.addEventListener("click", function() {
+          try { localStorage.setItem("ob_cookie_choice", btn.getAttribute("data-choice")); } catch (_) {}
+          bar.classList.remove("ob-cookie-visible");
+        });
+      });
+    })();
+  </script>`;
+}
+
 async function generateGaryHalbertLandingPageHtml(input: GaryHalbertLandingPageInput): Promise<{ html: string; aiFailed: boolean }> {
   // 1. Prepare raw text extract from page to understand product, ingredients, benefits, price & language
   let extractedText = "";
@@ -4773,8 +5175,11 @@ Sua missão é LER e ANALISAR o texto extraído da página de vendas original do
 3. IDIOMA OBRIGATÓRIO: A resposta DEVE estar 100% no idioma ${targetLangName}.
 
 ## REGRAS RÍGIDAS DE COMPLIANCE GOOGLE ADS:
-- PROIBIDO: Promessas de cura definitiva, linguagem cirúrgica, alarmismo de doenças fatais, estatísticas clínicas inventadas.
-- OBRIGATÓRIO: Foco no suporte diário ao bem-estar, vitalidade, conforto e cuidados corporais/estéticos.
+- PROIBIDO: Promessas de cura definitiva, linguagem cirúrgica, alarmismo de doenças fatais, estatísticas clínicas inventadas, nomes de doenças graves (ex: câncer, diabetes, artrite como diagnóstico), antes/depois exagerados, garantias de resultado.
+- OBRIGATÓRIO: Foco no suporte diário ao bem-estar, vitalidade, conforto e cuidados corporais/estéticos. Descreva sintomas do dia a dia (desconforto, cansaço, rigidez, incômodo) de forma empática, nunca como diagnóstico médico.
+
+## SEÇÃO DE DORES (OBRIGATÓRIA, SEMPRE EM COMPLIANCE):
+Além do problema geral, liste de 3 a 4 situações cotidianas específicas e relacionáveis que a pessoa sente por causa do desconforto (ex: dificuldade em atividades simples, interrupção do sono, evitar certas tarefas) — sempre como sensação/experiência do dia a dia, nunca como sintoma clínico ou diagnóstico.
 
 ## FORMATO DE RESPOSTA (JSON OBRIGATÓRIO):
 Retorne APENAS um objeto JSON válido (sem textos explicativos ao redor) com os seguintes campos no idioma ${targetLangName}:
@@ -4784,6 +5189,12 @@ Retorne APENAS um objeto JSON válido (sem textos explicativos ao redor) com os 
   "badgeText": "Fórmula Natural • Cuidado Diário",
   "problemTitle": "Título empático sobre o problema diário que o produto ajuda a suavizar",
   "problemText": "Texto empático explicando como o desconforto/problema afeta a rotina e por que o cuidado é necessário.",
+  "painPointsTitle": "Título curto acima da lista de situações do dia a dia (ex: O que você sente?)",
+  "painPoints": [
+    "Situação cotidiana específica 1 causada pelo desconforto",
+    "Situação cotidiana específica 2 causada pelo desconforto",
+    "Situação cotidiana específica 3 causada pelo desconforto"
+  ],
   "solutionTitle": "Título de apresentação da solução ${input.productName}",
   "solutionText": "Texto descrevendo a proposta do produto e como sua fórmula atua de forma suave e eficaz.",
   "ingredients": [
@@ -4818,12 +5229,16 @@ ${richContext}`;
   let responseText = "";
   let aiFailed = false;
   try {
-    responseText = await queryGroq([{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], true);
+    responseText = await queryOpenRouter([{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], true, 3000);
   } catch (_) {
     try {
-      responseText = await queryGemini(systemPrompt, userPrompt, true);
+      responseText = await queryGroq([{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }], true);
     } catch (_) {
-      aiFailed = true;
+      try {
+        responseText = await queryGemini(systemPrompt, userPrompt, true);
+      } catch (_) {
+        aiFailed = true;
+      }
     }
   }
 
@@ -4959,29 +5374,104 @@ ${richContext}`;
       priceFrom: "Prezzo regolare",
       priceTo: "Prezzo promozionale",
       trustTitle: "Perché Scegliere la Nostra Soluzione?"
+    },
+    en: {
+      topBar: "🔥 Limited-Time Special Launch Offer",
+      nameLabel: "Full Name",
+      namePlaceholder: "Enter your full name",
+      phoneLabel: "Phone Number",
+      phonePlaceholder: "Enter your phone number",
+      securityBadge: "🔒 Your Data Is Protected • Cash on Delivery",
+      footerDisclaimer: "Disclaimer: This product is a daily-support supplement/cosmetic and does not replace medical diagnosis or treatment.",
+      footerRights: "All rights reserved.",
+      privacy: "Privacy Policy",
+      terms: "Terms of Use",
+      contact: "Contact",
+      formulaTitle: "Formula With Selected Ingredients",
+      priceFrom: "Regular price",
+      priceTo: "Offer price",
+      trustTitle: "Why Choose Our Solution?"
+    },
+    ro: {
+      topBar: "🔥 Ofertă Specială de Lansare pe Timp Limitat",
+      nameLabel: "Nume Complet",
+      namePlaceholder: "Introduceți numele complet",
+      phoneLabel: "Număr de Telefon",
+      phonePlaceholder: "Introduceți numărul de telefon",
+      securityBadge: "🔒 Datele Dvs. Sunt Protejate • Plată la Livrare",
+      footerDisclaimer: "Declinare de responsabilitate: Acest produs este un supliment/cosmetic de sprijin zilnic și nu înlocuiește diagnosticul sau tratamentul medical.",
+      footerRights: "Toate drepturile rezervate.",
+      privacy: "Politica de Confidențialitate",
+      terms: "Termeni de Utilizare",
+      contact: "Contact",
+      formulaTitle: "Formulă cu Ingrediente Selecționate",
+      priceFrom: "Preț obișnuit",
+      priceTo: "Preț promoțional",
+      trustTitle: "De ce să Alegeți Soluția Noastră?"
+    },
+    ar: {
+      topBar: "🔥 عرض إطلاق خاص لفترة محدودة",
+      nameLabel: "الاسم الكامل",
+      namePlaceholder: "أدخل اسمك الكامل",
+      phoneLabel: "رقم الهاتف",
+      phonePlaceholder: "أدخل رقم هاتفك",
+      securityBadge: "🔒 بياناتك محمية • الدفع عند الاستلام",
+      footerDisclaimer: "إخلاء مسؤولية: هذا المنتج مكمل/مستحضر تجميل للدعم اليومي ولا يغني عن التشخيص أو العلاج الطبي.",
+      footerRights: "جميع الحقوق محفوظة.",
+      privacy: "سياسة الخصوصية",
+      terms: "شروط الاستخدام",
+      contact: "اتصل بنا",
+      formulaTitle: "تركيبة بمكونات مختارة",
+      priceFrom: "السعر العادي",
+      priceTo: "سعر العرض",
+      trustTitle: "لماذا تختار حلنا؟"
+    },
+    th: {
+      topBar: "🔥 ข้อเสนอพิเศษช่วงเวลาจำกัด",
+      nameLabel: "ชื่อ-นามสกุล",
+      namePlaceholder: "กรอกชื่อ-นามสกุลของคุณ",
+      phoneLabel: "หมายเลขโทรศัพท์",
+      phonePlaceholder: "กรอกหมายเลขโทรศัพท์ของคุณ",
+      securityBadge: "🔒 ข้อมูลของคุณปลอดภัย • เก็บเงินปลายทาง",
+      footerDisclaimer: "ข้อจำกัดความรับผิดชอบ: ผลิตภัณฑ์นี้เป็นอาหารเสริม/เครื่องสำอางเพื่อการดูแลประจำวัน ไม่ใช่การวินิจฉัยหรือการรักษาทางการแพทย์",
+      footerRights: "สงวนลิขสิทธิ์ทั้งหมด",
+      privacy: "นโยบายความเป็นส่วนตัว",
+      terms: "ข้อกำหนดการใช้งาน",
+      contact: "ติดต่อเรา",
+      formulaTitle: "สูตรที่มีส่วนผสมคัดสรร",
+      priceFrom: "ราคาปกติ",
+      priceTo: "ราคาโปรโมชั่น",
+      trustTitle: "ทำไมต้องเลือกโซลูชันของเรา?"
     }
   };
 
-  const ui = uiDict[langCode] || uiDict.pt;
+  const ui = uiDict[langCode] || uiDict.en;
   const isSpanish = langCode === "es";
   const isPolish = langCode === "pl";
   const isFrench = langCode === "fr";
   const isGerman = langCode === "de";
   const isItalian = langCode === "it";
+  // Languages the copy fallback ternaries below don't have native text for — used to fall back
+  // to English instead of silently defaulting to Portuguese for these audiences.
+  const isEnglishFallback = langCode === "en" || langCode === "ro" || langCode === "ar" || langCode === "th";
 
   const pName = input.productName || "Produto Oficial";
-  const pDesc = input.seoDescription || (input.productDetails && input.productDetails[0]) || "";
-  
+
+  // Deliberately never falls back to the scraped seoDescription here — some source pages
+  // put unfilled promo/urgency text (e.g. unrendered price templates) in their <meta description>,
+  // which would otherwise leak into the H1 whenever the AI call fails.
   const headline = copyData.headline || (
-    isSpanish ? (pDesc ? pDesc : `Descubra la Fórmula Natural de Cuidado Diario de ${pName}`) :
-    isPolish ? (pDesc ? pDesc : `Odkryj Naturalną Formułę Pielęgnacji i Wsparcia dla ${pName}`) :
-    isFrench ? (pDesc ? pDesc : `Découvrez la Formule Naturelle de Soin Quotidien ${pName}`) :
-    isGerman ? (pDesc ? pDesc : `Entdecken Sie die natürliche Formel von ${pName}`) :
-    isItalian ? (pDesc ? pDesc : `Scopri la Formula Naturale per la Cura Quotidiana di ${pName}`) :
-    (pDesc ? pDesc : `Descubra a Fórmula Natural de Cuidado Diário para ${pName}`)
+    isEnglishFallback ? `Discover ${pName}'s Natural Daily Care Formula` :
+    isSpanish ? `Descubra la Fórmula Natural de Cuidado Diario de ${pName}` :
+    isPolish ? `Odkryj Naturalną Formułę Pielęgnacji i Wsparcia dla ${pName}` :
+    isFrench ? `Découvrez la Formule Naturelle de Soin Quotidien ${pName}` :
+    isGerman ? `Entdecken Sie die natürliche Formel von ${pName}` :
+    isItalian ? `Scopri la Formula Naturale per la Cura Quotidiana di ${pName}` :
+    `Descubra a Fórmula Natural de Cuidado Diário para ${pName}`
   );
 
   const subheadline = copyData.subheadline || (
+    isEnglishFallback ? `An exclusive combination of selected botanical extracts for your body's well-being.` :
     isSpanish ? `Una combinación exclusiva de extractos botánicos seleccionados para el bienestar de su cuerpo.` :
     isPolish ? `Wyjątkowe połączenie ekologicznych składników stworzone dla Twojego codziennego komfortu.` :
     isFrench ? `Une combinaison exclusive d'extraits botaniques pour votre bien-être quotidien.` :
@@ -4991,6 +5481,7 @@ ${richContext}`;
   );
 
   const badgeText = copyData.badgeText || (
+    isEnglishFallback ? `Natural Botanical Formula • Daily Care` :
     isFrench ? `Formule Botanique Naturelle • Soin Quotidien` :
     isGerman ? `Natürliche Botanische Formel • Tägliche Pflege` :
     isItalian ? `Formula Botanica Naturale • Cura Quotidiana` :
@@ -5000,6 +5491,7 @@ ${richContext}`;
   );
 
   const problemTitle = copyData.problemTitle || (
+    isEnglishFallback ? `Looking for natural support for your daily well-being?` :
     isFrench ? `Recherchez-vous un bien-être naturel au quotidien ?` :
     isGerman ? `Suchen Sie eine natürliche Lösung für Ihr Wohlbefinden?` :
     isItalian ? `Cerchi una soluzione naturale per il tuo benessere quotidiano?` :
@@ -5009,6 +5501,7 @@ ${richContext}`;
   );
 
     const problemText = copyData.problemText || (
+    isEnglishFallback ? `The pace of daily life can take a toll on your body. Proper care with ${pName} helps you regain natural comfort and vitality.` :
     isFrench ? `Le rythme de vie quotidien peut solliciter votre corps. Un soin adapté avec ${pName} vous aide à retrouver confort et vitalité naturelle.` :
     isGerman ? `Der tägliche Lebensrhythmus kann Ihren Körper belasten. Eine angemessene Pflege mit ${pName} hilft, natürlichen Komfort wiederzuerlangen.` :
     isItalian ? `I ritmi della vita quotidiana possono affaticare il tuo corpo. Una cura adeguata con ${pName} ti aiuta a ritrovare il comfort e la vitalità naturale.` :
@@ -5017,7 +5510,36 @@ ${richContext}`;
     `O ritmo de vida diário pode exigir muito do seu corpo. Manter um cuidado adequado com o ${pName} ajuda a recuperar o conforto e a vitalidade natural.`
   );
 
+  const painPointsTitle = copyData.painPointsTitle || (
+    isEnglishFallback ? `What are you feeling?` :
+    isFrench ? `Que ressentez-vous ?` :
+    isGerman ? `Was spüren Sie?` :
+    isItalian ? `Cosa provi?` :
+    isSpanish ? `¿Qué siente?` :
+    isPolish ? `Co odczuwasz?` :
+    `O que você sente?`
+  );
+
+  const fallbackPainPoints = isEnglishFallback
+    ? [`Everyday tasks feel harder than they should`, `Discomfort that interrupts your routine`, `Avoiding activities you used to enjoy`]
+    : isFrench
+      ? [`Les tâches du quotidien deviennent plus difficiles`, `Un inconfort qui interrompt votre routine`, `Éviter des activités que vous aimiez faire`]
+      : isGerman
+        ? [`Alltägliche Aufgaben fühlen sich schwerer an als nötig`, `Unbehagen, das Ihren Alltag stört`, `Sie vermeiden Aktivitäten, die Sie früher gerne gemacht haben`]
+        : isItalian
+          ? [`Le attività quotidiane sembrano più difficili del dovuto`, `Un fastidio che interrompe la tua routine`, `Evitare attività che prima ti piacevano`]
+          : isSpanish
+            ? [`Las tareas cotidianas se vuelven más difíciles de lo normal`, `Una molestia que interrumpe su rutina`, `Evitar actividades que antes disfrutaba`]
+            : isPolish
+              ? [`Codzienne czynności stają się trudniejsze niż powinny`, `Dyskomfort, który zakłóca Twoją rutynę`, `Unikanie aktywności, które kiedyś sprawiały przyjemność`]
+              : [`Tarefas do dia a dia parecem mais difíceis do que deveriam`, `Um desconforto que interrompe sua rotina`, `Evitar atividades que você gostava de fazer`];
+
+  const painPoints: string[] = Array.isArray(copyData.painPoints) && copyData.painPoints.length > 0
+    ? copyData.painPoints
+    : fallbackPainPoints;
+
   const solutionTitle = copyData.solutionTitle || (
+    isEnglishFallback ? `Meet ${pName}` :
     isFrench ? `Découvrez ${pName}` :
     isGerman ? `Erfahren Sie mehr über ${pName}` :
     isItalian ? `Scopri ${pName}` :
@@ -5027,6 +5549,7 @@ ${richContext}`;
   );
 
   const solutionText = copyData.solutionText || (
+    isEnglishFallback ? `Developed with high-purity ingredients, ${pName} offers a soothing experience and supports your body's natural balance.` :
     isFrench ? `Développé avec des ingrédients de haute pureté, ${pName} offre une expérience réconfortante et favorise l'équilibre naturel de votre corps.` :
     isGerman ? `Entwickelt mit hochreinen Inhaltsstoffen bietet ${pName} ein wohltuendes Erlebnis und fördert das natürliche Gleichgewicht Ihres Körpers.` :
     isItalian ? `Sviluppato con ingredienti di elevata purezza, ${pName} offre un'esperienza confortante e promuove l'equilibrio naturale del tuo corpo.` :
@@ -5035,38 +5558,39 @@ ${richContext}`;
     `Desenvolvido com ingredientes selecionados, o ${pName} proporciona uma experiência revigorante, promovendo hidratação, frescor e sensação de alívio imediato.`
   );
   
-  const fallbackIngredients = input.extractedFormula 
-    ? input.extractedFormula.split(",").map(ing => ({ name: ing.trim(), benefit: isFrench ? "Ingrédient actif de haute pureté." : (isItalian ? "Ingrediente attivo di elevata purezza." : (isSpanish ? "Ingrediente activo de alta pureza." : (isPolish ? "Wyselekcjonowany składnik aktywny." : "Ingrediente ativo de alta pureza."))) }))
+  const fallbackIngredients = input.extractedFormula
+    ? input.extractedFormula.split(",").map(ing => ({ name: ing.trim(), benefit: isEnglishFallback ? "High-purity active ingredient." : (isFrench ? "Ingrédient actif de haute pureté." : (isItalian ? "Ingrediente attivo di elevata purezza." : (isSpanish ? "Ingrediente activo de alta pureza." : (isPolish ? "Wyselekcjonowany składnik aktywny." : "Ingrediente ativo de alta pureza.")))) }))
     : [
-        { name: isFrench ? "Extrait Botanique Actif" : (isItalian ? "Estratto Botanico Attivo" : (isSpanish ? "Extracto Botánico Activo" : (isPolish ? "Aktywny Ekstrakt Roślinny" : "Extrato Natural Ativo"))), benefit: isFrench ? "Aide à maintenir une sensation de bien-être." : (isItalian ? "Aiuta a mantenere una sensazione di benessere e vitalità." : (isSpanish ? "Ayuda a mantener la sensación de bienestar y frescura." : (isPolish ? "Wspomaga uczucie lekkości i świeżości." : "Auxilia na sensação de bem-estar e vitalidade."))) },
-        { name: isFrench ? "Complexe Nutritif" : (isItalian ? "Complesso Nutritivo" : (isSpanish ? "Complejo Nutritivo" : (isPolish ? "Kompleks Odżywczy" : "Complexo Nutritivo"))), benefit: isFrench ? "Nourrit et préserve le confort du corps." : (isItalian ? "Nutre e preserva il comfort del corpo." : (isSpanish ? "Nutre y suaviza el aspecto de la piel y el cuerpo." : (isPolish ? "Pielęgnuje i wygładza ciało." : "Nutre e suaviza o corpo."))) },
-        { name: isFrench ? "Agent Réconfortant" : (isItalian ? "Agente Rinfrescante" : (isSpanish ? "Agente Reconfortante" : (isPolish ? "Składnik Odświeżający" : "Agente Revigorante"))), benefit: isFrench ? "Procur de la fraîcheur et un confort prolongé." : (isItalian ? "Dona freschezza e comfort prolungato." : (isSpanish ? "Proporciona confort prolongado." : (isPolish ? "Zapewnia długotrwały komfort." : "Proporciona conforto prolongado."))) }
+        { name: isEnglishFallback ? "Active Botanical Extract" : (isFrench ? "Extrait Botanique Actif" : (isItalian ? "Estratto Botanico Attivo" : (isSpanish ? "Extracto Botánico Activo" : (isPolish ? "Aktywny Ekstrakt Roślinny" : "Extrato Natural Ativo")))), benefit: isEnglishFallback ? "Helps maintain a feeling of well-being." : (isFrench ? "Aide à maintenir une sensation de bien-être." : (isItalian ? "Aiuta a mantenere una sensazione di benessere e vitalità." : (isSpanish ? "Ayuda a mantener la sensación de bienestar y frescura." : (isPolish ? "Wspomaga uczucie lekkości i świeżości." : "Auxilia na sensação de bem-estar e vitalidade.")))) },
+        { name: isEnglishFallback ? "Nutritive Complex" : (isFrench ? "Complexe Nutritif" : (isItalian ? "Complesso Nutritivo" : (isSpanish ? "Complejo Nutritivo" : (isPolish ? "Kompleks Odżywczy" : "Complexo Nutritivo")))), benefit: isEnglishFallback ? "Nourishes and preserves the body's comfort." : (isFrench ? "Nourrit et préserve le confort du corps." : (isItalian ? "Nutre e preserva il comfort del corpo." : (isSpanish ? "Nutre y suaviza el aspecto de la piel y el cuerpo." : (isPolish ? "Pielęgnuje i wygładza ciało." : "Nutre e suaviza o corpo.")))) },
+        { name: isEnglishFallback ? "Comforting Agent" : (isFrench ? "Agent Réconfortant" : (isItalian ? "Agente Rinfrescante" : (isSpanish ? "Agente Reconfortante" : (isPolish ? "Składnik Odświeżający" : "Agente Revigorante")))), benefit: isEnglishFallback ? "Provides lasting comfort." : (isFrench ? "Procur de la fraîcheur et un confort prolongé." : (isItalian ? "Dona freschezza e comfort prolungato." : (isSpanish ? "Proporciona confort prolongado." : (isPolish ? "Zapewnia długotrwały komfort." : "Proporciona conforto prolongado.")))) }
       ];
 
   const ingredients: Array<{ name: string; benefit: string }> = Array.isArray(copyData.ingredients) && copyData.ingredients.length > 0 
     ? copyData.ingredients 
     : fallbackIngredients;
 
-  const bullets: string[] = Array.isArray(copyData.bullets) && copyData.bullets.length > 0 
-    ? copyData.bullets 
+  const bullets: string[] = Array.isArray(copyData.bullets) && copyData.bullets.length > 0
+    ? copyData.bullets
     : [
-        isFrench ? "Bien-être quotidien et sensation de fraîcheur" : (isItalian ? "Benessere quotidiano e sensazione di freschezza" : (isSpanish ? "Bienestar diario y sensación de frescura" : (isPolish ? "Codzienne uczucie witalności i ulgi" : "Bem-estar diário e sensação de frescor"))),
-        isFrench ? "Formule douce à base d'ingrédients naturels" : (isItalian ? "Formula delicata a base di ingredienti naturali" : (isSpanish ? "Fórmula suave a base de ingredientes naturales" : (isPolish ? "Delikatna formuła z ekologicznych składników" : "Fórmula suave à base de ingredientes naturais"))),
-        isFrench ? "Format pratique pour une utilisation facile" : (isItalian ? "Formato pratico per un facile utilizzo" : (isSpanish ? "Textura ligera de rápida absorción" : (isPolish ? "Szybka absorpcja bez tłustej warstwy" : "Textura leve de rápida absorção"))),
-        isFrench ? "Utilisation quotidienne à tout moment de la journée" : (isItalian ? "Uso pratico in qualsiasi momento della giornata" : (isSpanish ? "Uso práctico en cualquier momento del día" : (isPolish ? "Wygodne stosowanie każdego dnia" : "Uso prático em qualquer momento do dia"))),
-        isFrench ? "Paiement 100% sécurisé à la livraison" : (isItalian ? "Pagamento 100% sicuro alla consegna" : (isSpanish ? "Pago 100% seguro al momento de la entrega" : (isPolish ? "Gwarancja bezpiecznego płatności przy odbiorze" : "Pagamento 100% seguro no momento da entrega")))
+        isEnglishFallback ? "Daily well-being and a feeling of freshness" : (isFrench ? "Bien-être quotidien et sensation de fraîcheur" : (isItalian ? "Benessere quotidiano e sensazione di freschezza" : (isSpanish ? "Bienestar diario y sensación de frescura" : (isPolish ? "Codzienne uczucie witalności i ulgi" : "Bem-estar diário e sensação de frescor")))),
+        isEnglishFallback ? "Gentle formula made with natural ingredients" : (isFrench ? "Formule douce à base d'ingrédients naturels" : (isItalian ? "Formula delicata a base di ingredienti naturali" : (isSpanish ? "Fórmula suave a base de ingredientes naturales" : (isPolish ? "Delikatna formuła z ekologicznych składników" : "Fórmula suave à base de ingredientes naturais")))),
+        isEnglishFallback ? "Lightweight, fast-absorbing texture" : (isFrench ? "Format pratique pour une utilisation facile" : (isItalian ? "Formato pratico per un facile utilizzo" : (isSpanish ? "Textura ligera de rápida absorción" : (isPolish ? "Szybka absorpcja bez tłustej warstwy" : "Textura leve de rápida absorção")))),
+        isEnglishFallback ? "Practical to use any time of day" : (isFrench ? "Utilisation quotidienne à tout moment de la journée" : (isItalian ? "Uso pratico in qualsiasi momento della giornata" : (isSpanish ? "Uso práctico en cualquier momento del día" : (isPolish ? "Wygodne stosowanie każdego dnia" : "Uso prático em qualquer momento do dia")))),
+        isEnglishFallback ? "100% secure payment on delivery" : (isFrench ? "Paiement 100% sécurisé à la livraison" : (isItalian ? "Pagamento 100% sicuro alla consegna" : (isSpanish ? "Pago 100% seguro al momento de la entrega" : (isPolish ? "Gwarancja bezpiecznego płatności przy odbiorze" : "Pagamento 100% seguro no momento da entrega"))))
       ];
 
   const trustTitle = copyData.trustTitle || ui.trustTitle;
   const trustItems: Array<{ title: string; desc: string }> = Array.isArray(copyData.trustItems) && copyData.trustItems.length > 0
     ? copyData.trustItems
     : [
-        { title: isFrench ? "Ingrédients Sélectionnés" : (isItalian ? "Ingredienti Selezionati" : (isSpanish ? "Ingredientes Seleccionados" : (isPolish ? "Wyselekcjonowane Składniki" : "Ingredientes Botânicos Selecionados"))), desc: isFrench ? "Formule de haute pureté développée pour le soin quotidien." : (isItalian ? "Formula di elevata purezza sviluppata per la cura quotidiana." : (isSpanish ? "Fórmula de alta pureza desarrollada para el cuidado diario." : (isPolish ? "Wysoka jakość i delikatne wsparcie dla Twojego ciała." : "Fórmula desenvolvida com extratos de alta pureza."))) },
-        { title: isFrench ? "Paiement Sécurisé à la Livraison" : (isItalian ? "Pagamento Sicuro alla Consegna" : (isSpanish ? "Pago Seguro Contra Entrega" : (isPolish ? "Płatność Przy Odbiorze" : "Pagamento Seguro na Entrega"))), desc: isFrench ? "Payez uniquement à la réception de votre commande." : (isItalian ? "Paga solo al momento del ricevimento del prodotto." : (isSpanish ? "Pague únicamente al recibir el producto en sus manos." : (isPolish ? "Płacisz dopiero w momencie dostawy do Twoich rąk." : "Sem necessidade de cartão prévio. Pague ao receber."))) },
-        { title: isFrench ? "Expédition Rapide et Discrète" : (isItalian ? "Spedizione Rapida e Discreta" : (isSpanish ? "Envío Rápido y Discreto" : (isPolish ? "Szybka Dostawa" : "Entrega Rápida e Discreta"))), desc: isFrench ? "Colis protégé livré directement chez vous." : (isItalian ? "Pacco protetto consegnato direttamente a casa tua." : (isSpanish ? "Paquete protegido entregado directamente en su domicilio." : (isPolish ? "Starannie zapakowana przesyłka trafia prosto do Twojego domu." : "Embalagem segura entregue com rapidez no seu endereço."))) }
+        { title: isEnglishFallback ? "Selected Ingredients" : (isFrench ? "Ingrédients Sélectionnés" : (isItalian ? "Ingredienti Selezionati" : (isSpanish ? "Ingredientes Seleccionados" : (isPolish ? "Wyselekcjonowane Składniki" : "Ingredientes Botânicos Selecionados")))), desc: isEnglishFallback ? "High-purity formula developed for daily care." : (isFrench ? "Formule de haute pureté développée pour le soin quotidien." : (isItalian ? "Formula di elevata purezza sviluppata per la cura quotidiana." : (isSpanish ? "Fórmula de alta pureza desarrollada para el cuidado diario." : (isPolish ? "Wysoka jakość i delikatne wsparcie dla Twojego ciała." : "Fórmula desenvolvida com extratos de alta pureza.")))) },
+        { title: isEnglishFallback ? "Secure Payment on Delivery" : (isFrench ? "Paiement Sécurisé à la Livraison" : (isItalian ? "Pagamento Sicuro alla Consegna" : (isSpanish ? "Pago Seguro Contra Entrega" : (isPolish ? "Płatność Przy Odbiorze" : "Pagamento Seguro na Entrega")))), desc: isEnglishFallback ? "Pay only when you receive your order." : (isFrench ? "Payez uniquement à la réception de votre commande." : (isItalian ? "Paga solo al momento del ricevimento del prodotto." : (isSpanish ? "Pague únicamente al recibir el producto en sus manos." : (isPolish ? "Płacisz dopiero w momencie dostawy do Twoich rąk." : "Sem necessidade de cartão prévio. Pague ao receber.")))) },
+        { title: isEnglishFallback ? "Fast, Discreet Shipping" : (isFrench ? "Expédition Rapide et Discrète" : (isItalian ? "Spedizione Rapida e Discreta" : (isSpanish ? "Envío Rápido y Discreto" : (isPolish ? "Szybka Dostawa" : "Entrega Rápida e Discreta")))), desc: isEnglishFallback ? "Protected package delivered straight to your door." : (isFrench ? "Colis protégé livré directement chez vous." : (isItalian ? "Pacco protetto consegnato direttamente a casa tua." : (isSpanish ? "Paquete protegido entregado directamente en su domicilio." : (isPolish ? "Starannie zapakowana przesyłka trafia prosto do Twojego domu." : "Embalagem segura entregue com rapidez no seu endereço.")))) }
       ];
 
   const formTitle = copyData.formTitle || (
+    isEnglishFallback ? `Get Your ${pName} Today` :
     isFrench ? `Demandez Votre ${pName} Aujourd'hui` :
     isGerman ? `Bestellen Sie Ihr ${pName} Heute` :
     isItalian ? `Richiedi il tuo ${pName} Oggi` :
@@ -5076,6 +5600,7 @@ ${richContext}`;
   );
 
   const formSubtitle = copyData.formSubtitle || (
+    isEnglishFallback ? `Fill in your details below to receive this exclusive offer with cash on delivery.` :
     isFrench ? `Remplissez vos informations ci-dessous pour recevoir l'offre exclusive avec paiement à la livraison.` :
     isGerman ? `Geben Sie Ihre Daten unten ein, um das exklusive Angebot mit Zahlung bei Lieferung zu erhalten.` :
     isItalian ? `Compila i tuoi dati qui sotto per ricevere l'offerta esclusiva con pagamento alla consegna.` :
@@ -5085,6 +5610,7 @@ ${richContext}`;
   );
 
   const ctaButton = copyData.ctaButton || (
+    isEnglishFallback ? `REQUEST OFFER NOW` :
     isFrench ? `DEMANDER L'OFFRE MAINTENANT` :
     isGerman ? `JETZT ANGEBOT ANFORDERN` :
     isItalian ? `RICHIEDI L'OFFERTA ORA` :
@@ -5121,6 +5647,7 @@ ${richContext}`;
     if (isSpanish) promoPriceDisplay = "229 GTQ";
     else if (isPolish) promoPriceDisplay = "139 zł";
     else if (isFrench || isGerman || isItalian) promoPriceDisplay = "39 €";
+    else if (isEnglishFallback) promoPriceDisplay = "$39";
     else promoPriceDisplay = "R$ 147";
   }
 
@@ -5134,6 +5661,7 @@ ${richContext}`;
       if (isSpanish) origPriceDisplay = "458 GTQ";
       else if (isPolish) origPriceDisplay = "278 zł";
       else if (isFrench || isGerman || isItalian) origPriceDisplay = "78 €";
+      else if (isEnglishFallback) origPriceDisplay = "$78";
       else origPriceDisplay = "R$ 297";
     }
   }
@@ -5162,11 +5690,36 @@ ${richContext}`;
   const priceToColor = isLightBg ? "#15803d" : "#4ade80";
 
   const hasDrCash = !!(input.apiToken && input.streamCode);
-  const formAction = hasDrCash ? "#" : (input.thankYouUrl || "./Obrigado.html");
+  const finalThankYouUrl = input.thankYouUrl || "./Obrigado.html";
+  const formAction = hasDrCash ? "#" : finalThankYouUrl;
 
-  const productImgHtml = input.productImageUrl
-    ? `<img src="${input.productImageUrl}" alt="${input.productName}" class="product-img">`
+  // Reused for both the favicon and the hero product image — downloaded once, embedded as
+  // base64 so the page stays fully self-contained (no external image dependency to break).
+  let productImageBase64 = "";
+  if (input.productImageUrl) {
+    try {
+      productImageBase64 = await downloadAsBase64(input.productImageUrl);
+    } catch (_) {
+      productImageBase64 = "";
+    }
+  }
+  const svgFaviconFallback = `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💊</text></svg>`;
+  const faviconDataUri = productImageBase64 || svgFaviconFallback;
+  const faviconMime = productImageBase64 ? (faviconDataUri.match(/^data:([^;]+);/)?.[1] || "image/png") : "image/svg+xml";
+
+  const productImgHtml = productImageBase64
+    ? `<img src="${productImageBase64}" alt="${input.productName}" class="product-img">`
     : `<div class="product-placeholder">📦<span>${input.productName}</span></div>`;
+
+  const upsell = UPSELL_LOCALIZATION[input.popupLanguage || "pt-BR"] || UPSELL_LOCALIZATION["en"];
+  let contactDomain = "suporte.com";
+  try { contactDomain = new URL(input.affiliateUrl).hostname.replace(/^www\./, ""); } catch (_) {}
+  const contactEmail = `suporte@${contactDomain}`;
+  const ogLocaleMap: Record<string, string> = {
+    "pt-BR": "pt_BR", es: "es_ES", en: "en_US", it: "it_IT", fr: "fr_FR",
+    de: "de_DE", ro: "ro_RO", pl: "pl_PL", ar: "ar_AR", th: "th_TH"
+  };
+  const ogLocale = ogLocaleMap[input.popupLanguage || "pt-BR"] || "en_US";
 
   const priceBoxHtml = `<div style="margin: 15px 0 20px; padding: 16px 20px; background: ${priceBoxBg}; border-radius: 12px; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
       <div>
@@ -5183,6 +5736,21 @@ ${richContext}`;
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${headline} | ${input.productName}</title>
   <meta name="description" content="${subheadline}">
+  <meta name="robots" content="index, follow">
+  <meta name="author" content="${input.productName}">
+  <meta name="theme-color" content="${primaryColor}">
+  <meta property="og:title" content="${headline} | ${input.productName}">
+  <meta property="og:description" content="${subheadline}">
+  <meta property="og:image" content="${faviconDataUri}">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="${ogLocale}">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="${headline} | ${input.productName}">
+  <meta name="twitter:description" content="${subheadline}">
+  <link rel="icon" type="${faviconMime}" sizes="16x16" href="${faviconDataUri}">
+  <link rel="icon" type="${faviconMime}" sizes="32x32" href="${faviconDataUri}">
+  <link rel="apple-touch-icon" sizes="180x180" href="${faviconDataUri}">
+  <link rel="icon" type="${faviconMime}" sizes="192x192" href="${faviconDataUri}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -5215,20 +5783,37 @@ ${richContext}`;
     .hero h1 { font-size: 2.3rem; font-weight: 800; line-height: 1.25; margin-bottom: 16px; color: var(--text-main); }
     .hero p.subheadline { font-size: 1.15rem; color: var(--text-muted); max-width: 800px; margin: 0 auto 30px; }
     
-    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; margin: 30px 0; }
+    .hero-grid { display: grid; grid-template-columns: 1fr 260px 380px; gap: 30px; align-items: start; margin: 30px 0; text-align: left; }
     @media (max-width: 768px) {
       .hero h1 { font-size: 1.7rem; }
-      .grid-2 { grid-template-columns: 1fr; gap: 25px; }
+      .hero-grid { grid-template-columns: 1fr; gap: 25px; }
+      .hero-image { display: none; }
     }
-    
+    .hero-copy { padding-top: 8px; }
+
     .product-box { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 25px; text-align: center; box-shadow: var(--card-shadow); }
     .product-img { max-width: 100%; height: auto; max-height: 320px; border-radius: 12px; object-fit: contain; }
     .product-placeholder { height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 3rem; background-color: rgba(0,0,0,0.03); border-radius: 12px; }
     .product-placeholder span { font-size: 1.2rem; font-weight: 700; margin-top: 10px; color: var(--text-main); }
+
+    .hero-order-card { background: var(--form-bg); border: 2px solid var(--primary); border-radius: 20px; padding: 22px 20px; box-shadow: 0 15px 35px rgba(22, 163, 74, 0.15); position: relative; }
+    .hero-ribbon { display: inline-block; background: var(--accent-gold); color: #000; font-weight: 800; padding: 5px 12px; border-radius: 999px; font-size: 0.78rem; margin-bottom: 12px; }
+    .card-timer { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: rgba(0,0,0,0.15); border-radius: 10px; padding: 8px 12px; margin: 12px 0; flex-wrap: wrap; }
+    .timer-label { font-size: 0.75rem; color: var(--text-muted); }
+    .timer-digits { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 1rem; color: var(--text-main); letter-spacing: 1px; }
+
+    .consent-row { display: flex; align-items: flex-start; gap: 8px; margin: 4px 0 2px; cursor: pointer; font-size: 0.74rem; color: var(--text-muted); line-height: 1.5; }
+    .consent-row input[type="checkbox"] { margin-top: 3px; accent-color: var(--primary); width: 15px; height: 15px; flex-shrink: 0; }
+    .consent-row a { color: var(--primary); font-weight: 700; }
+    .success-msg { text-align: center; color: #16a34a; font-weight: 700; font-size: 0.9rem; margin-top: 4px; }
     
     .narrative-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 30px; margin-bottom: 30px; box-shadow: var(--card-shadow); }
     .narrative-card h2 { font-size: 1.5rem; color: var(--text-main); margin-bottom: 14px; font-weight: 700; border-left: 4px solid var(--primary); padding-left: 12px; }
     .narrative-card p { color: var(--text-muted); font-size: 1rem; margin-bottom: 16px; }
+    .pain-points-title { font-size: 1.05rem; color: var(--text-main); margin: 8px 0 10px; font-weight: 700; }
+    .pain-points-list { list-style: none; margin-bottom: 8px; }
+    .pain-points-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.95rem; color: var(--text-muted); margin-bottom: 10px; line-height: 1.5; }
+    .pain-icon { color: var(--primary); font-weight: 900; flex-shrink: 0; }
     
     .ingredients-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin: 30px 0; }
     .ingredient-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; box-shadow: var(--card-shadow); }
@@ -5281,23 +5866,45 @@ ${richContext}`;
       <p class="subheadline">${subheadline}</p>
     </header>
 
-    <div class="grid-2">
-      <div class="product-box">
-        ${productImgHtml}
-      </div>
-
-      <div>
+    <div class="hero-grid">
+      <div class="hero-copy">
         <ul class="bullets-list">
           ${bullets.map((b: string) => `<li><span class="check-icon">✓</span> ${b}</li>`).join("")}
         </ul>
+      </div>
+
+      <div class="hero-image product-box">
+        ${productImgHtml}
+      </div>
+
+      <div class="hero-order-card">
+        <span class="hero-ribbon">${offerTagDisplay}</span>
         ${priceBoxHtml}
-        <a href="#form-order" class="btn-cta" style="display:inline-block; text-align:center; text-decoration:none;">${ctaButton}</a>
+        <div class="card-timer">
+          <span class="timer-label">${upsell.timerLabel}</span>
+          <span class="timer-digits"><span class="t-digit">0</span><span class="t-digit">0</span>:<span class="t-digit">0</span><span class="t-digit">0</span>:<span class="t-digit">0</span><span class="t-digit">0</span></span>
+        </div>
+        ${buildOrderFormMarkup({
+          formId: "hero",
+          nameLabel: ui.nameLabel,
+          namePlaceholder: ui.namePlaceholder,
+          phoneLabel: ui.phoneLabel,
+          phonePlaceholder: ui.phonePlaceholder,
+          securityBadge: ui.securityBadge,
+          upsell,
+          ctaButton,
+          formAction
+        })}
       </div>
     </div>
 
     <div class="narrative-card">
       <h2>${problemTitle}</h2>
       <p>${problemText}</p>
+      <h3 class="pain-points-title">${painPointsTitle}</h3>
+      <ul class="pain-points-list">
+        ${painPoints.map((p: string) => `<li><span class="pain-icon">•</span> ${p}</li>`).join("")}
+      </ul>
       <h2 style="margin-top: 25px;">${solutionTitle}</h2>
       <p>${solutionText}</p>
     </div>
@@ -5310,6 +5917,24 @@ ${richContext}`;
           <p>${ing.benefit}</p>
         </div>
       `).join("")}
+    </div>
+
+    <div class="form-wrapper">
+      <div class="form-header">
+        <h2>${formTitle}</h2>
+        <p>${formSubtitle}</p>
+      </div>
+      ${buildOrderFormMarkup({
+        formId: "mid",
+        nameLabel: ui.nameLabel,
+        namePlaceholder: ui.namePlaceholder,
+        phoneLabel: ui.phoneLabel,
+        phonePlaceholder: ui.phonePlaceholder,
+        securityBadge: ui.securityBadge,
+        upsell,
+        ctaButton,
+        formAction
+      })}
     </div>
 
     <h2 style="font-size: 1.6rem; text-align: center; margin: 40px 0 20px;">${trustTitle}</h2>
@@ -5328,29 +5953,17 @@ ${richContext}`;
         <h2>${formTitle}</h2>
         <p>${formSubtitle}</p>
       </div>
-
-      <form action="./Obrigado.html" method="POST" class="order-form orderForm">
-        <input type="hidden" name="api_token" value="${input.apiToken || ""}">
-        <input type="hidden" name="apiToken" value="${input.apiToken || ""}">
-        <input type="hidden" name="stream_code" value="${input.streamCode || ""}">
-        <input type="hidden" name="streamCode" value="${input.streamCode || ""}">
-        
-        <div class="form-group">
-          <label for="input-name">${ui.nameLabel}</label>
-          <input type="text" id="input-name" name="name" placeholder="${ui.namePlaceholder}" required>
-        </div>
-
-        <div class="form-group">
-          <label for="input-phone">${ui.phoneLabel}</label>
-          <input type="tel" id="input-phone" name="phone" placeholder="${ui.phonePlaceholder}" required>
-        </div>
-
-        <button type="submit" class="btn-cta">${ctaButton}</button>
-      </form>
-
-      <div class="security-badge">
-        ${ui.securityBadge}
-      </div>
+      ${buildOrderFormMarkup({
+        formId: "final",
+        nameLabel: ui.nameLabel,
+        namePlaceholder: ui.namePlaceholder,
+        phoneLabel: ui.phoneLabel,
+        phonePlaceholder: ui.phonePlaceholder,
+        securityBadge: ui.securityBadge,
+        upsell,
+        ctaButton,
+        formAction
+      })}
     </div>
   </div>
 
@@ -5359,59 +5972,92 @@ ${richContext}`;
       <p>© ${new Date().getFullYear()} ${input.productName}. ${ui.footerRights}</p>
       <p>${ui.footerDisclaimer}</p>
       <div class="footer-links">
-        <a href="#">${ui.privacy}</a>
-        <a href="#">${ui.terms}</a>
-        <a href="#">${ui.contact}</a>
+        <a href="#privacy">${ui.privacy}</a>
+        <a href="#terms">${ui.terms}</a>
+        <a href="#contact">${ui.contact}</a>
       </div>
     </div>
   </footer>
 
+  ${buildComplianceModals(upsell, primaryColor, contactEmail)}
+  ${buildCookieBanner(upsell, primaryColor)}
+
   <script>
-    document.addEventListener("DOMContentLoaded", function() {
-      var forms = document.querySelectorAll("form.orderForm, form.order-form");
-      forms.forEach(function(form) {
-        form.addEventListener("submit", function(e) {
-          var nameInput = form.querySelector('input[name="name"]');
-          var phoneInput = form.querySelector('input[name="phone"]');
-          var apiTokenInput = form.querySelector('input[name="api_token"]') || form.querySelector('input[name="apiToken"]');
-          var streamCodeInput = form.querySelector('input[name="stream_code"]') || form.querySelector('input[name="streamCode"]');
-
-          var name = nameInput ? nameInput.value.trim() : "";
-          var phone = phoneInput ? phoneInput.value.trim() : "";
-          var apiToken = apiTokenInput ? apiTokenInput.value.trim() : "";
-          var streamCode = streamCodeInput ? streamCodeInput.value.trim() : "";
-
-          if (apiToken && streamCode) {
-            e.preventDefault();
-            var btn = form.querySelector('button[type="submit"]');
-            if (btn) {
-              btn.disabled = true;
-              btn.innerHTML = "⏳ Enviando...";
-            }
-
-            fetch("https://order.drcash.sh/v1/order", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": "Bearer " + apiToken
-              },
-              body: JSON.stringify({
-                stream_code: streamCode,
-                client: {
-                  name: name,
-                  phone: phone
-                }
-              })
-            }).then(function() {
-              window.location.href = "./Obrigado.html";
-            }).catch(function() {
-              window.location.href = "./Obrigado.html";
-            });
-          }
-        });
+    (function() {
+      document.querySelectorAll(".consent-checkbox").forEach(function(cb) {
+        var msg = ${JSON.stringify(upsell.consentInvalidMsg)};
+        cb.addEventListener("invalid", function() { cb.setCustomValidity(msg); });
+        cb.addEventListener("change", function() { cb.setCustomValidity(""); });
       });
-    });
+
+      function getSecondsUntilMidnight() {
+        var now = new Date();
+        var midnight = new Date(now);
+        midnight.setHours(24, 0, 0, 0);
+        return Math.floor((midnight - now) / 1000);
+      }
+      function updateTimers() {
+        var total = getSecondsUntilMidnight();
+        if (total < 0) total = 0;
+        var h = Math.floor(total / 3600);
+        var m = Math.floor((total % 3600) / 60);
+        var s = total % 60;
+        var digits = [Math.floor(h / 10), h % 10, Math.floor(m / 10), m % 10, Math.floor(s / 10), s % 10];
+        document.querySelectorAll(".card-timer").forEach(function(timer) {
+          var spans = timer.querySelectorAll(".t-digit");
+          digits.forEach(function(d, i) { if (spans[i]) spans[i].textContent = String(d); });
+        });
+      }
+      updateTimers();
+      setInterval(updateTimers, 1000);
+    })();
   </script>
+  ${hasDrCash ? `
+<script src="https://snippet.infothroat.com/dist/api/lead-1.1.0.min.js"></script>
+<script>
+(function() {
+  function setButtonsState(state) {
+    document.querySelectorAll(".btn-order").forEach(function(btn) {
+      if (state === "sending") { btn.disabled = true; btn.textContent = ${JSON.stringify(upsell.sdkSendingText)}; }
+      else if (state === "success") { btn.textContent = "✔ " + ${JSON.stringify(upsell.sdkSuccessText)}; }
+      else if (state === "error") { btn.disabled = false; btn.textContent = ${JSON.stringify(upsell.sdkErrorText)}; }
+    });
+  }
+  function initDrCashSdk() {
+    if (typeof drlead === "undefined") return;
+    var watchdog = null;
+    drlead.init({
+      params: {
+        token: ${JSON.stringify(input.apiToken)},
+        stream_code: ${JSON.stringify(input.streamCode)},
+        thanks_page: ${JSON.stringify(finalThankYouUrl)}
+      },
+      subs: {
+        sub1: drlead.queryGet("utm_source") || drlead.queryGet("sub1") || "",
+        sub2: drlead.queryGet("utm_medium") || drlead.queryGet("sub2") || "",
+        sub3: drlead.queryGet("utm_campaign") || drlead.queryGet("sub3") || "",
+        sub4: drlead.queryGet("utm_content") || drlead.queryGet("sub4") || "",
+        sub5: drlead.queryGet("utm_term") || drlead.queryGet("sub5") || ""
+      },
+      before: function() {
+        setButtonsState("sending");
+        clearTimeout(watchdog);
+        // Safety net: some HTTP-level failures (invalid token, duplicate lead) never reach
+        // callback(error) nor callback(success) on the SDK side, leaving the button stuck.
+        watchdog = setTimeout(function() { setButtonsState("error"); }, 12000);
+      },
+      callback: function(error) {
+        clearTimeout(watchdog);
+        if (error) { setButtonsState("error"); return; }
+        setButtonsState("success");
+        document.querySelectorAll(".success-msg").forEach(function(m) { m.style.display = "block"; });
+      }
+    });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initDrCashSdk);
+  else initDrCashSdk();
+})();
+</script>` : ""}
 </body>
 </html>`;
 
