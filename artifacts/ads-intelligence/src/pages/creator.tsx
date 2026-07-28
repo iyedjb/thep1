@@ -71,6 +71,45 @@ interface SavedWebsite {
   thankYouFileName?: string;
 }
 
+interface ReviewTestimonial {
+  name: string;
+  stars: number;
+  quote: string;
+}
+
+interface ReviewFaqItem {
+  question: string;
+  answer: string;
+}
+
+interface ReviewPageContent {
+  productName: string;
+  affiliateUrl: string;
+  langCode: string;
+  ratingBadge: string;
+  heroTag: string;
+  heroHeadline: string;
+  heroLead: string;
+  ctaButtonText: string;
+  aboutTitle: string;
+  aboutText: string;
+  prosTitle: string;
+  pros: string[];
+  consTitle: string;
+  cons: string[];
+  testimonialsTitle: string;
+  testimonials: ReviewTestimonial[];
+  faqTitle: string;
+  faq: ReviewFaqItem[];
+  verdictTitle: string;
+  verdictText: string;
+  verdictCtaText: string;
+  footerDisclaimer: string;
+}
+
+const CHAT_STORAGE_KEY = "presell_chat_state";
+const CHAT_GREETING = "Olá! Sou seu especialista em criação de páginas de review de alta conversão. Para começarmos, me diga qual é o nome do produto e o link de afiliado, ou qualquer outro detalhe de design/texto que você prefira.";
+
 export default function Creator() {
   const { toast } = useToast();
 
@@ -109,13 +148,15 @@ export default function Creator() {
 
   const [activeMode, setActiveMode] = useState<"redirect" | "chat">("redirect");
   const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([
-    { role: "assistant", content: "Olá! Sou seu especialista em criação de páginas de review de alta conversão. Para começarmos, me diga qual é o nome do produto e o link de afiliado, ou qualquer outro detalhe de design/texto que você prefira." }
+    { role: "assistant", content: CHAT_GREETING }
   ]);
   const [chatInput, setChatInput] = useState("");
   const [isChatSending, setIsChatSending] = useState(false);
   const [chatGeneratedHtml, setChatGeneratedHtml] = useState("");
   const [chatProductName, setChatProductName] = useState("");
   const [chatAffiliateUrl, setChatAffiliateUrl] = useState("");
+  const [chatDraft, setChatDraft] = useState<ReviewPageContent | null>(null);
+  const [chatStateLoaded, setChatStateLoaded] = useState(false);
 
   const fetchPresells = async () => {
     try {
@@ -164,13 +205,15 @@ export default function Creator() {
           "Content-Type": "application/json",
           "Authorization": token ? `Bearer ${token}` : ""
         },
-        body: JSON.stringify({ messages: newMessages })
+        body: JSON.stringify({ messages: newMessages, draft: chatDraft })
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Erro ao conversar com a IA.");
 
       setChatMessages(prev => [...prev, { role: "assistant" as const, content: data.message }]);
-      
+
+      if (data.draft) setChatDraft(data.draft);
+
       if (data.html) {
         setChatGeneratedHtml(data.html);
         if (data.productName) setChatProductName(data.productName);
@@ -224,12 +267,16 @@ export default function Creator() {
   };
 
   const handleChatReset = () => {
-    setChatMessages([
-      { role: "assistant", content: "Olá! Sou seu especialista em criação de páginas de review de alta conversão. Para começarmos, me diga qual é o nome do produto e o link de afiliado, ou qualquer outro detalhe de design/texto que você prefira." }
-    ]);
+    setChatMessages([{ role: "assistant", content: CHAT_GREETING }]);
     setChatGeneratedHtml("");
     setChatProductName("");
     setChatAffiliateUrl("");
+    setChatDraft(null);
+    try {
+      localStorage.removeItem(CHAT_STORAGE_KEY);
+    } catch (err) {
+      console.error("Erro ao limpar chat salvo", err);
+    }
   };
 
   useEffect(() => {
@@ -255,7 +302,34 @@ export default function Creator() {
       } catch (err) { console.error("Erro ao buscar token Dr. Cash", err); }
     };
     fetchDefaultToken();
+
+    try {
+      const savedChatState = localStorage.getItem(CHAT_STORAGE_KEY);
+      if (savedChatState) {
+        const parsed = JSON.parse(savedChatState);
+        if (Array.isArray(parsed.chatMessages) && parsed.chatMessages.length > 0) setChatMessages(parsed.chatMessages);
+        if (parsed.chatDraft) setChatDraft(parsed.chatDraft);
+        if (parsed.chatGeneratedHtml) setChatGeneratedHtml(parsed.chatGeneratedHtml);
+        if (parsed.chatProductName) setChatProductName(parsed.chatProductName);
+        if (parsed.chatAffiliateUrl) setChatAffiliateUrl(parsed.chatAffiliateUrl);
+      }
+    } catch (err) {
+      console.error("Erro ao restaurar chat salvo", err);
+    } finally {
+      setChatStateLoaded(true);
+    }
   }, []);
+
+  useEffect(() => {
+    if (!chatStateLoaded) return;
+    try {
+      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify({
+        chatMessages, chatDraft, chatGeneratedHtml, chatProductName, chatAffiliateUrl
+      }));
+    } catch (err) {
+      console.error("Erro ao salvar chat no localStorage", err);
+    }
+  }, [chatStateLoaded, chatMessages, chatDraft, chatGeneratedHtml, chatProductName, chatAffiliateUrl]);
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1118,6 +1192,15 @@ export default function Creator() {
                           <span className="text-muted-foreground">Destino:</span>
                           <span className="font-mono text-primary truncate max-w-[150px]">{chatAffiliateUrl || "#"}</span>
                         </div>
+                      </div>
+
+                      <div className="rounded-xl border border-border/50 overflow-hidden h-[420px] bg-white">
+                        <iframe
+                          srcDoc={chatGeneratedHtml}
+                          sandbox="allow-scripts"
+                          title="Preview da Página de Review"
+                          className="w-full h-full border-0"
+                        />
                       </div>
 
                       <Button
