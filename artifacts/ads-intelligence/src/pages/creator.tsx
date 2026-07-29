@@ -133,6 +133,7 @@ export default function Creator() {
   const [designSummary, setDesignSummary] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [selectedOption, setSelectedOption] = useState<"a" | "b">("a");
+  const [keepOriginalStructure, setKeepOriginalStructure] = useState(false);
 
   const [step, setStep] = useState<Step>("form");
   const [generatingMessage, setGeneratingMessage] = useState("Criando base do redirecionador...");
@@ -365,7 +366,8 @@ export default function Creator() {
         body: JSON.stringify({
           referenceUrl: sourceUrl, affiliateUrl: targetUrl, trackingTags: combinedAiTags,
           productHint: productName, apiToken, streamCode, thankYouUrl,
-          network: "Dr.Cash", selectedOption, popupLanguage, rawHtml
+          network: "Dr.Cash", selectedOption, popupLanguage, rawHtml,
+          keepOriginalStructure: selectedOption === "b" ? keepOriginalStructure : false
         })
       });
 
@@ -833,6 +835,26 @@ export default function Creator() {
                             </div>
                           ))}
                         </div>
+
+                        {selectedOption === "b" && (
+                          <label
+                            htmlFor="keep-original-structure"
+                            className="flex items-start gap-2.5 rounded-xl border border-border bg-muted/20 p-3 cursor-pointer hover:bg-muted/40 transition-colors"
+                          >
+                            <input
+                              id="keep-original-structure"
+                              type="checkbox"
+                              checked={keepOriginalStructure}
+                              onChange={(e) => setKeepOriginalStructure(e.target.checked)}
+                              className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-primary cursor-pointer"
+                            />
+                            <span className="text-[10px] leading-relaxed text-muted-foreground">
+                              <span className="font-bold text-foreground">Manter estrutura original da página</span>
+                              <br />
+                              Sem marcar: gera um layout novo com IA (3 colunas). Marcando: mantém o design original da referência, ajustando apenas os textos que violam as políticas do Google Ads.
+                            </span>
+                          </label>
+                        )}
                       </div>
 
                       {/* Language Selection */}
@@ -848,16 +870,22 @@ export default function Creator() {
                           className="w-full rounded-xl h-11 border border-border bg-card text-xs text-foreground px-3 focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer shadow-2xs"
                         >
                           <option value="auto">Detectar do idioma do site (Recomendado)</option>
-                          <option value="pt-BR">Português (pt-BR)</option>
+                          <option value="pt-BR">Português - Brasil (pt-BR)</option>
+                          <option value="pt-PT">Português - Portugal (pt-PT)</option>
                           <option value="es">Espanhol (es)</option>
                           <option value="en">Inglês (en)</option>
                           <option value="it">Italiano (it)</option>
                           <option value="fr">Francês (fr)</option>
                           <option value="de">Alemão (de)</option>
+                          <option value="nl">Holandês (nl)</option>
+                          <option value="sv">Sueco (sv)</option>
+                          <option value="da">Dinamarquês (da)</option>
                           <option value="ro">Romeno (ro)</option>
                           <option value="pl">Polonês (pl)</option>
                           <option value="ar">Árabe (ar)</option>
+                          <option value="he">Hebraico (he)</option>
                           <option value="th">Tailandês (th)</option>
+                          <option value="ja">Japonês (ja)</option>
                         </select>
                       </div>
 

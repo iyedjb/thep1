@@ -29,7 +29,12 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
 
   try {
     const desktopPage = await browser.newPage();
-    await desktopPage.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 2 });
+    // 1440x900 (not 1920x1080) — most landing pages built for affiliate/COD offers use a fixed
+    // content container around 1000-1300px wide; capturing at full 1920px leaves excess side
+    // margin that makes the hero look zoomed out/distant compared to how it renders on a typical
+    // browser window. deviceScaleFactor 1 (not 2) avoids quadrupling the captured pixel count for
+    // an image that only ever displays at CSS viewport size — a major driver of page load weight.
+    await desktopPage.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
     
     // Set User-Agent to standard desktop browser
     await desktopPage.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
@@ -73,7 +78,7 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
       await desktopPage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
     } catch (_) {}
 
-    const desktopBuffer = (await desktopPage.screenshot({ fullPage: false, type: 'jpeg', quality: 95 })) as Buffer;
+    const desktopBuffer = (await desktopPage.screenshot({ fullPage: false, type: 'jpeg', quality: 82 })) as Buffer;
     const desktopBase64 = `data:image/jpeg;base64,${desktopBuffer.toString('base64')}`;
 
     const mobilePage = await browser.newPage();
@@ -140,7 +145,7 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
       await mobilePage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
     } catch (_) {}
 
-    const mobileBuffer = (await mobilePage.screenshot({ fullPage: false, type: 'jpeg', quality: 95 })) as Buffer;
+    const mobileBuffer = (await mobilePage.screenshot({ fullPage: false, type: 'jpeg', quality: 82 })) as Buffer;
     const mobileBase64 = `data:image/jpeg;base64,${mobileBuffer.toString('base64')}`;
 
     logger.info("Puppeteer screenshots captured successfully!");
@@ -807,6 +812,7 @@ interface PageMetadata {
   ctaButtonColor?: string;
   backgroundColor?: string;
   productImageUrl: string;
+  faviconUrl?: string;
   seoDescription?: string;
   productDetails?: string[];
   extractedPrice?: string;
@@ -852,6 +858,34 @@ function filterNonCompliantSentences(text: string): string {
     result += ".";
   }
   return result;
+}
+
+function extractFaviconUrl(html: string, referenceUrl: string): string {
+  // Prefer the page's own declared favicon over any substitute — it's the actual icon a real
+  // visitor sees in their browser tab, and product/hero images are the wrong aspect ratio/content
+  // for a 16x16-32x32 icon. "icon"/"shortcut icon" take priority over apple-touch-icon (large
+  // square image meant for home-screen bookmarks, not the tab favicon).
+  const linkTagRegex = /<link\s+[^>]*rel=["']([^"']*icon[^"']*)["'][^>]*>/gi;
+  let bestHref = "";
+  let bestIsAppleTouch = true;
+  let match;
+  while ((match = linkTagRegex.exec(html)) !== null) {
+    const tag = match[0];
+    const rel = match[1].toLowerCase();
+    const hrefMatch = tag.match(/href=["']([^"']+)["']/i);
+    if (!hrefMatch) continue;
+    const isAppleTouch = rel.includes("apple-touch");
+    if (bestHref && !bestIsAppleTouch) continue;
+    bestHref = hrefMatch[1];
+    bestIsAppleTouch = isAppleTouch;
+    if (!isAppleTouch) break;
+  }
+  if (!bestHref) return "";
+  try {
+    return new URL(bestHref, referenceUrl).toString();
+  } catch (_) {
+    return "";
+  }
 }
 
 function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
@@ -1250,7 +1284,9 @@ function extractPageMetadata(html: string, referenceUrl: string): PageMetadata {
     seoDescription = filterNonCompliantSentences(seoDescription);
   }
 
-  return { productName, primaryColor, ctaButtonColor, backgroundColor, productImageUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice, isGadget, isDigital, isCod, extractedDelivery };
+  const faviconUrl = extractFaviconUrl(html, referenceUrl);
+
+  return { productName, primaryColor, ctaButtonColor, backgroundColor, productImageUrl, faviconUrl, seoDescription, productDetails, extractedPrice, extractedFormula, extractedOffer, originalPrice, promotionalPrice, isGadget, isDigital, isCod, extractedDelivery };
 }
 
 function getThankYouModalCode(
@@ -2186,28 +2222,45 @@ function generateThankYouHtml(options: {
  * 5. Inject tracking tags into <head>
  * 6. Add a universal click interceptor script as safety net for onclick handlers
  */
-function injectAffiliateIntoHtml(
+async function injectAffiliateIntoHtml(
   rawHtml: string,
   referenceUrl: string,
   affiliateUrl: string,
   trackingTags: string,
   apiToken?: string,
   streamCode?: string,
-  thankYouUrl?: string
-): string {
+  thankYouUrl?: string,
+  productImageUrl?: string
+): Promise<string> {
   // Step 1: Make all relative asset URLs absolute
   let html = makeAbsoluteUrls(rawHtml, referenceUrl);
 
-  // Step 1.5: Inject favicon
+  // Step 1.5: Inject favicon — prefer the real product image (inlined as base64, so the page
+  // stays self-contained), then try inlining the Google Favicon Service result, and only fall
+  // back to a remote (non-inlined) favicon URL if both downloads fail.
   let faviconUrl = "";
-  try {
-    const domain = new URL(referenceUrl).hostname;
-    faviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
-  } catch (_) {}
+  if (productImageUrl) {
+    try {
+      faviconUrl = await downloadAsBase64(productImageUrl);
+    } catch (_) {
+      faviconUrl = "";
+    }
+  }
+  if (!faviconUrl) {
+    try {
+      const domain = new URL(referenceUrl).hostname;
+      const googleFaviconUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+      try {
+        faviconUrl = await downloadAsBase64(googleFaviconUrl);
+      } catch (_) {
+        faviconUrl = googleFaviconUrl;
+      }
+    } catch (_) {}
+  }
 
   // Strip existing icons to avoid duplicates
   html = html.replace(/<link\s+[^>]*rel=["'](?:icon|shortcut icon)["'][^>]*>/gi, "");
-  
+
   if (faviconUrl) {
     const faviconTag = `<link rel="icon" href="${faviconUrl}">`;
     if (/<head([^>]*)>/i.test(html)) {
@@ -2771,6 +2824,216 @@ const COOKIE_LOCALIZATION: Record<string, {
     valOfertaGeneric: "ส่วนลดโปรโมชันพิเศษที่มีในแคมเปญนี้",
     labelInfoRelevante: "ข้อมูลที่เกี่ยวข้อง",
     valInfoRelevante: "ช่องทางข้อมูลอย่างเป็นทางการของแคมเปญ เงื่อนไขการรับประกันและนโยบายการคืนเงินเป็นไปตามที่เว็บไซต์อย่างเป็นทางการกำหนด"
+  },
+  "pt-PT": {
+    title: "🍪 Política de Cookies",
+    desc: "Utilizamos cookies para personalizar a sua experiência. Ao continuar, está a concordar com os nossos termos.",
+    accept: "Aceitar",
+    decline: "Recusar",
+    infoBtn: "Detalhes da Oferta",
+    infoTitle: "Detalhes da Oferta",
+    labelFormula: "Fórmula/Composição",
+    labelEntrega: "Prazo de Entrega",
+    labelEntregaDigital: "Forma de Acesso",
+    labelPreco: "Preço e Condição",
+    labelOferta: "Oferta Especial",
+    valFormula: "Fórmula desenvolvida com compostos e extratos naturais selecionados.",
+    valEntregaPhysical: "Envio de acordo com os prazos de entrega e portes do site oficial.",
+    valEntregaDigital: "Acesso imediato por e-mail após a confirmação do pagamento.",
+    valPrecoCOD: "Pagamento no Ato da Entrega (pague apenas ao receber o produto).",
+    valPrecoOnline: "Pagamento Seguro Online (Cartão de Crédito, Multibanco ou MB WAY).",
+    valOferta: "Promoção especial por tempo limitado no canal oficial.",
+    formatPreco: "De <del>{orig}</del> por apenas <strong>{prom}</strong>",
+    ctaOffer: "Aproveite o desconto! Oferta por tempo limitado.",
+    descTemplate: "Página informativa oficial sobre o produto {prod}. Veja os detalhes da oferta e adquira com garantia de originalidade.",
+    priceDescFormat: " De {orig} por apenas {prom}.",
+    priceValFormat: " (Valor: {val}).",
+    labelGadget: "Especificações Técnicas",
+    valGadget: "Especificações e funcionalidades de alta tecnologia desenvolvidas pelo fabricante.",
+    labelDigital: "Conteúdo / Recursos",
+    valDigital: "Recursos e materiais informativos de alta qualidade desenvolvidos por especialistas.",
+    valGenericCampaignInfo: "Consulte as informações desta campanha.",
+    valPrecoGeneric: "Valor promocional disponível no canal oficial do fabricante.",
+    valPrecoGenericCond: "Pagamento seguro processado através do canal oficial.",
+    valPrecoGenericFallback: "Veja os detalhes da oferta.",
+    valOfertaGeneric: "Desconto promocional especial disponível nesta campanha.",
+    labelInfoRelevante: "Informações Relevantes",
+    valInfoRelevante: "Canal oficial informativo da campanha. Os termos de garantia e as políticas de reembolso são os estabelecidos pelo site oficial."
+  },
+  "sv": {
+    title: "🍪 Cookiepolicy",
+    desc: "Vi använder cookies för att anpassa din upplevelse. Genom att fortsätta godkänner du våra villkor.",
+    accept: "Acceptera",
+    decline: "Avvisa",
+    infoBtn: "Erbjudandedetaljer",
+    infoTitle: "Erbjudandedetaljer",
+    labelFormula: "Formel/Innehåll",
+    labelEntrega: "Leveranstid",
+    labelEntregaDigital: "Åtkomstmetod",
+    labelPreco: "Pris och Villkor",
+    labelOferta: "Specialerbjudande",
+    valFormula: "Formel utvecklad med utvalda naturliga föreningar och extrakt.",
+    valEntregaPhysical: "Frakt enligt den officiella webbplatsens leveranstider och avgifter.",
+    valEntregaDigital: "Omedelbar åtkomst via e-post efter betalningsbekräftelse.",
+    valPrecoCOD: "Betalning vid Leverans (betala endast när du tar emot produkten).",
+    valPrecoOnline: "Säker Onlinebetalning (Kreditkort, PayPal eller lokala betalmetoder).",
+    valOferta: "Specialkampanj under begränsad tid på den officiella kanalen.",
+    formatPreco: "Från <del>{orig}</del> till endast <strong>{prom}</strong>",
+    ctaOffer: "Ta del av rabatten! Tidsbegränsat erbjudande.",
+    descTemplate: "Officiell informationssida om produkten {prod}. Se erbjudandets detaljer och köp med äkthetsgaranti.",
+    priceDescFormat: " Från {orig} till endast {prom}.",
+    priceValFormat: " (Pris: {val}).",
+    labelGadget: "Tekniska Specifikationer",
+    valGadget: "Avancerade tekniska specifikationer och funktioner utvecklade av tillverkaren.",
+    labelDigital: "Innehåll / Funktioner",
+    valDigital: "Högkvalitativa resurser och informationsmaterial utvecklade av experter.",
+    valGenericCampaignInfo: "Kontrollera informationen i denna kampanj.",
+    valPrecoGeneric: "Kampanjpris tillgängligt på tillverkarens officiella kanal.",
+    valPrecoGenericCond: "Säker betalning behandlad via den officiella kanalen.",
+    valPrecoGenericFallback: "Se erbjudandets detaljer.",
+    valOfertaGeneric: "Särskild kampanjrabatt tillgänglig i denna kampanj.",
+    labelInfoRelevante: "Relevant Information",
+    valInfoRelevante: "Officiell informationskanal för kampanjen. Garantivillkor och återbetalningspolicyer är de som fastställts av den officiella webbplatsen."
+  },
+  "nl": {
+    title: "🍪 Cookiebeleid",
+    desc: "Wij gebruiken cookies om uw ervaring te personaliseren. Door verder te gaan, gaat u akkoord met onze voorwaarden.",
+    accept: "Accepteren",
+    decline: "Weigeren",
+    infoBtn: "Aanbiedingsdetails",
+    infoTitle: "Aanbiedingsdetails",
+    labelFormula: "Formule/Samenstelling",
+    labelEntrega: "Levertijd",
+    labelEntregaDigital: "Toegangsmethode",
+    labelPreco: "Prijs en Voorwaarden",
+    labelOferta: "Speciale Aanbieding",
+    valFormula: "Formule ontwikkeld met geselecteerde natuurlijke stoffen en extracten.",
+    valEntregaPhysical: "Verzending volgens de levertijden en tarieven van de officiële website.",
+    valEntregaDigital: "Directe toegang per e-mail na bevestiging van betaling.",
+    valPrecoCOD: "Betaling bij Levering (betaal pas na ontvangst van het product).",
+    valPrecoOnline: "Veilige Online Betaling (Creditcard, PayPal of lokale betaalmethoden).",
+    valOferta: "Speciale actie voor beperkte tijd op het officiële kanaal.",
+    formatPreco: "Van <del>{orig}</del> voor slechts <strong>{prom}</strong>",
+    ctaOffer: "Profiteer van de korting! Aanbieding voor beperkte tijd.",
+    descTemplate: "Officiële informatiepagina over het product {prod}. Bekijk de details van de aanbieding en koop met garantie van originaliteit.",
+    priceDescFormat: " Van {orig} voor slechts {prom}.",
+    priceValFormat: " (Waarde: {val}).",
+    labelGadget: "Technische Specificaties",
+    valGadget: "Hoogwaardige technische specificaties en functies ontwikkeld door de fabrikant.",
+    labelDigital: "Inhoud / Functies",
+    valDigital: "Hoogwaardige bronnen en informatief materiaal ontwikkeld door experts.",
+    valGenericCampaignInfo: "Bekijk de informatie in deze campagne.",
+    valPrecoGeneric: "Promotiewaarde beschikbaar op het officiële kanaal van de fabrikant.",
+    valPrecoGenericCond: "Veilige betaling verwerkt via het officiële kanaal.",
+    valPrecoGenericFallback: "Bekijk de details van de aanbieding.",
+    valOfertaGeneric: "Speciale promotiekorting beschikbaar in deze campagne.",
+    labelInfoRelevante: "Relevante Informatie",
+    valInfoRelevante: "Officieel informatiekanaal van de campagne. Garantievoorwaarden en terugbetalingsbeleid zijn die vastgesteld door de officiële website."
+  },
+  "da": {
+    title: "🍪 Cookiepolitik",
+    desc: "Vi bruger cookies til at tilpasse din oplevelse. Ved at fortsætte accepterer du vores vilkår.",
+    accept: "Accepter",
+    decline: "Afvis",
+    infoBtn: "Tilbudsdetaljer",
+    infoTitle: "Tilbudsdetaljer",
+    labelFormula: "Formel/Indhold",
+    labelEntrega: "Leveringstid",
+    labelEntregaDigital: "Adgangsmetode",
+    labelPreco: "Pris og Betingelser",
+    labelOferta: "Specialtilbud",
+    valFormula: "Formel udviklet med udvalgte naturlige forbindelser og ekstrakter.",
+    valEntregaPhysical: "Forsendelse i henhold til den officielle hjemmesides leveringstider og priser.",
+    valEntregaDigital: "Øjeblikkelig adgang via e-mail efter betalingsbekræftelse.",
+    valPrecoCOD: "Betaling ved Levering (betal først når du modtager produktet).",
+    valPrecoOnline: "Sikker Onlinebetaling (Kreditkort, PayPal eller lokale betalingsmetoder).",
+    valOferta: "Særlig tidsbegrænset kampagne på den officielle kanal.",
+    formatPreco: "Fra <del>{orig}</del> til kun <strong>{prom}</strong>",
+    ctaOffer: "Benyt dig af rabatten! Tidsbegrænset tilbud.",
+    descTemplate: "Officiel informationsside om produktet {prod}. Se tilbuddets detaljer og køb med garanti for ægthed.",
+    priceDescFormat: " Fra {orig} til kun {prom}.",
+    priceValFormat: " (Pris: {val}).",
+    labelGadget: "Tekniske Specifikationer",
+    valGadget: "Avancerede tekniske specifikationer og funktioner udviklet af producenten.",
+    labelDigital: "Indhold / Funktioner",
+    valDigital: "Højkvalitets ressourcer og informationsmateriale udviklet af eksperter.",
+    valGenericCampaignInfo: "Se information i denne kampagne.",
+    valPrecoGeneric: "Kampagnepris tilgængelig på producentens officielle kanal.",
+    valPrecoGenericCond: "Sikker betaling behandlet via den officielle kanal.",
+    valPrecoGenericFallback: "Se tilbuddets detaljer.",
+    valOfertaGeneric: "Særlig kampagnerabat tilgængelig i denne kampagne.",
+    labelInfoRelevante: "Relevant Information",
+    valInfoRelevante: "Officiel informationskanal for kampagnen. Garantibetingelser og refusionspolitikker er dem, der er fastsat af den officielle hjemmeside."
+  },
+  "ja": {
+    title: "🍪 クッキーポリシー",
+    desc: "お客様の体験をパーソナライズするためにクッキーを使用しています。続行することで、当社の利用規約に同意したことになります。",
+    accept: "同意する",
+    decline: "拒否する",
+    infoBtn: "オファーの詳細",
+    infoTitle: "オファーの詳細",
+    labelFormula: "成分・配合",
+    labelEntrega: "配送期間",
+    labelEntregaDigital: "アクセス方法",
+    labelPreco: "価格と条件",
+    labelOferta: "特別オファー",
+    valFormula: "厳選された天然成分とエキスで開発された配合。",
+    valEntregaPhysical: "公式サイトの配送期間と料金に従って発送されます。",
+    valEntregaDigital: "支払い確認後、メールにて即時アクセス可能。",
+    valPrecoCOD: "代金引換（商品受け取り時のみお支払い）。",
+    valPrecoOnline: "安全なオンライン決済（クレジットカード、PayPalまたは現地決済方法）。",
+    valOferta: "公式チャンネルでの期間限定特別プロモーション。",
+    formatPreco: "<del>{orig}</del> のところ、今なら <strong>{prom}</strong>",
+    ctaOffer: "割引をお見逃しなく！期間限定オファー。",
+    descTemplate: "{prod} に関する公式情報ページです。オファーの詳細をご確認の上、正規品保証付きでご購入ください。",
+    priceDescFormat: " {orig} のところ、今なら {prom}。",
+    priceValFormat: " （価格：{val}）。",
+    labelGadget: "技術仕様",
+    valGadget: "メーカーが開発した高度な技術仕様と機能。",
+    labelDigital: "コンテンツ・機能",
+    valDigital: "専門家が開発した高品質なリソースと情報資料。",
+    valGenericCampaignInfo: "このキャンペーンの情報をご確認ください。",
+    valPrecoGeneric: "メーカーの公式チャンネルで利用可能なプロモーション価格。",
+    valPrecoGenericCond: "公式チャンネルを通じて処理される安全な決済。",
+    valPrecoGenericFallback: "オファーの詳細をご覧ください。",
+    valOfertaGeneric: "このキャンペーンで利用可能な特別プロモーション割引。",
+    labelInfoRelevante: "関連情報",
+    valInfoRelevante: "キャンペーンの公式情報チャンネルです。保証条件および返金ポリシーは公式サイトに定められたものに準じます。"
+  },
+  "he": {
+    title: "🍪 מדיניות עוגיות",
+    desc: "אנו משתמשים בעוגיות כדי להתאים אישית את החוויה שלך. בהמשך הגלישה, הנך מסכים לתנאים שלנו.",
+    accept: "אישור",
+    decline: "דחייה",
+    infoBtn: "פרטי המבצע",
+    infoTitle: "פרטי המבצע",
+    labelFormula: "נוסחה / הרכב",
+    labelEntrega: "זמן אספקה",
+    labelEntregaDigital: "אופן הגישה",
+    labelPreco: "מחיר ותנאים",
+    labelOferta: "מבצע מיוחד",
+    valFormula: "נוסחה שפותחה עם תרכובות ותמציות טבעיות נבחרות.",
+    valEntregaPhysical: "משלוח בהתאם לזמני האספקה והתעריפים של האתר הרשמי.",
+    valEntregaDigital: "גישה מיידית בדוא\"ל לאחר אישור התשלום.",
+    valPrecoCOD: "תשלום בעת המסירה (שלם רק עם קבלת המוצר).",
+    valPrecoOnline: "תשלום מקוון מאובטח (כרטיס אשראי, PayPal או אמצעי תשלום מקומיים).",
+    valOferta: "מבצע מיוחד לזמן מוגבל בערוץ הרשמי.",
+    formatPreco: "מ-<del>{orig}</del> ועכשיו רק ב-<strong>{prom}</strong>",
+    ctaOffer: "נצלו את ההנחה! מבצע לזמן מוגבל.",
+    descTemplate: "עמוד מידע רשמי על המוצר {prod}. צפו בפרטי המבצע ורכשו עם אחריות למקוריות.",
+    priceDescFormat: " מ-{orig} ועכשיו רק ב-{prom}.",
+    priceValFormat: " (מחיר: {val}).",
+    labelGadget: "מפרט טכני",
+    valGadget: "מפרט טכני מתקדם ותכונות שפותחו על ידי היצרן.",
+    labelDigital: "תוכן / תכונות",
+    valDigital: "משאבים וחומרי מידע איכותיים שפותחו על ידי מומחים.",
+    valGenericCampaignInfo: "בדקו את המידע במבצע זה.",
+    valPrecoGeneric: "מחיר מבצע זמין בערוץ הרשמי של היצרן.",
+    valPrecoGenericCond: "תשלום מאובטח המעובד דרך הערוץ הרשמי.",
+    valPrecoGenericFallback: "צפו בפרטי המבצע.",
+    valOfertaGeneric: "הנחת מבצע מיוחדת זמינה במבצע זה.",
+    labelInfoRelevante: "מידע רלוונטי",
+    valInfoRelevante: "ערוץ המידע הרשמי של המבצע. תנאי האחריות ומדיניות ההחזרים הם אלו שנקבעו על ידי האתר הרשמי."
   }
 };
 
@@ -2957,8 +3220,9 @@ async function generateScreenshotBridgeHtml(input: {
   const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
   const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
   const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-  // Use high-definition 1920px width to ensure screenshot looks perfectly crisp on all devices
-  const thumIoUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/${input.referenceUrl}`;
+  // 1440px matches most landing pages' fixed content-container width (~1000-1300px); 1920 leaves
+  // excess side margin that makes the captured hero look zoomed out compared to the original.
+  const thumIoUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1440/${input.referenceUrl}`;
   const mobileThumIoUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/${input.referenceUrl}`;
 
   let faviconUrl = "";
@@ -3094,7 +3358,7 @@ function fallbackBridgeHtml(input: {
   const isOptionA = input.selectedOption === "a";
   const lang = detectLandingPageLanguage(null, input.referenceUrl, input.popupLanguage);
   const localization = COOKIE_LOCALIZATION[lang] || COOKIE_LOCALIZATION["en"];
-  const isRtl = lang === "ar";
+  const isRtl = lang === "ar" || lang === "he";
 
   let faviconUrl = "";
   try {
@@ -3473,6 +3737,7 @@ async function generateCleanBackgroundPresellHtml(input: {
   mobileBackgroundImageUrl?: string;
   popupLanguage: string;
   meta: PageMetadata;
+  cookies?: string;
 }): Promise<string> {
   const product = input.productName || "Oferta Oficial";
   const bgUrl = input.backgroundImageUrl;
@@ -3480,7 +3745,9 @@ async function generateCleanBackgroundPresellHtml(input: {
   const lang = input.popupLanguage || "pt-BR";
   
   let faviconUrl = "";
-  if (input.meta?.productImageUrl) {
+  if (input.meta?.faviconUrl) {
+    faviconUrl = input.meta.faviconUrl;
+  } else if (input.meta?.productImageUrl) {
     faviconUrl = input.meta.productImageUrl;
   } else {
     try {
@@ -3492,7 +3759,7 @@ async function generateCleanBackgroundPresellHtml(input: {
   // Inline favicon as base64 to prevent external domain loading compliance flags
   if (faviconUrl && faviconUrl.startsWith("http")) {
     try {
-      faviconUrl = await downloadAsBase64(faviconUrl);
+      faviconUrl = await downloadAsBase64(faviconUrl, input.cookies);
     } catch (_) {
       // Safe fallback SVG favicon to keep it self-contained
       faviconUrl = "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌐</text></svg>";
@@ -3884,30 +4151,33 @@ Textos para analisar:
 ${JSON.stringify(candidatesList.map(c => c.plain), null, 2)}`
     };
 
-    let responseText = "";
-    let useGemini = false;
-    
-    try {
-      responseText = await queryGroq([systemMessage, userMessage], true);
-    } catch (groqErr: any) {
-      logger.warn({ err: groqErr.message }, "Groq compliance rewriter failed, trying Gemini...");
-      useGemini = true;
-    }
+    // Provider chain: OpenRouter (free, currently the only reliably available one) -> Groq ->
+    // Gemini -> local dictionary. A provider that resolves with an empty/unparseable response
+    // (no exception thrown) must also cascade to the next one instead of dropping straight to
+    // the local dictionary — confirmed happening in practice with OpenRouter's free-tier model.
+    let mapping: { respostas?: Array<{ original?: string; rewritten?: string }> } | null = null;
+    const providers: Array<{ name: string; run: () => Promise<string> }> = [
+      { name: "OpenRouter", run: () => queryOpenRouter([systemMessage, userMessage], true, 3000) },
+      { name: "Groq", run: () => queryGroq([systemMessage, userMessage], true) },
+      { name: "Gemini", run: () => queryGemini(COMPLIANCE_SYSTEM_PROMPT, userMessage.content, true) }
+    ];
 
-    if (useGemini) {
+    for (const provider of providers) {
       try {
-        responseText = await queryGemini(COMPLIANCE_SYSTEM_PROMPT, userMessage.content, true);
-      } catch (geminiErr: any) {
-        logger.error({ err: geminiErr.message }, "Gemini compliance rewriter failed, falling back to local dictionary");
-        return { html: rewriteClaimsWithLocalDictionary(html), aiFailed: true };
+        const responseText = await provider.run();
+        const parsed = JSON.parse(responseText);
+        if (!parsed || !Array.isArray(parsed.respostas) || parsed.respostas.length === 0) {
+          throw new Error("Response parsed but contained no rewrites");
+        }
+        mapping = parsed;
+        break;
+      } catch (err: any) {
+        logger.warn({ err: err.message, provider: provider.name }, "Compliance rewriter provider failed or returned unusable response, trying next...");
       }
     }
 
-    let mapping: { respostas?: Array<{ original?: string; rewritten?: string }> } = {};
-    try {
-      mapping = JSON.parse(responseText);
-    } catch (parseErr: any) {
-      logger.error({ err: parseErr.message, responseText }, "AI response is not valid JSON, using local dictionary");
+    if (!mapping) {
+      logger.error("All compliance rewriter providers failed, using local dictionary");
       return { html: rewriteClaimsWithLocalDictionary(html), aiFailed: true };
     }
 
@@ -4206,7 +4476,7 @@ function injectCookieConsentOverlay(
 
   const localization = COOKIE_LOCALIZATION[detectedLang] || COOKIE_LOCALIZATION["en"];
   const titleClean = localization.title.replace(/^\u{1F36A}\s?/u, "");
-  const isRtl = detectedLang === "ar";
+  const isRtl = detectedLang === "ar" || detectedLang === "he";
 
   const productName = meta?.productName || "Produto";
   
@@ -4520,11 +4790,23 @@ function injectCookieConsentOverlay(
   return html + overlay;
 }
 
-async function downloadAsBase64(url: string): Promise<string> {
+async function downloadAsBase64(url: string, cookieHeader?: string): Promise<string> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s timeout
+  // Some CDNs/anti-bot layers reject requests with no browser-like User-Agent (returning 404
+  // instead of 403 to obscure why) — confirmed happening for a real offer's favicon image.
+  // The optional cookie header matters too: some tracking/cloaking gateways (e.g. click-session
+  // hosts) gate every static asset behind the session cookie set on the first page load — an
+  // unauthenticated fetch 404s even though the resource is real and loads fine in a real browser.
+  const browserHeaders: Record<string, string> = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8"
+  };
+  if (cookieHeader) {
+    browserHeaders["Cookie"] = cookieHeader;
+  }
   try {
-    let res = await fetch(url, { signal: controller.signal });
+    let res = await fetch(url, { signal: controller.signal, headers: browserHeaders });
     const contentType = res.headers.get("content-type") || "";
     
     // If the API returned a JSON or text containing the real URL, fetch that URL instead
@@ -4534,13 +4816,13 @@ async function downloadAsBase64(url: string): Promise<string> {
         const parsed = JSON.parse(text);
         const nestedUrl = parsed?.data?.screenshot?.url || parsed?.screenshot?.url;
         if (nestedUrl) {
-          res = await fetch(nestedUrl, { signal: controller.signal });
+          res = await fetch(nestedUrl, { signal: controller.signal, headers: browserHeaders });
         } else if (text.startsWith("http")) {
-          res = await fetch(text, { signal: controller.signal });
+          res = await fetch(text, { signal: controller.signal, headers: browserHeaders });
         }
       } catch (_) {
         if (text.startsWith("http")) {
-          res = await fetch(text, { signal: controller.signal });
+          res = await fetch(text, { signal: controller.signal, headers: browserHeaders });
         }
       }
     }
@@ -4572,7 +4854,8 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
     network = "Dr.Cash",
     selectedOption = "a",
     popupLanguage = "pt-BR",
-    rawHtml = ""
+    rawHtml = "",
+    keepOriginalStructure = false
   } = req.body || {};
 
 
@@ -4655,7 +4938,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       } catch (puppeteerErr: any) {
         logger.warn({ err: puppeteerErr.message }, "Local Puppeteer screenshot failed, falling back to external APIs");
         const encodedFinalUrl = encodeURIComponent(finalUrl);
-        screenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=false&viewport.width=1920&viewport.height=1080&embed=screenshot.url`;
+        screenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=false&viewport.width=1440&viewport.height=900&embed=screenshot.url`;
         mobileScreenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=false&viewport.width=390&viewport.height=844&viewport.isMobile=true&viewport.hasTouch=true&viewport.userAgent=Mozilla%2F5.0+%28iPhone%3B+CPU+iPhone+OS+15_0+like+Mac+OS+X%29+AppleWebKit%2F605.1.15+%28KHTML%2C+like+Gecko%29+Version%2F15.0+Mobile%2F15E148+Safari%2F604.1&embed=screenshot.url`;
 
         try {
@@ -4667,14 +4950,14 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
             const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
             const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
             const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-            screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/${finalUrl}`;
+            screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1440/${finalUrl}`;
             mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/${finalUrl}`;
           }
         } catch (err) {
           const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
           const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
           const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-          screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/${finalUrl}`;
+          screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1440/${finalUrl}`;
           mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/${finalUrl}`;
         }
       }
@@ -4701,7 +4984,8 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
         backgroundImageUrl: screenshotUrl,
         mobileBackgroundImageUrl: mobileScreenshotUrl,
         popupLanguage: detectedLang,
-        meta: meta
+        meta: meta,
+        cookies: cookies
       });
 
       let finalHtml = injectCookieConsentOverlay(cleanHtml, normalizedAffiliate, finalUrl, detectedLang, meta);
@@ -5126,6 +5410,37 @@ function buildCookieBanner(upsell: typeof UPSELL_LOCALIZATION[string], primaryCo
       });
     })();
   </script>`;
+}
+
+// Inserts a GDPR consent checkbox into every <form> of a cloned page whose structure we don't
+// control. Skips forms that already have a consent field. Run this AFTER rewriteClaimsForCompliance
+// (so the AI never rewrites the checkbox's own text) and after injectAffiliateIntoHtml. Best-effort,
+// not pixel-perfect: inline-styled so it renders reasonably regardless of the host page's CSS.
+function injectConsentCheckboxIntoForms(html: string, upsell: typeof UPSELL_LOCALIZATION[string]): string {
+  const e = escapeUpsellHtml;
+  return html.replace(/<form\b[^>]*>[\s\S]*?<\/form>/gi, (formBlock) => {
+    if (/name=["']consent["']/i.test(formBlock)) return formBlock;
+
+    const consentMarkup = `<label style="display:flex;align-items:flex-start;gap:8px;margin:10px 0;font-size:12px;line-height:1.4;color:#333;font-family:sans-serif;">` +
+      `<input type="checkbox" name="consent" required style="margin-top:3px;flex-shrink:0;">` +
+      `<span>${e(upsell.consentText)} <a href="#privacy" style="color:inherit;text-decoration:underline;">${e(upsell.consentLinkText)}</a></span>` +
+      `</label>`;
+
+    const submitRegex = /(<button\b[^>]*>[\s\S]*?<\/button>|<input\b[^>]*type=["']submit["'][^>]*>)/i;
+    if (submitRegex.test(formBlock)) {
+      return formBlock.replace(submitRegex, consentMarkup + "$1");
+    }
+    return formBlock.replace(/<\/form>/i, consentMarkup + "</form>");
+  });
+}
+
+// Concatenates extra markup (cookie banner, compliance modals) right before </body>, falling back
+// to appending at the end if the page has no closing body tag.
+function injectBeforeBodyClose(html: string, extraMarkup: string): string {
+  if (/<\/body>/i.test(html)) {
+    return html.replace(/<\/body>/i, `${extraMarkup}\n</body>`);
+  }
+  return html + extraMarkup;
 }
 
 async function generateGaryHalbertLandingPageHtml(input: GaryHalbertLandingPageInput): Promise<{ html: string; aiFailed: boolean }> {
@@ -6104,6 +6419,50 @@ ${richContext}`;
       supportEmail: "",
       trackingTags: trackingTags
     });
+
+    // ALTERNATE MODE: keep the original landing page's structure instead of generating a new
+    // template from scratch — only rewrite Google Ads policy-violating claims and inject the
+    // affiliate link/Dr.Cash SDK/GDPR consent/cookie banner into it. Opt-in via keepOriginalStructure;
+    // falls through to the traditional generator below when there's no raw HTML to clone.
+    if (keepOriginalStructure && rawHtmlString) {
+      const finalThankYouUrlClone = (thankYouUrl && thankYouUrl !== "#obrigado") ? thankYouUrl : "./Obrigado.html";
+      const compliance = await rewriteClaimsForCompliance(rawHtmlString);
+      let cloned = await injectAffiliateIntoHtml(
+        compliance.html,
+        finalUrl,
+        normalizedAffiliate,
+        trackingTags,
+        apiToken,
+        streamCode,
+        finalThankYouUrlClone,
+        meta.productImageUrl || ""
+      );
+
+      const cloneUpsell = UPSELL_LOCALIZATION[detectedLang] || UPSELL_LOCALIZATION["pt-BR"];
+      let contactDomain = "suporte.com";
+      try { contactDomain = new URL(normalizedAffiliate).hostname.replace(/^www\./, ""); } catch (_) {}
+      const contactEmail = `suporte@${contactDomain}`;
+
+      cloned = injectConsentCheckboxIntoForms(cloned, cloneUpsell);
+      cloned = injectBeforeBodyClose(
+        cloned,
+        buildCookieBanner(cloneUpsell, meta.primaryColor || "#16a34a") + buildComplianceModals(cloneUpsell, meta.primaryColor || "#16a34a", contactEmail)
+      );
+
+      logger.info({ aiFailed: compliance.aiFailed }, "Option B (keep original structure): clone generated");
+
+      res.json({
+        html: cloned,
+        mode: "presell" as BridgeMode,
+        productName: resolvedProductName,
+        language: detectedLang,
+        designSummary: "Estrutura original da landing preservada; textos revisados para conformidade com o Google Ads.",
+        research: { enabled: false, results: [] },
+        thankYouHtml,
+        thankYouFileName
+      });
+      return;
+    }
 
     // Generate Gary Halbert High-Converting Landing Page HTML
     const garyResult = await generateGaryHalbertLandingPageHtml({
