@@ -66,9 +66,15 @@ interface SavedWebsite {
   supportEmail?: string;
   apiToken?: string;
   streamCode?: string;
+  leadNetwork?: "none" | "drcash" | "lemonad";
+  lemonOfferId?: string;
+  lemonWebmasterToken?: string;
+  lemonCost?: string;
   selectedOption?: "a" | "b" | "review";
   thankYouHtml?: string;
   thankYouFileName?: string;
+  lemonPhpHtml?: string;
+  lemonPhpFileName?: string;
 }
 
 interface ReviewTestimonial {
@@ -129,6 +135,10 @@ export default function Creator() {
   const [supportEmail, setSupportEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
   const [streamCode, setStreamCode] = useState("");
+  const [leadNetwork, setLeadNetwork] = useState<"none" | "drcash" | "lemonad">("none");
+  const [lemonOfferId, setLemonOfferId] = useState("");
+  const [lemonWebmasterToken, setLemonWebmasterToken] = useState("");
+  const [lemonCost, setLemonCost] = useState("");
   const [thankYouUrl, setThankYouUrl] = useState("./Obrigado.html");
   const [designSummary, setDesignSummary] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -141,6 +151,8 @@ export default function Creator() {
   const [generatedHtml, setGeneratedHtml] = useState("");
   const [thankYouHtml, setThankYouHtml] = useState("");
   const [thankYouFileName, setThankYouFileName] = useState("");
+  const [lemonPhpHtml, setLemonPhpHtml] = useState("");
+  const [lemonPhpFileName, setLemonPhpFileName] = useState("");
   const [currentWebsiteId, setCurrentWebsiteId] = useState("");
   const [publishedUrl, setPublishedUrl] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
@@ -343,6 +355,10 @@ export default function Creator() {
       toast({ title: "Link de destino obrigatório", description: "Por favor, insira a URL final para onde o tráfego será direcionado.", variant: "destructive" });
       return;
     }
+    if (leadNetwork === "lemonad" && (!lemonOfferId.trim() || !lemonWebmasterToken.trim())) {
+      toast({ title: "Dados da LemonAd obrigatórios", description: "Informe o Offer ID e o Webmaster Token da oferta para gerar o lemon.php.", variant: "destructive" });
+      return;
+    }
 
     let targetUrl = destinationUrl.trim();
     if (!/^https?:\/\//i.test(targetUrl)) { targetUrl = "https://" + targetUrl; setDestinationUrl(targetUrl); }
@@ -365,7 +381,13 @@ export default function Creator() {
         headers: { "Content-Type": "application/json", "Authorization": token ? `Bearer ${token}` : "" },
         body: JSON.stringify({
           referenceUrl: sourceUrl, affiliateUrl: targetUrl, trackingTags: combinedAiTags,
-          productHint: productName, apiToken, streamCode, thankYouUrl,
+          productHint: productName,
+          apiToken: leadNetwork === "drcash" ? apiToken : "",
+          streamCode: leadNetwork === "drcash" ? streamCode : "",
+          lemonOfferId: leadNetwork === "lemonad" ? lemonOfferId : "",
+          lemonWebmasterToken: leadNetwork === "lemonad" ? lemonWebmasterToken : "",
+          lemonCost: leadNetwork === "lemonad" ? lemonCost : "",
+          thankYouUrl,
           network: "Dr.Cash", selectedOption, popupLanguage, rawHtml,
           keepOriginalStructure: selectedOption === "b" ? keepOriginalStructure : false
         })
@@ -382,6 +404,11 @@ export default function Creator() {
       const tyFileName = data.thankYouFileName || "";
       setThankYouHtml(tyHtml);
       setThankYouFileName(tyFileName);
+
+      const lemonHtml = data.lemonPhpHtml || "";
+      const lemonFileName = data.lemonPhpFileName || "";
+      setLemonPhpHtml(lemonHtml);
+      setLemonPhpFileName(lemonFileName);
 
       let savedId = Date.now().toString();
       try {
@@ -417,7 +444,9 @@ export default function Creator() {
         popupLanguage: data.language || popupLanguage, productName: data.productName || productName,
         productHeadline, productDescription: data.designSummary || productDescription,
         productCategory, ctaText, supportEmail, apiToken, streamCode, selectedOption,
-        thankYouHtml: tyHtml, thankYouFileName: tyFileName
+        leadNetwork, lemonOfferId, lemonWebmasterToken, lemonCost,
+        thankYouHtml: tyHtml, thankYouFileName: tyFileName,
+        lemonPhpHtml: lemonHtml, lemonPhpFileName: lemonFileName
       };
       setSavedWebsites(prev => [newSite, ...prev]);
       setRawHtml(""); // Reset pasted HTML on success
@@ -549,6 +578,11 @@ export default function Creator() {
         zip.file(thankYouFileName.replace(/^\.\//, ""), tyHtml);
       }
 
+      // If lemonPhpHtml exists (LemonAd network selected), add the server-side lead handler
+      if (lemonPhpHtml && lemonPhpFileName) {
+        zip.file(lemonPhpFileName.replace(/^\.\//, ""), lemonPhpHtml);
+      }
+
       // 4. Generate zip blob and trigger download
       let domain = "presell";
       try { domain = new URL(destinationUrl).hostname.replace("www.", "").split(".")[0]; } catch (_) {}
@@ -562,7 +596,12 @@ export default function Creator() {
       a.click();
       URL.revokeObjectURL(url);
 
-      toast({ title: "Pacote ZIP Pronto 🚀", description: "Descompacte na Hostinger (hPanel). Arquivos index.html, css/ e images/ criados!" });
+      toast({
+        title: "Pacote ZIP Pronto 🚀",
+        description: (lemonPhpHtml && lemonPhpFileName)
+          ? "Descompacte num hosting com PHP ativo. Inclui lemon.php — sem suporte a PHP o formulário de lead não vai funcionar."
+          : "Descompacte na Hostinger (hPanel). Arquivos index.html, css/ e images/ criados!"
+      });
     } catch (err: any) {
       toast({ title: "Erro ao gerar pacote ZIP", description: err.message, variant: "destructive" });
     }
@@ -936,26 +975,85 @@ export default function Creator() {
                       {/* Advanced fields */}
                       {showAdvanced && (
                         <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-4 animate-slide-up">
-                          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Parâmetros Opcionais</p>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                              <Label htmlFor="api-token" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-                                <ShieldCheck className="h-3 w-3 text-primary" /> API Token Dr.Cash
-                              </Label>
-                              <Input id="api-token" type="text" placeholder="Seu API Token" value={apiToken}
-                                onChange={(e) => setApiToken(e.target.value)}
-                                className="rounded-lg h-9 bg-muted/30 border-border text-xs font-mono" />
-                            </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor="stream-code" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-                                <Link className="h-3 w-3 text-primary" /> stream_code
-                              </Label>
-                              <Input id="stream-code" type="text" placeholder="Ex: 12345" value={streamCode}
-                                onChange={(e) => setStreamCode(e.target.value)}
-                                className="rounded-lg h-9 bg-muted/30 border-border text-xs font-mono" />
-                            </div>
+                          <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Rede de Geração de Lead (Opção B)</p>
 
+                          <div className="grid grid-cols-3 gap-2">
+                            {([
+                              { key: "none" as const, label: "Nenhuma" },
+                              { key: "drcash" as const, label: "Dr.Cash" },
+                              { key: "lemonad" as const, label: "LemonAd" },
+                            ]).map(({ key, label }) => (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => setLeadNetwork(key)}
+                                className={`rounded-lg h-9 text-[11px] font-bold border transition-colors ${
+                                  leadNetwork === key
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-muted/30 text-muted-foreground border-border hover:text-foreground"
+                                }`}
+                              >
+                                {label}
+                              </button>
+                            ))}
                           </div>
+
+                          {leadNetwork === "drcash" && (
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1.5">
+                                <Label htmlFor="api-token" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                                  <ShieldCheck className="h-3 w-3 text-primary" /> API Token Dr.Cash
+                                </Label>
+                                <Input id="api-token" type="text" placeholder="Seu API Token" value={apiToken}
+                                  onChange={(e) => setApiToken(e.target.value)}
+                                  className="rounded-lg h-9 bg-muted/30 border-border text-xs font-mono" />
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="stream-code" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                                  <Link className="h-3 w-3 text-primary" /> stream_code
+                                </Label>
+                                <Input id="stream-code" type="text" placeholder="Ex: 12345" value={streamCode}
+                                  onChange={(e) => setStreamCode(e.target.value)}
+                                  className="rounded-lg h-9 bg-muted/30 border-border text-xs font-mono" />
+                              </div>
+                            </div>
+                          )}
+
+                          {leadNetwork === "lemonad" && (
+                            <div className="space-y-3">
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1.5">
+                                  <Label htmlFor="lemon-offer-id" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                                    <ShieldCheck className="h-3 w-3 text-primary" /> Offer ID
+                                  </Label>
+                                  <Input id="lemon-offer-id" type="text" placeholder="Ex: 96af8850-cbee-..." value={lemonOfferId}
+                                    onChange={(e) => setLemonOfferId(e.target.value)}
+                                    className="rounded-lg h-9 bg-muted/30 border-border text-xs font-mono" />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label htmlFor="lemon-cost" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                                    <Tag className="h-3 w-3 text-primary" /> Custo (Price)
+                                  </Label>
+                                  <Input id="lemon-cost" type="text" placeholder="Ex: 780" value={lemonCost}
+                                    onChange={(e) => setLemonCost(e.target.value)}
+                                    className="rounded-lg h-9 bg-muted/30 border-border text-xs font-mono" />
+                                </div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label htmlFor="lemon-token" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+                                  <Link className="h-3 w-3 text-primary" /> Webmaster Token
+                                </Label>
+                                <Input id="lemon-token" type="text" placeholder="Token do seu perfil na LemonAd" value={lemonWebmasterToken}
+                                  onChange={(e) => setLemonWebmasterToken(e.target.value)}
+                                  className="rounded-lg h-9 bg-muted/30 border-border text-xs font-mono" />
+                              </div>
+                              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                                Gera um <code className="font-mono">lemon.php</code> junto com a página (só na Opção B, sem "Manter estrutura original") — exige hospedagem com PHP.
+                                {selectedOption !== "b" && <span className="text-amber-500 font-semibold"> Selecione a Opção B acima para ativar.</span>}
+                                {selectedOption === "b" && keepOriginalStructure && <span className="text-amber-500 font-semibold"> Desmarque "Manter estrutura original" para ativar.</span>}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
 
@@ -1369,6 +1467,12 @@ export default function Creator() {
                                           setSupportEmail(site.supportEmail || "");
                                           setApiToken(site.apiToken || "");
                                           setStreamCode(site.streamCode || "");
+                                          setLeadNetwork(site.leadNetwork || (site.apiToken && site.streamCode ? "drcash" : "none"));
+                                          setLemonOfferId(site.lemonOfferId || "");
+                                          setLemonWebmasterToken(site.lemonWebmasterToken || "");
+                                          setLemonCost(site.lemonCost || "");
+                                          setLemonPhpHtml(site.lemonPhpHtml || "");
+                                          setLemonPhpFileName(site.lemonPhpFileName || "");
                                           setSelectedOption(site.selectedOption || "a");
                                           setActiveMode("redirect");
                                           setStep("form");

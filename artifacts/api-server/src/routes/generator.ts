@@ -4850,6 +4850,9 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
     productHint = "",
     apiToken = "",
     streamCode = "",
+    lemonOfferId = "",
+    lemonWebmasterToken = "",
+    lemonCost = "",
     thankYouUrl = "",
     network = "Dr.Cash",
     selectedOption = "a",
@@ -5047,8 +5050,12 @@ interface GaryHalbertLandingPageInput {
   productImageUrl: string;
   referenceUrl: string;
   affiliateUrl: string;
+  cookies?: string;
   apiToken?: string;
   streamCode?: string;
+  lemonOfferId?: string;
+  lemonWebmasterToken?: string;
+  lemonCost?: string;
   thankYouUrl?: string;
   popupLanguage?: string;
   trackingTags?: string;
@@ -5305,11 +5312,20 @@ function buildOrderFormMarkup(params: {
   upsell: typeof UPSELL_LOCALIZATION[string];
   ctaButton: string;
   formAction: string;
+  hasLemonAd?: boolean;
 }): string {
   const e = escapeUpsellHtml;
   const id = escapeUpsellHtml(params.formId);
+  // LemonAd's lemon.php reads these straight from $_POST — without them every lead loses
+  // its campaign attribution (utm_*), click id and Facebook pixel id. Populated via JS on load.
+  const lemonHiddenFields = params.hasLemonAd
+    ? ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "clickid", "fbpxl"]
+        .map((name) => `<input type="hidden" name="${name}" class="lemon-track-field" value="">`)
+        .join("\n          ")
+    : "";
   return `
       <form class="orderForm order-form" id="f-${id}" action="${e(params.formAction)}" method="POST">
+        ${lemonHiddenFields}
         <div class="form-group">
           <label for="name-${id}">${e(params.nameLabel)}</label>
           <input class="field-input" type="text" id="name-${id}" name="name" placeholder="${e(params.namePlaceholder)}" required autocomplete="given-name">
@@ -5326,6 +5342,110 @@ function buildOrderFormMarkup(params: {
         <div class="success-msg" id="ok-${id}" style="display:none;">✔ ${e(params.upsell.sdkSuccessText)}</div>
         <div class="security-badge">${e(params.securityBadge)}</div>
       </form>`;
+}
+
+// Renders a self-contained lead handler for LemonAd's sendmelead.com API. Kept server-side
+// (never shipped as client JS) because WEBMASTER_TOKEN authenticates the webmaster's account —
+// exposing it in page source would let anyone submit fraudulent leads under it.
+function generateLemonPhpFile(params: {
+  offerId: string;
+  webmasterToken: string;
+  cost: string;
+  successFileName: string;
+}): string {
+  const phpString = (value: string) => value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+  const offerId = phpString(params.offerId);
+  const token = phpString(params.webmasterToken);
+  const cost = Number(params.cost.toString().replace(",", ".")) || 0;
+  const successFile = params.successFileName.replace(/^\.\//, "") || "Obrigado.html";
+
+  return `<?php
+// Auto-generated LemonAd (sendmelead.com) lead handler
+const API_URL = "https://sendmelead.com/api/v3/lead/add";
+const OFFER_ID = '${offerId}'; // ID of selected offer
+const WEBMASTER_TOKEN = '${token}'; // Token from your LemonAd profile
+const COST = ${cost};
+const NAME_FIELD = 'name';
+const PHONE_FIELD = 'phone';
+
+$urlForEmptyRequiredFields = 'index.html';
+$urlForNotJson = 'index.html';
+$urlSuccess = '${successFile}';
+
+function getUserIP() {
+    if (isset($_SERVER["HTTP_CF_CONNECTING_IP"])) {
+        $_SERVER['REMOTE_ADDR'] = $_SERVER["HTTP_CF_CONNECTING_IP"];
+        $_SERVER['HTTP_CLIENT_IP'] = $_SERVER["HTTP_CF_CONNECTING_IP"];
+    }
+    $client  = @$_SERVER['HTTP_CLIENT_IP'];
+    $forward = @$_SERVER['HTTP_X_FORWARDED_FOR'];
+    $remote  = $_SERVER['REMOTE_ADDR'];
+    if (filter_var($client, FILTER_VALIDATE_IP)) return $client;
+    if (filter_var($forward, FILTER_VALIDATE_IP)) return $forward;
+    return $remote;
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' || !function_exists('curl_version')) {
+    header('Location: ' . $urlForEmptyRequiredFields);
+    exit;
+}
+
+if (empty($_POST[NAME_FIELD]) || empty($_POST[PHONE_FIELD])) {
+    header('Location: ' . $urlForEmptyRequiredFields);
+    exit;
+}
+
+$args = array(
+    'name' => $_POST[NAME_FIELD],
+    'phone' => $_POST[PHONE_FIELD],
+    'offerId' => OFFER_ID,
+    'domain' => "http://" . $_SERVER["HTTP_HOST"] . $_SERVER["REQUEST_URI"],
+    'ip' => getUserIP(),
+    'utm_campaign' => $_POST['utm_campaign'] ?? null,
+    'utm_content' => $_POST['utm_content'] ?? null,
+    'utm_medium' => $_POST['utm_medium'] ?? null,
+    'utm_source' => $_POST['utm_source'] ?? null,
+    'utm_term' => $_POST['utm_term'] ?? null,
+    'clickid' => $_POST['clickid'] ?? null,
+    'fbpxl' => $_POST['fbpxl'] ?? null,
+    'cost' => COST,
+);
+
+$data = json_encode($args);
+$curl = curl_init();
+curl_setopt_array($curl, array(
+    CURLOPT_URL => API_URL,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => $data,
+    CURLOPT_HTTPHEADER => array(
+        'Content-Type: application/json',
+        'Content-Length: ' . strlen($data),
+        'X-Token: ' . WEBMASTER_TOKEN,
+    ),
+));
+
+$result = curl_exec($curl);
+curl_close($curl);
+
+$decoded = json_decode($result, true);
+
+if ($decoded === null) {
+    header('Location: ' . $urlForNotJson);
+    exit;
+}
+
+$parameters = array(
+    'fbpxl' => $args['fbpxl'],
+    'fio' => $args['name'],
+    'name' => $args['name'],
+    'phone' => $args['phone'],
+);
+
+header('Location: ' . $urlSuccess . '?' . http_build_query($parameters));
+exit;
+`;
 }
 
 // Structural skeleton adapted from getThankYouModalCode's proven overlay/card pattern, reused
@@ -5443,7 +5563,7 @@ function injectBeforeBodyClose(html: string, extraMarkup: string): string {
   return html + extraMarkup;
 }
 
-async function generateGaryHalbertLandingPageHtml(input: GaryHalbertLandingPageInput): Promise<{ html: string; aiFailed: boolean }> {
+async function generateGaryHalbertLandingPageHtml(input: GaryHalbertLandingPageInput): Promise<{ html: string; aiFailed: boolean; lemonPhpHtml?: string; lemonPhpFileName?: string }> {
   // 1. Prepare raw text extract from page to understand product, ingredients, benefits, price & language
   let extractedText = "";
   if (input.rawHtml) {
@@ -6005,15 +6125,17 @@ ${richContext}`;
   const priceToColor = isLightBg ? "#15803d" : "#4ade80";
 
   const hasDrCash = !!(input.apiToken && input.streamCode);
+  const hasLemonAd = !hasDrCash && !!(input.lemonOfferId && input.lemonWebmasterToken);
   const finalThankYouUrl = input.thankYouUrl || "./Obrigado.html";
-  const formAction = hasDrCash ? "#" : finalThankYouUrl;
+  const lemonPhpFileName = "lemon.php";
+  const formAction = hasDrCash ? "#" : hasLemonAd ? lemonPhpFileName : finalThankYouUrl;
 
   // Reused for both the favicon and the hero product image — downloaded once, embedded as
   // base64 so the page stays fully self-contained (no external image dependency to break).
   let productImageBase64 = "";
   if (input.productImageUrl) {
     try {
-      productImageBase64 = await downloadAsBase64(input.productImageUrl);
+      productImageBase64 = await downloadAsBase64(input.productImageUrl, input.cookies);
     } catch (_) {
       productImageBase64 = "";
     }
@@ -6208,7 +6330,8 @@ ${richContext}`;
           securityBadge: ui.securityBadge,
           upsell,
           ctaButton,
-          formAction
+          formAction,
+          hasLemonAd
         })}
       </div>
     </div>
@@ -6248,7 +6371,8 @@ ${richContext}`;
         securityBadge: ui.securityBadge,
         upsell,
         ctaButton,
-        formAction
+        formAction,
+        hasLemonAd
       })}
     </div>
 
@@ -6277,7 +6401,8 @@ ${richContext}`;
         securityBadge: ui.securityBadge,
         upsell,
         ctaButton,
-        formAction
+        formAction,
+        hasLemonAd
       })}
     </div>
   </div>
@@ -6373,10 +6498,45 @@ ${richContext}`;
   else initDrCashSdk();
 })();
 </script>` : ""}
+  ${hasLemonAd ? `
+<script>
+(function() {
+  // lemon.php reads these straight from $_POST; without them every lead loses its
+  // campaign attribution. Stamps every .lemon-track-field hidden input on page load.
+  function qs(name) {
+    return new URLSearchParams(window.location.search).get(name) || "";
+  }
+  function stampForms() {
+    var values = {
+      utm_source: qs("utm_source"),
+      utm_medium: qs("utm_medium"),
+      utm_campaign: qs("utm_campaign"),
+      utm_content: qs("utm_content"),
+      utm_term: qs("utm_term"),
+      clickid: qs("clickid") || qs("click_id"),
+      fbpxl: qs("fbpxl") || qs("fbclid")
+    };
+    document.querySelectorAll(".lemon-track-field").forEach(function(input) {
+      if (values.hasOwnProperty(input.name)) input.value = values[input.name];
+    });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", stampForms);
+  else stampForms();
+})();
+</script>` : ""}
 </body>
 </html>`;
 
-  return { html, aiFailed };
+  const lemonPhpHtml = hasLemonAd
+    ? generateLemonPhpFile({
+        offerId: input.lemonOfferId || "",
+        webmasterToken: input.lemonWebmasterToken || "",
+        cost: input.lemonCost || "0",
+        successFileName: finalThankYouUrl
+      })
+    : undefined;
+
+  return { html, aiFailed, lemonPhpHtml, lemonPhpFileName: hasLemonAd ? lemonPhpFileName : undefined };
 }
 
   // OPTION B: Gary Halbert High-Converting Landing Page Generator + Google Ads Compliance
@@ -6473,8 +6633,12 @@ ${richContext}`;
       productImageUrl: meta.productImageUrl || "",
       referenceUrl: finalUrl,
       affiliateUrl: normalizedAffiliate,
+      cookies,
       apiToken,
       streamCode,
+      lemonOfferId,
+      lemonWebmasterToken,
+      lemonCost,
       thankYouUrl: finalThankYouUrl,
       popupLanguage: detectedLang,
       trackingTags,
@@ -6516,7 +6680,9 @@ ${richContext}`;
       designSummary: finalDesignSummary,
       research: { enabled: false, results: [] },
       thankYouHtml,
-      thankYouFileName
+      thankYouFileName,
+      lemonPhpHtml: garyResult.lemonPhpHtml || "",
+      lemonPhpFileName: garyResult.lemonPhpFileName || ""
     });
     return;
   } catch (err: any) {
