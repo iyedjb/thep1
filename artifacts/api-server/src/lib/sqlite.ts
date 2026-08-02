@@ -97,6 +97,26 @@ export async function initDb() {
       selected_option VARCHAR(50),
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS payments (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      mp_payment_id VARCHAR(255) UNIQUE,
+      mp_preference_id VARCHAR(255),
+      status VARCHAR(50) NOT NULL DEFAULT 'pending',
+      status_detail VARCHAR(255),
+      payment_method_id VARCHAR(100),
+      payment_type_id VARCHAR(100),
+      transaction_amount REAL NOT NULL DEFAULT 0,
+      payer_email VARCHAR(255),
+      plan_tier VARCHAR(50) NOT NULL DEFAULT 'pro',
+      billing_cycle VARCHAR(20) DEFAULT 'monthly',
+      qr_code TEXT,
+      qr_code_base64 TEXT,
+      ticket_url TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
   // Run migrations asynchronously
@@ -115,7 +135,77 @@ export async function initDb() {
     `);
   } catch (e) {}
   try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        mp_payment_id VARCHAR(255) UNIQUE,
+        mp_preference_id VARCHAR(255),
+        status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        status_detail VARCHAR(255),
+        payment_method_id VARCHAR(100),
+        payment_type_id VARCHAR(100),
+        transaction_amount REAL NOT NULL DEFAULT 0,
+        payer_email VARCHAR(255),
+        plan_tier VARCHAR(50) NOT NULL DEFAULT 'pro',
+        billing_cycle VARCHAR(20) DEFAULT 'monthly',
+        qr_code TEXT,
+        qr_code_base64 TEXT,
+        ticket_url TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (e) {}
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS support_chats (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        subject VARCHAR(255) DEFAULT 'Suporte ao Cliente',
+        status VARCHAR(50) NOT NULL DEFAULT 'open',
+        last_message TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (e) {}
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS support_messages (
+        id SERIAL PRIMARY KEY,
+        chat_id INTEGER REFERENCES support_chats(id) ON DELETE CASCADE,
+        sender_type VARCHAR(20) NOT NULL,
+        sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        is_read BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (e) {}
+  try {
     await db.exec("ALTER TABLE users ADD COLUMN drcash_token VARCHAR(255);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN role VARCHAR(50) DEFAULT 'user';");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN is_temporary BOOLEAN DEFAULT false;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN subscription_tier VARCHAR(50) DEFAULT 'free';");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN subscription_status VARCHAR(50) DEFAULT 'free';");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN subscription_id VARCHAR(255);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN mercadopago_customer_id VARCHAR(255);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN subscription_expires_at TIMESTAMP;");
   } catch (e) {}
   try {
     await db.exec("ALTER TABLE campaigns ADD COLUMN google_campaign_id VARCHAR(255);");

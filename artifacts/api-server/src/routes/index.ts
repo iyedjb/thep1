@@ -8,12 +8,16 @@ import trendsRouter from "./trends";
 import generatorRouter from "./generator";
 import drcashRouter from "./drcash";
 import googleAdsAuthRouter from "./google-ads-auth";
+import mercadopagoRouter from "./mercadopago";
+import adminRouter from "./admin";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
 router.use(googleAdsAuthRouter);
+router.use(mercadopagoRouter);
+router.use(adminRouter);
 router.use(dashboardRouter);
 router.use(campaignsRouter);
 router.use(keywordsRouter);

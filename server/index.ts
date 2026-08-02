@@ -30,7 +30,7 @@ const services: Service[] = [
     name: "API",
     cwd: path.join(rootDir, "artifacts/api-server"),
     command: pnpmCmd,
-    args: [...pnpmArgs, "run", "start"],
+    args: [...pnpmArgs, "run", "dev"],
     env: { PORT: "3002", NODE_ENV: "development" },
     color: "\x1b[36m", // Cyan
   },

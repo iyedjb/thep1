@@ -14,6 +14,10 @@ import Trends from "@/pages/trends";
 import Creator from "@/pages/creator";
 import DrCash from "@/pages/drcash";
 import LandingPage from "@/pages/landing";
+import CheckoutPage from "@/pages/checkout";
+import AdminPage from "@/pages/admin";
+import AdminLoginPage from "@/pages/admin-login";
+import SupportPage from "@/pages/support";
 import { GoogleAdsGate } from "@/components/google-ads/google-ads-gate";
 
 const queryClient = new QueryClient({
@@ -57,6 +61,8 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
       <Route path="/" component={LandingPage} />
+      <Route path="/admin/login" component={AdminLoginPage} />
+      <Route path="/admin" component={AdminPage} />
       <ProtectedRoute path="/dashboard" component={Dashboard} requiresGoogleAds />
       <ProtectedRoute path="/campaigns" component={Campaigns} requiresGoogleAds />
       <ProtectedRoute path="/keywords" component={Keywords} requiresGoogleAds />
@@ -64,6 +70,9 @@ function Router() {
       <ProtectedRoute path="/trends" component={Trends} />
       <ProtectedRoute path="/creator" component={Creator} />
       <ProtectedRoute path="/drcash" component={DrCash} />
+      <ProtectedRoute path="/checkout" component={CheckoutPage} />
+      <ProtectedRoute path="/pricing" component={CheckoutPage} />
+      <ProtectedRoute path="/support" component={SupportPage} />
       <Route component={NotFound} />
     </Switch>
   );

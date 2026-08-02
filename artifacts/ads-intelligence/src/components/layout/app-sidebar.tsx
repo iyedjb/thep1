@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Target, FileText, LogOut, TrendingUp, Sparkles, Globe, CheckCircle2 } from "lucide-react";
+import { LayoutDashboard, Target, FileText, LogOut, TrendingUp, Sparkles, Globe, CheckCircle2, CreditCard, Crown, Zap, Headphones, Shield } from "lucide-react";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { Logo } from "./logo";
@@ -35,6 +35,8 @@ const navItems = [
   { path: "/drcash", label: "Dr. Cash", icon: Globe },
   { path: "/trends", label: "Google Trends", icon: TrendingUp },
   { path: "/reports", label: "Relatórios", icon: FileText },
+  { path: "/checkout", label: "Assinatura & Planos", icon: CreditCard },
+  { path: "/support", label: "Suporte", icon: Headphones },
 ];
 
 function formatCustomerId(value: string) {
@@ -46,7 +48,7 @@ function formatCustomerId(value: string) {
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { data: user } = useGetMe();
+  const { data: user } = useGetMe() as any;
   const logout = useLogout();
 
   const statusQuery = useQuery<GoogleAdsStatus>({
@@ -71,11 +73,12 @@ export function AppSidebar() {
   };
 
   const initials = user?.name
-    ? user.name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()
+    ? user.name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
     : "U";
 
   const isConnected = statusQuery.data?.status === "connected";
   const customerId = statusQuery.data?.customerId;
+  const tier = (user?.subscriptionTier || "free").toLowerCase();
 
   return (
     <Sidebar className="border-r border-sidebar-border/60">
@@ -148,8 +151,35 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* User footer */}
-      <SidebarFooter className="p-3">
+      {/* User footer with Subscription Plan Chip */}
+      <SidebarFooter className="p-3 space-y-2">
+        <Link
+          href="/checkout"
+          className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-semibold transition-all ${
+            tier === "enterprise"
+              ? "border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/15"
+              : tier === "pro"
+              ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15"
+              : "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15"
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {tier === "enterprise" ? (
+              <Crown className="w-3.5 h-3.5 text-purple-400" />
+            ) : tier === "pro" ? (
+              <Zap className="w-3.5 h-3.5 text-primary" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+            )}
+            <span className="uppercase font-bold tracking-wider">
+              Plano {tier}
+            </span>
+          </div>
+          {tier === "free" && (
+            <span className="text-[10px] underline font-medium text-amber-400">Upgrade</span>
+          )}
+        </Link>
+
         <div className="flex items-center gap-3 p-3 rounded-xl border border-white/[0.05] bg-white/[0.03] hover:bg-white/[0.05] transition-colors">
           <Avatar className="h-9 w-9 border border-white/10">
             <AvatarFallback className="bg-primary/20 text-primary font-bold text-sm border-0">

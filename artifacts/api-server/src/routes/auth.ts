@@ -90,7 +90,15 @@ router.post("/auth/login", async (req, res) => {
     }
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
     res.json({
-      user: { id: user.id, email: user.email, name: user.name, createdAt: user.created_at },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        createdAt: user.created_at,
+        subscriptionTier: user.subscription_tier || "free",
+        subscriptionStatus: user.subscription_status || "free",
+        subscriptionExpiresAt: user.subscription_expires_at || null,
+      },
       token,
     });
   } catch (err: any) {
@@ -157,13 +165,23 @@ router.post("/auth/google", async (req, res) => {
         email: payload.email,
         name: payload.name,
         created_at: new Date().toISOString(),
+        subscription_tier: "free",
+        subscription_status: "free",
       };
       logger.info({ email: payload.email }, "New user created via Google OAuth");
     }
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
     res.json({
-      user: { id: user.id, email: user.email, name: user.name, createdAt: user.created_at },
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        createdAt: user.created_at,
+        subscriptionTier: user.subscription_tier || "free",
+        subscriptionStatus: user.subscription_status || "free",
+        subscriptionExpiresAt: user.subscription_expires_at || null,
+      },
       token,
     });
   } catch (error: any) {
@@ -179,12 +197,24 @@ router.post("/auth/logout", (_req, res) => {
 router.get("/auth/me", requireAuth, async (req: any, res) => {
   const db = getDb();
   try {
-    const user = await db.prepare("SELECT id, email, name, created_at FROM users WHERE id = ?").get(req.userId) as any;
+    const user = await db
+      .prepare(
+        "SELECT id, email, name, created_at, subscription_tier, subscription_status, subscription_expires_at FROM users WHERE id = ?"
+      )
+      .get(req.userId) as any;
     if (!user) {
       res.status(401).json({ error: "User not found" });
       return;
     }
-    res.json({ id: user.id, email: user.email, name: user.name, createdAt: user.created_at });
+    res.json({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      createdAt: user.created_at,
+      subscriptionTier: user.subscription_tier || "free",
+      subscriptionStatus: user.subscription_status || "free",
+      subscriptionExpiresAt: user.subscription_expires_at || null,
+    });
   } catch (err: any) {
     res.status(500).json({ error: "Erro ao obter dados do usuário: " + err.message });
   }
