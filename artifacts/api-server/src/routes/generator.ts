@@ -29,12 +29,14 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
 
   try {
     const desktopPage = await browser.newPage();
-    // 1440x900 (not 1920x1080) — most landing pages built for affiliate/COD offers use a fixed
-    // content container around 1000-1300px wide; capturing at full 1920px leaves excess side
-    // margin that makes the hero look zoomed out/distant compared to how it renders on a typical
-    // browser window. deviceScaleFactor 1 (not 2) avoids quadrupling the captured pixel count for
-    // an image that only ever displays at CSS viewport size — a major driver of page load weight.
-    await desktopPage.setViewport({ width: 1440, height: 900, deviceScaleFactor: 1 });
+    // 1920x1080 — this image is used as a full-bleed CSS background (background-size: cover)
+    // behind the presell, not displayed at a fixed content width. Capturing at 1440px meant any
+    // screen wider than that (1920/2560px desktops are common) stretched the image beyond its
+    // native resolution, producing visible blur. 1920px covers the large majority of desktop
+    // widths without upscaling. deviceScaleFactor stays at 1 (not 2) to avoid quadrupling the
+    // captured pixel count — the quality bump below (JPEG 92) addresses sharpness more cheaply
+    // than doubling every dimension would.
+    await desktopPage.setViewport({ width: 1920, height: 1080, deviceScaleFactor: 1 });
     
     // Set User-Agent to standard desktop browser
     await desktopPage.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
@@ -78,7 +80,7 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
       await desktopPage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
     } catch (_) {}
 
-    const desktopBuffer = (await desktopPage.screenshot({ fullPage: false, type: 'jpeg', quality: 82 })) as Buffer;
+    const desktopBuffer = (await desktopPage.screenshot({ fullPage: false, type: 'jpeg', quality: 92 })) as Buffer;
     const desktopBase64 = `data:image/jpeg;base64,${desktopBuffer.toString('base64')}`;
 
     const mobilePage = await browser.newPage();
@@ -145,7 +147,7 @@ async function captureScreenshots(url: string, cookieString: string): Promise<{ 
       await mobilePage.addStyleTag({ content: '::-webkit-scrollbar { display: none !important; } html, body { scrollbar-width: none !important; }' });
     } catch (_) {}
 
-    const mobileBuffer = (await mobilePage.screenshot({ fullPage: false, type: 'jpeg', quality: 82 })) as Buffer;
+    const mobileBuffer = (await mobilePage.screenshot({ fullPage: false, type: 'jpeg', quality: 92 })) as Buffer;
     const mobileBase64 = `data:image/jpeg;base64,${mobileBuffer.toString('base64')}`;
 
     logger.info("Puppeteer screenshots captured successfully!");
@@ -412,6 +414,22 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
     }
   };
 
+  // Fetches N items at a time instead of one-by-one — a page with 20-30 images downloaded
+  // sequentially (each a full round trip to the source server) took over 9 minutes in practice,
+  // long enough to hit most reverse-proxy/hosting request timeouts before finishing at all.
+  async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let nextIndex = 0;
+    async function worker() {
+      while (nextIndex < items.length) {
+        const current = nextIndex++;
+        results[current] = await fn(items[current]);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => worker()));
+    return results;
+  }
+
   // 1. Process and inline CSS files
   const linkMatches = Array.from(html.matchAll(/<link\s+([^>]+)>/gi));
   for (const match of linkMatches) {
@@ -450,8 +468,9 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
           }
           
           // Fetch and base64-encode images in CSS (only if size <= 3MB for completeness)
-          for (const item of cssUrlsToReplace) {
-            const imgAsset = await fetchAsset(item.absUrl);
+          const cssImgAssets = await mapWithConcurrency(cssUrlsToReplace, 6, item => fetchAsset(item.absUrl));
+          cssUrlsToReplace.forEach((item, i) => {
+            const imgAsset = cssImgAssets[i];
             if (imgAsset && imgAsset.buffer.byteLength <= 3145728) {
 
               const base64 = imgAsset.buffer.toString("base64");
@@ -462,7 +481,7 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
               // Fallback to absolute URL if fetch fails or size > 10KB
               cssText = cssText.replaceAll(item.matchStr, `url("${item.absUrl}")`);
             }
-          }
+          });
 
           html = html.replaceAll(fullTag, `<style>\n${cssText}\n</style>`);
         } else {
@@ -506,8 +525,9 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
       }
     }
     
-    for (const item of cssUrlsToReplace) {
-      const imgAsset = await fetchAsset(item.absUrl);
+    const inlineStyleImgAssets = await mapWithConcurrency(cssUrlsToReplace, 6, item => fetchAsset(item.absUrl));
+    cssUrlsToReplace.forEach((item, i) => {
+      const imgAsset = inlineStyleImgAssets[i];
       if (imgAsset && imgAsset.buffer.byteLength <= 3145728) {
         const base64 = imgAsset.buffer.toString("base64");
         const mime = imgAsset.contentType || "image/jpeg";
@@ -516,7 +536,7 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
       } else {
         cssText = cssText.replaceAll(item.matchStr, `url("${item.absUrl}")`);
       }
-    }
+    });
     
     html = html.replaceAll(fullTag, `<style${attrs}>\n${cssText}\n</style>`);
   }
@@ -600,17 +620,18 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
 
   // 3. Process and inline HTML Images (including lazy-loaded image sources)
   const imgMatches = Array.from(html.matchAll(/<img\s+([^>]+)>/gi));
+  const imgCandidates: Array<{ fullTag: string; cleanedAttrs: string; absSrc: string }> = [];
   for (const match of imgMatches) {
     const fullTag = match[0];
     const attrs = match[1];
-    
+
     // Determine the best source URL for the image
     let selectedSrc = getAttributeValue(attrs, 'data-original') ||
                       getAttributeValue(attrs, 'data-lazy-src') ||
                       getAttributeValue(attrs, 'data-src') ||
                       getAttributeValue(attrs, 'src') ||
                       "";
-    
+
     if (!selectedSrc) continue;
 
     // If the selected source is a base64 inline placeholder, and there is another source available, we check if one of them is valid
@@ -621,7 +642,7 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
         getAttributeValue(attrs, 'data-src'),
         getAttributeValue(attrs, 'src')
       ].find(src => src && isValidImageSrc(src));
-      
+
       if (alternativeSrc) {
         selectedSrc = alternativeSrc;
       }
@@ -640,23 +661,26 @@ export async function inlinePageAssets(rawHtml: string, referenceUrl: string, co
       .trim()
       .replace(/\/$/, "")
       .trim();
-    
+
     // Clean redundant multiple spaces
     cleanedAttrs = cleanedAttrs.replace(/\s+/g, " ");
 
     const absSrc = getAbsoluteUrl(selectedSrc);
-    let finalSrc = absSrc;
-    const asset = await fetchAsset(absSrc);
-    
+    imgCandidates.push({ fullTag, cleanedAttrs, absSrc });
+  }
+
+  const imgAssets = await mapWithConcurrency(imgCandidates, 6, c => fetchAsset(c.absSrc));
+  imgCandidates.forEach((c, i) => {
+    const asset = imgAssets[i];
+    let finalSrc = c.absSrc;
     if (asset && asset.buffer.byteLength <= 3145728) { // Limit to 3MB
       const base64 = asset.buffer.toString("base64");
       const mime = asset.contentType || "image/png";
       finalSrc = `data:${mime};base64,${base64}`;
     }
-    
-    const newTag = cleanedAttrs ? `<img ${cleanedAttrs} src="${finalSrc}">` : `<img src="${finalSrc}">`;
-    html = html.replaceAll(fullTag, newTag);
-  }
+    const newTag = c.cleanedAttrs ? `<img ${c.cleanedAttrs} src="${finalSrc}">` : `<img src="${finalSrc}">`;
+    html = html.replaceAll(c.fullTag, newTag);
+  });
 
   return html;
 }
@@ -2230,10 +2254,18 @@ async function injectAffiliateIntoHtml(
   apiToken?: string,
   streamCode?: string,
   thankYouUrl?: string,
-  productImageUrl?: string
+  productImageUrl?: string,
+  lemonOfferId?: string,
+  lemonWebmasterToken?: string,
+  cookies?: string
 ): Promise<string> {
-  // Step 1: Make all relative asset URLs absolute
-  let html = makeAbsoluteUrls(rawHtml, referenceUrl);
+  // Step 1: Download and inline CSS/images/JS (with session cookies, since several source sites
+  // gate their static assets behind the cookie set on first page load — see downloadAsBase64's
+  // comment). Falls back to absolute URLs per-asset on fetch failure, so a single blocked image
+  // doesn't break the rest of the page. This used to be makeAbsoluteUrls, which only rewrote
+  // URLs without downloading anything — meaning the clone's CSS/images depended on the original
+  // site staying reachable and unblocked forever after generation.
+  let html = await inlinePageAssets(rawHtml, referenceUrl, cookies || "");
 
   // Step 1.5: Inject favicon — prefer the real product image (inlined as base64, so the page
   // stays self-contained), then try inlining the Google Favicon Service result, and only fall
@@ -2278,10 +2310,12 @@ async function injectAffiliateIntoHtml(
   );
 
   const hasDrCash = !!(apiToken && streamCode);
+  const hasLemonAd = !hasDrCash && !!(lemonOfferId && lemonWebmasterToken);
 
   // Step 3: Replace all <form action="..."> with affiliate URL
-  // ONLY if not using Dr.Cash, otherwise the SDK handles submission
-  if (!hasDrCash) {
+  // ONLY if not using Dr.Cash or LemonAd — both take over form submission themselves
+  // (Dr.Cash via its SDK, LemonAd by pointing the form at lemon.php)
+  if (!hasDrCash && !hasLemonAd) {
     html = html.replace(
       /<form(\s[^>]*?)action\s*=\s*(['"])[^'"]*\2/gi,
       (match, attrs, quote) => `<form${attrs}action=${quote}${affiliateUrl}${quote}`
@@ -2378,22 +2412,76 @@ async function injectAffiliateIntoHtml(
 </script>`;
   }
 
+  // LemonAd: unlike Dr.Cash (client-side SDK), lemon.php needs a real native POST — normalize
+  // each scraped form's name/phone fields (same heuristic as Dr.Cash above), stamp hidden
+  // utm/clickid/fbpxl inputs from the URL query string, then point the form at lemon.php and
+  // let the browser submit it for real instead of faking a redirect.
+  let lemonAdScript = "";
+  if (hasLemonAd) {
+    lemonAdScript = `
+<script>
+(function() {
+  function qs(name) {
+    return new URLSearchParams(window.location.search).get(name) || "";
+  }
+  function initLemonAd() {
+    var trackValues = {
+      utm_source: qs("utm_source"), utm_medium: qs("utm_medium"), utm_campaign: qs("utm_campaign"),
+      utm_content: qs("utm_content"), utm_term: qs("utm_term"),
+      clickid: qs("clickid") || qs("click_id"), fbpxl: qs("fbpxl") || qs("fbclid")
+    };
+    document.querySelectorAll('form').forEach(function(form) {
+      var inputs = form.querySelectorAll('input, select, textarea');
+      inputs.forEach(function(input) {
+        var nameAttr = (input.getAttribute('name') || '').toLowerCase();
+        var placeholderAttr = (input.getAttribute('placeholder') || '').toLowerCase();
+        var idAttr = (input.getAttribute('id') || '').toLowerCase();
+        var type = (input.getAttribute('type') || '').toLowerCase();
+        if (type === 'hidden' || type === 'submit' || type === 'button' || type === 'checkbox' || type === 'radio') return;
+        if (nameAttr.indexOf('name') !== -1 || nameAttr.indexOf('nome') !== -1 || nameAttr.indexOf('client') !== -1 || placeholderAttr.indexOf('nome') !== -1 || placeholderAttr.indexOf('name') !== -1 || idAttr.indexOf('name') !== -1 || idAttr.indexOf('nome') !== -1) {
+          input.setAttribute('name', 'name');
+        } else if (nameAttr.indexOf('phone') !== -1 || nameAttr.indexOf('tel') !== -1 || nameAttr.indexOf('whatsapp') !== -1 || nameAttr.indexOf('celular') !== -1 || placeholderAttr.indexOf('tel') !== -1 || placeholderAttr.indexOf('phone') !== -1 || placeholderAttr.indexOf('whatsapp') !== -1 || idAttr.indexOf('phone') !== -1 || idAttr.indexOf('tel') !== -1) {
+          input.setAttribute('name', 'phone');
+        }
+      });
+      Object.keys(trackValues).forEach(function(key) {
+        var hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = key;
+        hidden.className = 'lemon-track-field';
+        hidden.value = trackValues[key];
+        form.appendChild(hidden);
+      });
+      form.setAttribute('action', 'lemon.php');
+      form.setAttribute('method', 'POST');
+    });
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initLemonAd);
+  } else {
+    initLemonAd();
+  }
+})();
+</script>`;
+  }
+
   const interceptorScript = `
 <script>
 (function() {
   var AFFILIATE = ${JSON.stringify(affiliateUrl)};
   var DR_CASH_ACTIVE = ${hasDrCash};
+  var LEMON_ACTIVE = ${hasLemonAd};
   var THANKS_PAGE = ${JSON.stringify(thankYouUrl || "#obrigado")};
   if (window.location.protocol === 'file:' || THANKS_PAGE === '#obrigado') {
     THANKS_PAGE = '#obrigado';
   }
-  
-  // Intercept clicks on navigational elements (excluding elements inside active Dr.Cash forms and local/legal anchors)
+
+  // Intercept clicks on navigational elements (excluding elements inside active Dr.Cash/LemonAd forms and local/legal anchors)
   document.addEventListener('click', function(e) {
     var el = e.target.closest('a, button, [onclick], input[type="submit"], input[type="button"]');
     if (!el) return;
-    if (DR_CASH_ACTIVE && el.closest('form')) return;
-    
+    if ((DR_CASH_ACTIVE || LEMON_ACTIVE) && el.closest('form')) return;
+
     // Do not intercept if it's a link to a local page (e.g. terms, privacy, same-domain anchors)
     if (el.tagName === 'A') {
       var href = el.getAttribute('href') || '';
@@ -2411,15 +2499,15 @@ async function injectAffiliateIntoHtml(
         }
       } catch(_) {}
     }
-    
+
     if (el.tagName === 'A' && el.href && el.href.indexOf(AFFILIATE) === 0) return;
-    
+
     e.preventDefault();
     e.stopPropagation();
     window.location.href = AFFILIATE;
   }, true);
-  
-  if (!DR_CASH_ACTIVE) {
+
+  if (!DR_CASH_ACTIVE && !LEMON_ACTIVE) {
     document.addEventListener('submit', function(e) {
       e.preventDefault();
       window.location.href = THANKS_PAGE;
@@ -2428,7 +2516,7 @@ async function injectAffiliateIntoHtml(
 })();
 </script>`;
 
-  const injectedCode = (drCashScript ? drCashScript + "\n" : "") + interceptorScript;
+  const injectedCode = (drCashScript ? drCashScript + "\n" : "") + (lemonAdScript ? lemonAdScript + "\n" : "") + interceptorScript;
 
   // Inject before </body> or at end
   if (/<\/body>/i.test(html)) {
@@ -3904,7 +3992,7 @@ function rewriteClaimsWithLocalDictionary(html: string): string {
     { regex: /Usuwa(?:\s*<[^>]+>)*\s*(?:przyczynę|przyczyne)?(?:\s*<[^>]+>)*\s*żylaków/gi, replacement: "Auxilia no conforto das pernas" },
     { regex: /Usuwa(?:\s*<[^>]+>)*\s*(?:problem\s+)?(?:siatki\s+żylnej|pajączków)/gi, replacement: "Auxilia no aspecto visual da pele" },
     { regex: /Neutralizuje(?:\s*<[^>]+>)*\s*ból(?:\s*<[^>]+>)*\s*i(?:\s*<[^>]+>)*\s*obrzęk/gi, replacement: "Promove alívio e conforto" },
-    { regex: /tworzenie\s+się\s+skrzepów|skrzepów\s+krwi|zakrzepica|udar|paraliż|paraliz|śmierć|smierc|krwawienie/gi, replacement: "conforto vascular" },
+    { regex: /\btworzenie\s+się\s+skrzepów\b|\bskrzepów\s+krwi\b|\bzakrzepica\b|\budar\b|\bparaliż\b|\bparaliz\b|\bśmierć\b|\bsmierc\b|\bkrwawienie\b/gi, replacement: "conforto vascular" },
     { regex: /nagłe\s+zerwanie\s+zakrzepu|dostanie\s+się\s+do\s+naczyń\s+mózgu|spowodować\s+udar/gi, replacement: "suporte à circulação saudável" },
     { regex: /jedyną\s+alternatywą\s+dla\s+zabiegu\s+chirurgicznego|jedyna\s+alternatywa\s+dla\s+zabiegu\s+chirurgicznego/gi, replacement: "suporte diário e cuidado natural" },
     { regex: /bez\s+skalpela/gi, replacement: "cuidado suave" },
@@ -3954,6 +4042,20 @@ function rewriteClaimsWithLocalDictionary(html: string): string {
     { regex: /\b(sin efectos secundarios|100% natural y sin contraindicaciones|libre de efectos secundarios|no tiene contraindicaciones)(?![a-zA-Z0-9á-úÁ-ÚñÑíÍóÓéÉáÁúÚãõÃÕçÇ])/gi, replacement: "Fórmula suave desarrollada con ingredientes de origen natural" },
     { regex: /\b(resultado garantido|satisfacción garantida o su dinero de vuelta|risco zero|garantía blindada)(?![a-zA-Z0-9á-úÁ-ÚñÑíÍóÓéÉáÁúÚãõÃÕçÇ])/gi, replacement: "Para mejores resultados, use de manera regular" },
 
+    // --- SPANISH EYE/VISION HEALTH PATTERNS (phrase-level first, bare disease terms last) ---
+    { regex: /\bsin\s+lentes\s+ni\s+cirugía\b/gi, replacement: "de forma natural" },
+    { regex: /\bsin\s+necesidad\s+de\s+(?:lentes|gafas|cirugía)\b/gi, replacement: "como parte de tu rutina diaria" },
+    // "Recupera(r) la visión/claridad visual/vista" promises restoring lost vision — an efficacy
+    // claim in its own right, independent of whether a specific disease is named alongside it.
+    { regex: /\bRecuper\w*\b(?=\s+(?:la\s+|su\s+)?(?:claridad\s+visual|visión|agudeza\s+visual|vista))/g, replacement: "Cuida" },
+    { regex: /\brecuper\w*\b(?=\s+(?:la\s+|su\s+)?(?:claridad\s+visual|visión|agudeza\s+visual|vista))/g, replacement: "cuida" },
+    { regex: /\btiene\s+un\s+efecto\s+curativo\b/gi, replacement: "puede ayudar a mantener el confort visual" },
+    { regex: /\belimina(?:r)?\s+por\s+completo\s+(?:diversas\s+)?enfermedades\s+(?:comunes\s+)?(?:del\s+ojo\s+humano|oculares)?\b/gi, replacement: "ayuda a mantener la comodidad ocular" },
+    { regex: /\b(?:recupera(?:r)?|mejora(?:r)?|revierte(?:r)?)\s+(?:la\s+visión\s+)?(?:después\s+de\s+|con\s+|en\s+personas\s+con\s+)(?:glaucoma|cataratas?)\b/gi, replacement: "apoya la comodidad visual" },
+    { regex: /\bgarantía\s+de\s+calidad\s+al?\s+(?:cien\s+por\s+ciento|100\s*%?)\b/gi, replacement: "compromiso con la calidad" },
+    { regex: /\bglaucoma\b/gi, replacement: "fatiga ocular" },
+    { regex: /\bcataratas?\b/gi, replacement: "molestias visuales" },
+
     // --- PORTUGUESE BASELINE FALLBACK ---
     { regex: /\b(cura(?:r)?|controla(?:r)?|reduz(?:ir)?|regula(?:r)?|estabiliza(?:r)?|normaliza(?:r)?)\s+(?:(?:o|a|os|as)\s+)?(?:pressão|pressao|hipertensão|hipertensao|pressão arterial|pressao arterial)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "apoia a saúde cardiovascular" },
     { regex: /\b(previne|evita|elimina|cura(?:r)?|reverte(?:r)?)\s+(?:(?:o|a|os|as)\s+)?(?:infarto|infartos|derrame|derrames|avc|cardiopatia|cardiopatias)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "auxilia na manutenção da saúde do coração" },
@@ -3972,6 +4074,20 @@ function rewriteClaimsWithLocalDictionary(html: string): string {
     { regex: /\b(resultado garantido|satisfação garantida ou seu dinheiro de volta|risco zero|garantia blindada)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "Para melhores resultados, utilize o produto de forma regular" },
     { regex: /\b(se não tratar pode levar à morte|risco de mortalidade alto|silenciosa e mortal|pode te matar|morte silenciosa)(?![a-zA-Z0-9á-úÁ-ÚãõÃÕçÇ])/gi, replacement: "Mantenha seus exames em dia e sua rotina saudável" },
     { regex: /\b(comprovou sua eficácia|comprovado clinicamente|clinicamente comprovado|eficácia clínica comprovada)\b/gi, replacement: "Fórmula com ingredientes estudados" },
+
+    // --- PORTUGUESE EYE/VISION HEALTH PATTERNS (phrase-level first, bare disease terms last) ---
+    { regex: /\bsem\s+óculos\s+nem\s+cirurgia\b/gi, replacement: "de forma natural" },
+    { regex: /\bsem\s+necessidade\s+de\s+(?:óculos|cirurgia)\b/gi, replacement: "como parte da sua rotina diária" },
+    // "Recupera(r) a visão/clareza visual/vista" promete restaurar visão perdida — reivindicação
+    // de eficácia por si só, independente de citar uma doença específica junto.
+    { regex: /\bRecuper\w*\b(?=\s+(?:a\s+|sua\s+)?(?:clareza\s+visual|visão|acuidade\s+visual|vista))/g, replacement: "Cuide" },
+    { regex: /\brecuper\w*\b(?=\s+(?:a\s+|sua\s+)?(?:clareza\s+visual|visão|acuidade\s+visual|vista))/g, replacement: "cuide" },
+    { regex: /\btem\s+um\s+efeito\s+curativo\b/gi, replacement: "pode ajudar a manter o conforto visual" },
+    { regex: /\belimina(?:r)?\s+(?:por\s+)?completamente\s+(?:diversas\s+)?doenças\s+(?:comuns\s+)?(?:do\s+olho\s+humano|oculares)?\b/gi, replacement: "ajuda a manter o conforto ocular" },
+    { regex: /\b(?:recupera(?:r)?|melhora(?:r)?|reverte(?:r)?)\s+(?:a\s+visão\s+)?(?:após\s+|com\s+|em\s+pessoas\s+com\s+)(?:glaucoma|catarata)\b/gi, replacement: "apoia o conforto visual" },
+    { regex: /\bgarantia\s+de\s+qualidade\s+(?:a\s+)?(?:cem\s+por\s+cento|100\s*%?)\b/gi, replacement: "compromisso com a qualidade" },
+    { regex: /\bglaucoma\b/gi, replacement: "fadiga ocular" },
+    { regex: /\bcatarata(?:s)?\b/gi, replacement: "desconforto visual" },
 
     // --- ADDITIONAL MULTI-LANGUAGE MEDICAL & PROSTATE COMPLIANCE PATTERNS ---
     // French (prostate/remedy/diseases)
@@ -4093,14 +4209,86 @@ async function queryOpenRouter(messages: any[], jsonMode = false, maxTokens = 80
 }
 
 
+interface ComplianceCandidateItem {
+  raw: string;
+  plain: string;
+}
+
+const COMPLIANCE_SYSTEM_PROMPT = `Você é um especialista em compliance de copy para Google Ads com foco em páginas de afiliados de saúde e bem-estar. Sua função é receber textos extraídos de uma landing page, identificar os que violam as políticas do Google Ads e reescrevê-los com linguagem compliant — preservando idioma original e posicionamento do produto.
+
+## REGRA PRINCIPAL SOBRE REESCRITA
+SEMPRE gere uma alternativa compliant para textos violadores. NUNCA retorne string vazia ou null. Todo texto violador deve ter uma substituição com copy de qualidade que preserve o tom persuasivo mas dentro das políticas do Google Ads.
+
+## FORMATO DE RESPOSTA (JSON OBRIGATÓRIO)
+Retorne APENAS um JSON válido no formato:
+{
+  "respostas": [
+    { "original": "texto original exato", "rewritten": "texto reescrito compliant" }
+  ]
+}`;
+
+// Splits candidates into batches bounded by both char count and item count, so a single AI
+// call's output (which must echo every candidate back, violating or not) never risks hitting
+// maxTokens and getting silently truncated — confirmed happening on large cloned pages where
+// claims late in the candidate list (often the worst ones, e.g. fake clinical trial sections)
+// were dropped from the JSON response without any error ever being thrown.
+function chunkComplianceCandidates(list: ComplianceCandidateItem[], maxChars = 1200, maxItems = 10): ComplianceCandidateItem[][] {
+  const chunks: ComplianceCandidateItem[][] = [];
+  let current: ComplianceCandidateItem[] = [];
+  let currentChars = 0;
+  for (const item of list) {
+    if (current.length > 0 && (currentChars + item.plain.length > maxChars || current.length >= maxItems)) {
+      chunks.push(current);
+      current = [];
+      currentChars = 0;
+    }
+    current.push(item);
+    currentChars += item.plain.length;
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+// Runs one batch of candidates through the provider cascade, returns the rewrite mapping for
+// just that batch (or null if all three providers failed/returned unusable output for it).
+async function runComplianceBatch(batch: ComplianceCandidateItem[]): Promise<Array<{ original?: string; rewritten?: string }> | null> {
+  const systemMessage = { role: "system", content: COMPLIANCE_SYSTEM_PROMPT };
+  const userMessage = {
+    role: "user",
+    content: `Analise e reescreva os textos abaixo para cumprirem com as políticas do Google Ads. Para textos violadores: gere uma alternativa compliant persuasiva mantendo o mesmo idioma original. Para textos não violadores: mantenha a propriedade "rewritten" IDÊNTICA à "original".
+
+Textos para analisar:
+${JSON.stringify(batch.map(c => c.plain), null, 2)}`
+  };
+
+  // Provider chain: OpenRouter (free, currently the only reliably available one) -> Groq ->
+  // Gemini -> local dictionary. A provider that resolves with an empty/unparseable response
+  // (no exception thrown) must also cascade to the next one instead of dropping straight to
+  // the local dictionary — confirmed happening in practice with OpenRouter's free-tier model.
+  const providers: Array<{ name: string; run: () => Promise<string> }> = [
+    { name: "OpenRouter", run: () => queryOpenRouter([systemMessage, userMessage], true, 4000) },
+    { name: "Groq", run: () => queryGroq([systemMessage, userMessage], true) },
+    { name: "Gemini", run: () => queryGemini(COMPLIANCE_SYSTEM_PROMPT, userMessage.content, true) }
+  ];
+
+  for (const provider of providers) {
+    try {
+      const responseText = await provider.run();
+      const parsed = JSON.parse(responseText);
+      if (!parsed || !Array.isArray(parsed.respostas) || parsed.respostas.length === 0) {
+        throw new Error("Response parsed but contained no rewrites");
+      }
+      return parsed.respostas;
+    } catch (err: any) {
+      logger.warn({ err: err.message, provider: provider.name }, "Compliance rewriter provider failed or returned unusable response, trying next...");
+    }
+  }
+  return null;
+}
+
 async function rewriteClaimsForCompliance(html: string): Promise<{ html: string; aiFailed: boolean }> {
   try {
-    interface CandidateItem {
-      raw: string;
-      plain: string;
-    }
-    
-    const candidatesList: CandidateItem[] = [];
+    const candidatesList: ComplianceCandidateItem[] = [];
     const seenPlain = new Set<string>();
     const tagRegex = /<(h[1-6]|p|li|div|td|a|span|button)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/gi;
     let match;
@@ -4123,87 +4311,41 @@ async function rewriteClaimsForCompliance(html: string): Promise<{ html: string;
       return { html: rewriteClaimsWithLocalDictionary(html), aiFailed: false };
     }
 
-    logger.info({ count: candidatesList.length }, "Compliance rewriter: Found text node candidates for checking");
+    const batches = chunkComplianceCandidates(candidatesList);
+    logger.info({ count: candidatesList.length, batches: batches.length }, "Compliance rewriter: Found text node candidates for checking");
 
-    const COMPLIANCE_SYSTEM_PROMPT = `Você é um especialista em compliance de copy para Google Ads com foco em páginas de afiliados de saúde e bem-estar. Sua função é receber textos extraídos de uma landing page, identificar os que violam as políticas do Google Ads e reescrevê-los com linguagem compliant — preservando idioma original e posicionamento do produto.
-
-## REGRA PRINCIPAL SOBRE REESCRITA
-SEMPRE gere uma alternativa compliant para textos violadores. NUNCA retorne string vazia ou null. Todo texto violador deve ter uma substituição com copy de qualidade que preserve o tom persuasivo mas dentro das políticas do Google Ads.
-
-## FORMATO DE RESPOSTA (JSON OBRIGATÓRIO)
-Retorne APENAS um JSON válido no formato:
-{
-  "respostas": [
-    { "original": "texto original exato", "rewritten": "texto reescrito compliant" }
-  ]
-}`;
-
-    const systemMessage = {
-      role: "system",
-      content: COMPLIANCE_SYSTEM_PROMPT
-    };
-
-    const userMessage = {
-      role: "user",
-      content: `Analise e reescreva os textos abaixo para cumprirem com as políticas do Google Ads. Para textos violadores: gere uma alternativa compliant persuasiva mantendo o mesmo idioma original. Para textos não violadores: mantenha a propriedade "rewritten" IDÊNTICA à "original".
-
-Textos para analisar:
-${JSON.stringify(candidatesList.map(c => c.plain), null, 2)}`
-    };
-
-    // Provider chain: OpenRouter (free, currently the only reliably available one) -> Groq ->
-    // Gemini -> local dictionary. A provider that resolves with an empty/unparseable response
-    // (no exception thrown) must also cascade to the next one instead of dropping straight to
-    // the local dictionary — confirmed happening in practice with OpenRouter's free-tier model.
-    let mapping: { respostas?: Array<{ original?: string; rewritten?: string }> } | null = null;
-    const providers: Array<{ name: string; run: () => Promise<string> }> = [
-      { name: "OpenRouter", run: () => queryOpenRouter([systemMessage, userMessage], true, 3000) },
-      { name: "Groq", run: () => queryGroq([systemMessage, userMessage], true) },
-      { name: "Gemini", run: () => queryGemini(COMPLIANCE_SYSTEM_PROMPT, userMessage.content, true) }
-    ];
-
-    for (const provider of providers) {
-      try {
-        const responseText = await provider.run();
-        const parsed = JSON.parse(responseText);
-        if (!parsed || !Array.isArray(parsed.respostas) || parsed.respostas.length === 0) {
-          throw new Error("Response parsed but contained no rewrites");
-        }
-        mapping = parsed;
-        break;
-      } catch (err: any) {
-        logger.warn({ err: err.message, provider: provider.name }, "Compliance rewriter provider failed or returned unusable response, trying next...");
-      }
-    }
-
-    if (!mapping) {
-      logger.error("All compliance rewriter providers failed, using local dictionary");
-      return { html: rewriteClaimsWithLocalDictionary(html), aiFailed: true };
-    }
-
-    // 3. Apply the rewrites back into the HTML
     let cleanedHtml = html;
     let rewritesCount = 0;
-    const responsesArray = mapping.respostas || [];
-    
-    for (const item of responsesArray) {
-      if (item.original && item.rewritten && item.original !== item.rewritten && item.rewritten.trim()) {
-        const cand = candidatesList.find(c => c.plain === item.original);
-        if (cand) {
-          cleanedHtml = cleanedHtml.replace(cand.raw, item.rewritten);
-          rewritesCount++;
-          logger.info({ original: item.original, rewritten: item.rewritten }, "Compliance rewriter: Rewrote claim");
-        } else {
-          cleanedHtml = cleanedHtml.replaceAll(item.original, item.rewritten);
-          rewritesCount++;
+    let anyBatchFailed = false;
+
+    // Sequential (not parallel) on purpose — the free-tier providers here are rate-limit
+    // fragile, and firing every batch at once would make that worse, not better.
+    for (const batch of batches) {
+      const responsesArray = await runComplianceBatch(batch);
+      if (!responsesArray) {
+        anyBatchFailed = true;
+        logger.error({ batchSize: batch.length }, "Compliance rewriter: all providers failed for this batch, leaving it to the local dictionary");
+        continue;
+      }
+      for (const item of responsesArray) {
+        if (item.original && item.rewritten && item.original !== item.rewritten && item.rewritten.trim()) {
+          const cand = candidatesList.find(c => c.plain === item.original);
+          if (cand) {
+            cleanedHtml = cleanedHtml.replace(cand.raw, item.rewritten);
+            rewritesCount++;
+            logger.info({ original: item.original, rewritten: item.rewritten }, "Compliance rewriter: Rewrote claim");
+          } else {
+            cleanedHtml = cleanedHtml.replaceAll(item.original, item.rewritten);
+            rewritesCount++;
+          }
         }
       }
     }
-    
-    logger.info({ rewritesCount }, "Compliance rewriter: Finished replacing claims in HTML");
-    
+
+    logger.info({ rewritesCount, anyBatchFailed }, "Compliance rewriter: Finished replacing claims in HTML");
+
     // Always run the local dictionary afterwards to catch any edge cases that the AI missed
-    return { html: rewriteClaimsWithLocalDictionary(cleanedHtml), aiFailed: false };
+    return { html: rewriteClaimsWithLocalDictionary(cleanedHtml), aiFailed: anyBatchFailed };
   } catch (err: any) {
     logger.warn({ err: err.message }, "Compliance rewriter failed completely, running local dictionary on original HTML");
     return { html: rewriteClaimsWithLocalDictionary(html), aiFailed: true };
@@ -4941,7 +5083,7 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
       } catch (puppeteerErr: any) {
         logger.warn({ err: puppeteerErr.message }, "Local Puppeteer screenshot failed, falling back to external APIs");
         const encodedFinalUrl = encodeURIComponent(finalUrl);
-        screenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=false&viewport.width=1440&viewport.height=900&embed=screenshot.url`;
+        screenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=false&viewport.width=1920&viewport.height=1080&embed=screenshot.url`;
         mobileScreenshotUrl = `https://api.microlink.io/?url=${encodedFinalUrl}&screenshot=true&screenshot.fullPage=false&viewport.width=390&viewport.height=844&viewport.isMobile=true&viewport.hasTouch=true&viewport.userAgent=Mozilla%2F5.0+%28iPhone%3B+CPU+iPhone+OS+15_0+like+Mac+OS+X%29+AppleWebKit%2F605.1.15+%28KHTML%2C+like+Gecko%29+Version%2F15.0+Mobile%2F15E148+Safari%2F604.1&embed=screenshot.url`;
 
         try {
@@ -4953,14 +5095,14 @@ router.post("/generate-bridge-ai", requireAuth, async (req, res) => {
             const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
             const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
             const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-            screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1440/${finalUrl}`;
+            screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/${finalUrl}`;
             mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/${finalUrl}`;
           }
         } catch (err) {
           const thumIoKeyId = process.env.VITE_THUM_IO_KEY_ID;
           const thumIoUrlKey = process.env.VITE_THUM_IO_URL_KEY;
           const authPrefix = (thumIoKeyId && thumIoUrlKey) ? `auth/${thumIoKeyId}-${thumIoUrlKey}/` : "";
-          screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1440/${finalUrl}`;
+          screenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/1920/${finalUrl}`;
           mobileScreenshotUrl = `https://image.thum.io/get/${authPrefix}maxAge/24/width/390/${finalUrl}`;
         }
       }
@@ -6121,8 +6263,6 @@ ${richContext}`;
   const inputBorder = isLightBg ? "#cbd5e1" : "#334155";
   const inputText = isLightBg ? "#0f172a" : "#ffffff";
   const formBg = isLightBg ? "#ffffff" : "linear-gradient(145deg, #1e293b, #0f172a)";
-  const priceBoxBg = isLightBg ? "rgba(22, 163, 74, 0.05)" : "rgba(255,255,255,0.06)";
-  const priceToColor = isLightBg ? "#15803d" : "#4ade80";
 
   const hasDrCash = !!(input.apiToken && input.streamCode);
   const hasLemonAd = !hasDrCash && !!(input.lemonOfferId && input.lemonWebmasterToken);
@@ -6158,15 +6298,15 @@ ${richContext}`;
   };
   const ogLocale = ogLocaleMap[input.popupLanguage || "pt-BR"] || "en_US";
 
-  const priceBoxHtml = `<div style="margin: 15px 0 20px; padding: 16px 20px; background: ${priceBoxBg}; border-radius: 12px; border: 1px solid var(--border-color); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+  const priceBoxHtml = `<div style="margin: 15px 0 20px; padding: 16px 20px; background: linear-gradient(135deg, #be185d, #9d174d); border-radius: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; box-shadow: 0 10px 24px rgba(157, 23, 77, 0.35);">
       <div>
-        <span style="font-size: 0.85rem; color: var(--text-muted); text-decoration: line-through; display: block;">${ui.priceFrom}: ${origPriceDisplay}</span>
-        <span style="font-size: 1.65rem; font-weight: 900; color: ${priceToColor};">${ui.priceTo}: ${promoPriceDisplay}</span>
+        <span style="font-size: 0.85rem; color: rgba(255,255,255,0.75); text-decoration: line-through; display: block;">${ui.priceFrom}: ${origPriceDisplay}</span>
+        <span style="font-size: 1.8rem; font-weight: 900; color: #fde047;">${ui.priceTo}: ${promoPriceDisplay}</span>
       </div>
-      <span style="background: var(--accent-gold); color: #000; font-weight: 800; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem;">${offerTagDisplay}</span>
+      <span style="background: #fde047; color: #7c2d12; font-weight: 800; padding: 6px 14px; border-radius: 20px; font-size: 0.85rem;">${offerTagDisplay}</span>
     </div>`;
 
-  const html = `<!DOCTYPE html>
+  let html = `<!DOCTYPE html>
 <html lang="${langCode}">
 <head>
   <meta charset="UTF-8">
@@ -6217,9 +6357,10 @@ ${richContext}`;
     
     .hero { padding: 40px 0 30px; text-align: center; }
     .badge { display: inline-flex; align-items: center; gap: 6px; background-color: rgba(22, 163, 74, 0.12); border: 1px solid var(--primary); color: #16a34a; padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 700; margin-bottom: 20px; }
+    .hero { background: radial-gradient(ellipse at top, rgba(15,23,42,0.05), transparent 60%), linear-gradient(180deg, #eef2f0, var(--bg-dark)); border-radius: 0 0 32px 32px; }
     .hero h1 { font-size: 2.3rem; font-weight: 800; line-height: 1.25; margin-bottom: 16px; color: var(--text-main); }
     .hero p.subheadline { font-size: 1.15rem; color: var(--text-muted); max-width: 800px; margin: 0 auto 30px; }
-    
+
     .hero-grid { display: grid; grid-template-columns: 1fr 260px 380px; gap: 30px; align-items: start; margin: 30px 0; text-align: left; }
     @media (max-width: 768px) {
       .hero h1 { font-size: 1.7rem; }
@@ -6228,20 +6369,17 @@ ${richContext}`;
     }
     .hero-copy { padding-top: 8px; }
 
-    .product-box { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 25px; text-align: center; box-shadow: var(--card-shadow); }
-    .product-img { max-width: 100%; height: auto; max-height: 320px; border-radius: 12px; object-fit: contain; }
+    .product-box { background: transparent; border: none; padding: 10px; text-align: center; box-shadow: none; }
+    .product-img { max-width: 100%; height: auto; max-height: 400px; border-radius: 12px; object-fit: contain; filter: drop-shadow(0 18px 24px rgba(0,0,0,0.18)); }
     .product-placeholder { height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 3rem; background-color: rgba(0,0,0,0.03); border-radius: 12px; }
     .product-placeholder span { font-size: 1.2rem; font-weight: 700; margin-top: 10px; color: var(--text-main); }
     @media (max-width: 768px) {
-      .product-img, .product-placeholder { max-height: 220px; }
-      .product-placeholder { height: 220px; }
+      .product-img { max-height: 280px; }
+      .product-placeholder { max-height: 220px; height: 220px; }
     }
 
     .hero-order-card { background: var(--form-bg); border: 2px solid var(--primary); border-radius: 20px; padding: 22px 20px; box-shadow: 0 15px 35px rgba(22, 163, 74, 0.15); position: relative; }
     .hero-ribbon { display: inline-block; background: var(--accent-gold); color: #000; font-weight: 800; padding: 5px 12px; border-radius: 999px; font-size: 0.78rem; margin-bottom: 12px; }
-    .card-timer { display: flex; align-items: center; justify-content: space-between; gap: 10px; background: rgba(0,0,0,0.15); border-radius: 10px; padding: 8px 12px; margin: 12px 0; flex-wrap: wrap; }
-    .timer-label { font-size: 0.75rem; color: var(--text-muted); }
-    .timer-digits { font-variant-numeric: tabular-nums; font-weight: 800; font-size: 1rem; color: var(--text-main); letter-spacing: 1px; }
 
     .consent-row { display: flex; align-items: flex-start; gap: 8px; margin: 4px 0 2px; cursor: pointer; font-size: 0.74rem; color: var(--text-muted); line-height: 1.5; }
     .consent-row input[type="checkbox"] { margin-top: 3px; accent-color: var(--primary); width: 15px; height: 15px; flex-shrink: 0; }
@@ -6282,8 +6420,12 @@ ${richContext}`;
     .form-group input { width: 100%; padding: 14px 16px; background-color: var(--input-bg); border: 1px solid var(--input-border); border-radius: 10px; color: var(--input-text); font-size: 1rem; outline: none; transition: border-color 0.2s; }
     .form-group input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2); }
     
-    .btn-cta { width: 100%; padding: 18px 24px; background: linear-gradient(180deg, var(--cta-btn), var(--primary)); color: #ffffff; border: none; border-radius: 12px; font-size: 1.15rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4); margin-top: 10px; }
-    .btn-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(34, 197, 94, 0.5); }
+    .btn-cta { width: 100%; padding: 18px 24px; background: linear-gradient(180deg, var(--cta-btn), var(--primary)); color: #ffffff; border: none; border-radius: 12px; font-size: 1.15rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; cursor: pointer; transition: transform 0.15s, box-shadow 0.15s; box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4); margin-top: 10px; animation: btnPulse 1.8s ease-in-out infinite; }
+    .btn-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(34, 197, 94, 0.5); animation-play-state: paused; }
+    @keyframes btnPulse {
+      0%, 100% { box-shadow: 0 6px 20px rgba(34, 197, 94, 0.4); }
+      50% { box-shadow: 0 6px 26px rgba(34, 197, 94, 0.75); transform: scale(1.015); }
+    }
     
     .security-badge { display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 0.82rem; color: var(--text-muted); margin-top: 14px; text-align: center; }
     
@@ -6321,10 +6463,6 @@ ${richContext}`;
       <div class="hero-order-card">
         <span class="hero-ribbon">${offerTagDisplay}</span>
         ${priceBoxHtml}
-        <div class="card-timer">
-          <span class="timer-label">${upsell.timerLabel}</span>
-          <span class="timer-digits"><span class="t-digit">0</span><span class="t-digit">0</span>:<span class="t-digit">0</span><span class="t-digit">0</span>:<span class="t-digit">0</span><span class="t-digit">0</span></span>
-        </div>
         ${buildOrderFormMarkup({
           formId: "hero",
           nameLabel: ui.nameLabel,
@@ -6434,26 +6572,6 @@ ${richContext}`;
         cb.addEventListener("change", function() { cb.setCustomValidity(""); });
       });
 
-      function getSecondsUntilMidnight() {
-        var now = new Date();
-        var midnight = new Date(now);
-        midnight.setHours(24, 0, 0, 0);
-        return Math.floor((midnight - now) / 1000);
-      }
-      function updateTimers() {
-        var total = getSecondsUntilMidnight();
-        if (total < 0) total = 0;
-        var h = Math.floor(total / 3600);
-        var m = Math.floor((total % 3600) / 60);
-        var s = total % 60;
-        var digits = [Math.floor(h / 10), h % 10, Math.floor(m / 10), m % 10, Math.floor(s / 10), s % 10];
-        document.querySelectorAll(".card-timer").forEach(function(timer) {
-          var spans = timer.querySelectorAll(".t-digit");
-          digits.forEach(function(d, i) { if (spans[i]) spans[i].textContent = String(d); });
-        });
-      }
-      updateTimers();
-      setInterval(updateTimers, 1000);
     })();
   </script>
   ${hasDrCash ? `
@@ -6531,6 +6649,12 @@ ${richContext}`;
 </body>
 </html>`;
 
+  // Safety net: the AI-generated copy above (headline/bullets/narrative) never goes through
+  // rewriteClaimsForCompliance — that pipeline only runs for the keepOriginalStructure clone
+  // path. Run the local dictionary here so known-bad claim patterns (e.g. "sin lentes ni
+  // cirugía") don't ship unfiltered just because this is the fresh-template path.
+  html = rewriteClaimsWithLocalDictionary(html);
+
   const lemonPhpHtml = hasLemonAd
     ? generateLemonPhpFile({
         offerId: input.lemonOfferId || "",
@@ -6599,7 +6723,10 @@ ${richContext}`;
         apiToken,
         streamCode,
         finalThankYouUrlClone,
-        meta.productImageUrl || ""
+        meta.productImageUrl || "",
+        lemonOfferId,
+        lemonWebmasterToken,
+        cookies
       );
 
       const cloneUpsell = UPSELL_LOCALIZATION[detectedLang] || UPSELL_LOCALIZATION["pt-BR"];
@@ -6615,6 +6742,16 @@ ${richContext}`;
 
       logger.info({ aiFailed: compliance.aiFailed }, "Option B (keep original structure): clone generated");
 
+      const hasLemonAdClone = !(apiToken && streamCode) && !!(lemonOfferId && lemonWebmasterToken);
+      const clonelemonPhpHtml = hasLemonAdClone
+        ? generateLemonPhpFile({
+            offerId: lemonOfferId,
+            webmasterToken: lemonWebmasterToken,
+            cost: lemonCost || "0",
+            successFileName: finalThankYouUrlClone
+          })
+        : "";
+
       res.json({
         html: cloned,
         mode: "presell" as BridgeMode,
@@ -6623,7 +6760,9 @@ ${richContext}`;
         designSummary: "Estrutura original da landing preservada; textos revisados para conformidade com o Google Ads.",
         research: { enabled: false, results: [] },
         thankYouHtml,
-        thankYouFileName
+        thankYouFileName,
+        lemonPhpHtml: clonelemonPhpHtml,
+        lemonPhpFileName: hasLemonAdClone ? "lemon.php" : ""
       });
       return;
     }
