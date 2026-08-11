@@ -53,3 +53,7 @@ Thumbs.db
 .env.*
 !.env.example
 .runtime-logs/
+
+# Local SQLite dev database (WAL mode side files)
+artifacts/data/database.db-shm
+artifacts/data/database.db-wal
