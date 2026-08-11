@@ -243,6 +243,14 @@ export async function initDb() {
   try {
     await db.exec("ALTER TABLE campaigns ADD COLUMN end_date VARCHAR(50);");
   } catch (e) {}
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS ai_usage_daily (
+        usage_date DATE PRIMARY KEY,
+        tokens_used INTEGER NOT NULL DEFAULT 0
+      );
+    `);
+  } catch (e) {}
 
   return db;
 }

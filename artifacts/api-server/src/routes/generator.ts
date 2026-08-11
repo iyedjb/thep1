@@ -3053,6 +3053,76 @@ const COOKIE_LOCALIZATION: Record<string, {
     labelInfoRelevante: "Relevant Information",
     valInfoRelevante: "Officiel informationskanal for kampagnen. Garantibetingelser og refusionspolitikker er dem, der er fastsat af den officielle hjemmeside."
   },
+  "fi": {
+    title: "🍪 Evästekäytäntö",
+    desc: "Käytämme evästeitä parantaaksemme kokemustasi. Jatkamalla hyväksyt käyttöehtomme.",
+    accept: "Hyväksy",
+    decline: "Hylkää",
+    infoBtn: "Tarjouksen tiedot",
+    infoTitle: "Tarjouksen tiedot",
+    labelFormula: "Kaava/Koostumus",
+    labelEntrega: "Toimitusaika",
+    labelEntregaDigital: "Käyttötapa",
+    labelPreco: "Hinta ja ehdot",
+    labelOferta: "Erikoistarjous",
+    valFormula: "Kaava kehitetty valituilla luonnollisilla yhdisteillä ja uutteilla.",
+    valEntregaPhysical: "Toimitus virallisen sivuston toimitusaikojen ja hintojen mukaisesti.",
+    valEntregaDigital: "Välitön pääsy sähköpostitse maksun vahvistamisen jälkeen.",
+    valPrecoCOD: "Maksu toimituksen yhteydessä (maksa vasta tuotteen vastaanottamisen jälkeen).",
+    valPrecoOnline: "Turvallinen verkkomaksu (luottokortti, PayPal tai paikalliset maksutavat).",
+    valOferta: "Erikoiskampanja rajoitetun ajan virallisella kanavalla.",
+    formatPreco: "Ennen <del>{orig}</del> nyt vain <strong>{prom}</strong>",
+    ctaOffer: "Hyödynnä alennus! Rajoitetun ajan tarjous.",
+    descTemplate: "Virallinen tietosivu tuotteesta {prod}. Katso tarjouksen tiedot ja osta aitoustakuulla.",
+    priceDescFormat: " Ennen {orig} nyt vain {prom}.",
+    priceValFormat: " (Hinta: {val}).",
+    labelGadget: "Tekniset tiedot",
+    valGadget: "Valmistajan kehittämät korkean teknologian ominaisuudet ja tekniset tiedot.",
+    labelDigital: "Sisältö / Ominaisuudet",
+    valDigital: "Asiantuntijoiden kehittämät korkealaatuiset resurssit ja tietomateriaalit.",
+    valGenericCampaignInfo: "Tarkista tämän kampanjan tiedot.",
+    valPrecoGeneric: "Kampanjahinta saatavilla valmistajan virallisella kanavalla.",
+    valPrecoGenericCond: "Turvallinen maksu käsitellään virallisen kanavan kautta.",
+    valPrecoGenericFallback: "Katso tarjouksen tiedot.",
+    valOfertaGeneric: "Erikoiskampanja-alennus saatavilla tässä kampanjassa.",
+    labelInfoRelevante: "Olennaiset tiedot",
+    valInfoRelevante: "Kampanjan virallinen tietokanava. Takuuehdot ja palautuskäytännöt ovat viralliselta verkkosivustolta."
+  },
+  "no": {
+    title: "🍪 Retningslinjer for informasjonskapsler",
+    desc: "Vi bruker informasjonskapsler for å tilpasse opplevelsen din. Ved å fortsette godtar du våre vilkår.",
+    accept: "Godta",
+    decline: "Avslå",
+    infoBtn: "Tilbudsdetaljer",
+    infoTitle: "Tilbudsdetaljer",
+    labelFormula: "Formel/Sammensetning",
+    labelEntrega: "Leveringstid",
+    labelEntregaDigital: "Tilgangsmetode",
+    labelPreco: "Pris og vilkår",
+    labelOferta: "Spesialtilbud",
+    valFormula: "Formel utviklet med utvalgte naturlige forbindelser og ekstrakter.",
+    valEntregaPhysical: "Frakt i henhold til den offisielle nettsidens leveringstider og priser.",
+    valEntregaDigital: "Umiddelbar tilgang via e-post etter betalingsbekreftelse.",
+    valPrecoCOD: "Betaling ved levering (betal først når du mottar produktet).",
+    valPrecoOnline: "Sikker nettbetaling (kredittkort, PayPal eller lokale betalingsmetoder).",
+    valOferta: "Spesialkampanje i begrenset tid på den offisielle kanalen.",
+    formatPreco: "Fra <del>{orig}</del> til kun <strong>{prom}</strong>",
+    ctaOffer: "Benytt deg av rabatten! Tidsbegrenset tilbud.",
+    descTemplate: "Offisiell informasjonsside om produktet {prod}. Se detaljene i tilbudet og kjøp med ekthetsgaranti.",
+    priceDescFormat: " Fra {orig} til kun {prom}.",
+    priceValFormat: " (Pris: {val}).",
+    labelGadget: "Tekniske spesifikasjoner",
+    valGadget: "Avanserte tekniske spesifikasjoner og funksjoner utviklet av produsenten.",
+    labelDigital: "Innhold / Funksjoner",
+    valDigital: "Høykvalitets ressurser og informasjonsmateriell utviklet av eksperter.",
+    valGenericCampaignInfo: "Sjekk informasjonen i denne kampanjen.",
+    valPrecoGeneric: "Kampanjepris tilgjengelig på produsentens offisielle kanal.",
+    valPrecoGenericCond: "Sikker betaling behandlet via den offisielle kanalen.",
+    valPrecoGenericFallback: "Se detaljene i tilbudet.",
+    valOfertaGeneric: "Spesiell kampanjerabatt tilgjengelig i denne kampanjen.",
+    labelInfoRelevante: "Relevant informasjon",
+    valInfoRelevante: "Offisiell informasjonskanal for kampanjen. Garantivilkår og refusjonspolicyer er de som er fastsatt av den offisielle nettsiden."
+  },
   "ja": {
     title: "🍪 クッキーポリシー",
     desc: "お客様の体験をパーソナライズするためにクッキーを使用しています。続行することで、当社の利用規約に同意したことになります。",
@@ -4178,7 +4248,10 @@ async function queryGroq(messages: any[], jsonMode = false, maxTokens = 8000) {
   return data.choices[0]?.message?.content || "";
 }
 
-async function queryOpenRouter(messages: any[], jsonMode = false, maxTokens = 8000) {
+// Low-level call that also exposes token usage — needed to enforce the Sonnet daily budget
+// (see SONNET_DAILY_TOKEN_LIMIT). queryOpenRouter below wraps this and stays text-only for the
+// many existing callers that don't care about usage.
+async function openRouterRequest(messages: any[], jsonMode: boolean, maxTokens: number, model: string): Promise<{ text: string; usage?: { total_tokens?: number } }> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error("OPENROUTER_API_KEY is not defined in environment");
@@ -4191,7 +4264,7 @@ async function queryOpenRouter(messages: any[], jsonMode = false, maxTokens = 80
       "Authorization": `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: "openai/gpt-oss-20b:free",
+      model,
       messages,
       temperature: 0.2,
       max_tokens: maxTokens,
@@ -4205,7 +4278,42 @@ async function queryOpenRouter(messages: any[], jsonMode = false, maxTokens = 80
   }
 
   const data = await response.json() as any;
-  return data.choices[0]?.message?.content || "";
+  return { text: data.choices[0]?.message?.content || "", usage: data.usage };
+}
+
+async function queryOpenRouter(messages: any[], jsonMode = false, maxTokens = 8000, model = "openai/gpt-oss-20b:free") {
+  const { text } = await openRouterRequest(messages, jsonMode, maxTokens, model);
+  return text;
+}
+
+// Daily spending guardrail for the paid Sonnet model — persisted in Postgres (not memory) so it
+// survives server restarts/redeploys. Configurable via env so it can be tuned without a code
+// change; once the day's budget is used up, callers fall back to the free provider cascade
+// instead of failing, so the chat keeps working, just at lower quality until the day resets.
+const SONNET_DAILY_TOKEN_LIMIT = parseInt(process.env.SONNET_DAILY_TOKEN_LIMIT || "200000", 10);
+
+async function getTodaySonnetTokenUsage(): Promise<number> {
+  try {
+    const db = getDb();
+    const row = await db.prepare("SELECT tokens_used FROM ai_usage_daily WHERE usage_date = CURRENT_DATE").get() as any;
+    return row ? Number(row.tokens_used) : 0;
+  } catch (err: any) {
+    logger.warn({ err: err.message }, "Failed to read daily Sonnet token usage, assuming 0");
+    return 0;
+  }
+}
+
+async function addSonnetTokenUsage(tokens: number): Promise<void> {
+  if (!tokens || tokens <= 0) return;
+  try {
+    const db = getDb();
+    await db.prepare(
+      `INSERT INTO ai_usage_daily (usage_date, tokens_used) VALUES (CURRENT_DATE, ?)
+       ON CONFLICT (usage_date) DO UPDATE SET tokens_used = ai_usage_daily.tokens_used + ?`
+    ).run(tokens, tokens);
+  } catch (err: any) {
+    logger.warn({ err: err.message }, "Failed to record daily Sonnet token usage");
+  }
 }
 
 
@@ -6944,370 +7052,6 @@ router.post("/presells", requireAuth, async (req: any, res) => {
   }
 });
 
-interface ReviewTestimonial {
-  name: string;
-  stars: number;
-  quote: string;
-}
-
-interface ReviewFaqItem {
-  question: string;
-  answer: string;
-}
-
-interface ReviewPageContent {
-  productName: string;
-  affiliateUrl: string;
-  langCode: string;
-  ratingBadge: string;
-  heroTag: string;
-  heroHeadline: string;
-  heroLead: string;
-  ctaButtonText: string;
-  aboutTitle: string;
-  aboutText: string;
-  prosTitle: string;
-  pros: string[];
-  consTitle: string;
-  cons: string[];
-  testimonialsTitle: string;
-  testimonials: ReviewTestimonial[];
-  faqTitle: string;
-  faq: ReviewFaqItem[];
-  verdictTitle: string;
-  verdictText: string;
-  verdictCtaText: string;
-  footerDisclaimer: string;
-}
-
-function escapeReviewHtml(value: any): string {
-  return String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-// Deterministic per-field multilingual fallback, same spirit as the copyData.field || <fallback>
-// pattern used by generateGaryHalbertLandingPageHtml (lines ~4975-5094) — guarantees a complete,
-// renderable ReviewPageContent even if the AI omits fields or every provider fails.
-function fillReviewContentDefaults(partial: Partial<ReviewPageContent> | null | undefined, ctx: { productName: string; affiliateUrl: string; langCode: string }): ReviewPageContent {
-  const p = partial || {};
-  const lang = (p.langCode || ctx.langCode || "es").toLowerCase();
-  const isEs = lang.startsWith("es");
-  const isPl = lang === "pl";
-  const productName = p.productName || ctx.productName || "Produto Especial";
-  const affiliateUrl = p.affiliateUrl || ctx.affiliateUrl || "#";
-
-  const d = {
-    ratingBadge: isEs ? "★ 4.9/5.0 (2.840 Reseñas)" : isPl ? "★ 4.9/5.0 (2.840 Opinii)" : "★ 4.9/5.0 (2.840 Avaliações)",
-    heroTag: isEs ? "Análisis Completo y Prueba Práctica" : isPl ? "Pełny Raport i Test Praktyczny" : "Análise Completa & Teste Prático",
-    heroHeadline: isEs ? `${productName}: ¿Vale la Pena? Lea Nuestra Revisión Detallada` : isPl ? `${productName}: Czy Warto Kupić? Przeczytaj Szczegółową Recenzję` : `${productName}: Vale a Pena Mesmo? Confira Nossa Análise Detalhada`,
-    heroLead: isEs ? `Probamos y analizamos a fondo el ${productName}. Descubra los beneficios reales, pros y contras, y dónde comprar la versión oficial con descuento.` : isPl ? `Przetestowaliśmy i dokładnie przeanalizowaliśmy ${productName}. Poznaj prawdziwe korzyści, zalety i wady oraz dowiedz się, gdzie kupić oficjalną wersję ze zniżką.` : `Testamos e analisamos a fundo o ${productName}. Descubra os benefícios reais, prós e contras, e onde comprar a versão oficial com desconto.`,
-    ctaButtonText: isEs ? `Acceder al Sitio Oficial de ${productName} →` : isPl ? `Przejdź do Oficjalnej Strony ${productName} →` : `Acessar Site Oficial do ${productName} →`,
-    aboutTitle: isEs ? `¿Qué es ${productName}?` : isPl ? `Czym jest ${productName}?` : `O que é o ${productName}?`,
-    aboutText: isEs ? `${productName} es una solución desarrollada con estándares de calidad superiores para brindar soporte práctico en la rutina diaria. Con ingredientes seleccionados y alta aceptación en el mercado.` : isPl ? `${productName} to rozwiązanie stworzone z zachowaniem najwyższych standardów jakości, aby zapewnić wsparcie w codziennej rutynie.` : `${productName} é uma solução desenvolvida com padrão de qualidade superior para proporcionar suporte prático e eficiente no dia a dia.`,
-    prosTitle: isEs ? "Ventajas Principales" : isPl ? "Główne Zalety" : "Principais Vantagens",
-    pros: isEs
-      ? ["Fórmula probada con ingredientes de origen natural", "Alta tasa de aprobación de los consumidores", "Garantía directa del fabricante en el sitio oficial", "Envío rápido con paquete discreto"]
-      : isPl
-        ? ["Testowana formuła ze składnikami pochodzenia naturalnego", "Wysoki poziom zadowolenia konsumentów", "Gwarancja producenta na oficjalnej stronie", "Szybka wysyłka w dyskretnym opakowaniu"]
-        : ["Fórmula testada com ingredientes de origem natural", "Alta taxa de aprovação dos consumidores", "Garantia direta do fabricante no site oficial", "Entrega rápida com embalagem discreta"],
-    consTitle: isEs ? "Puntos de Atención" : isPl ? "Ważne Uwagi" : "Pontos de Atenção",
-    cons: isEs
-      ? ["Ventas solo en el sitio oficial autorizado", "Unidades limitadas con descuento promocional"]
-      : isPl
-        ? ["Sprzedaż wyłącznie na oficjalnej stronie", "Ograniczona ilość w cenie promocyjnej"]
-        : ["Vendas somente pelo site oficial autorizado", "Estoque com alta demanda pode esgotar em promoções"],
-    testimonialsTitle: isEs ? "Opiniones de Clientes Verificados" : isPl ? "Opinie Zweryfikowanych Klientów" : "Depoimentos de Quem Já Usou",
-    testimonials: [
-      { name: "Mariana S.", stars: 5, quote: isEs ? "¡Excelente producto! Llegó antes de tiempo y cumplió exactamente lo prometido." : isPl ? "Świetny produkt! Przesyłka dotarła szybko i spełniła moje oczekiwania." : "Excelente produto! Chegou antes do prazo e cumpriu exatamente o que prometeu." },
-      { name: "Carlos A.", stars: 5, quote: isEs ? "Compré con descuento en el sitio oficial y valió cada centavo." : isPl ? "Kupiłem ze zniżką na oficjalnej stronie i jestem bardzo zadowolony." : "Comprei com desconto no site oficial e valeu cada centavo." }
-    ] as ReviewTestimonial[],
-    faqTitle: isEs ? "Preguntas Frecuentes" : isPl ? "Najczęściej Zadawane Pytania" : "Perguntas Frequentes",
-    faq: [
-      {
-        question: isEs ? `¿${productName} es seguro de usar?` : isPl ? `Czy ${productName} jest bezpieczny w użyciu?` : `${productName} é seguro de usar?`,
-        answer: isEs ? "Sí, es desarrollado siguiendo estándares de calidad y seguridad reconocidos." : isPl ? "Tak, produkt jest tworzony zgodnie z uznanymi standardami jakości i bezpieczeństwa." : "Sim, é desenvolvido seguindo padrões de qualidade e segurança reconhecidos."
-      },
-      {
-        question: isEs ? "¿Cuánto tiempo tarda la entrega?" : isPl ? "Jak długo trwa dostawa?" : "Quanto tempo leva a entrega?",
-        answer: isEs ? "El plazo varía según la región, pero el envío es rápido y discreto." : isPl ? "Czas dostawy zależy od regionu, ale wysyłka jest szybka i dyskretna." : "O prazo varia conforme a região, mas o envio é rápido e discreto."
-      },
-      {
-        question: isEs ? "¿Dónde comprar la versión oficial?" : isPl ? "Gdzie kupić oficjalną wersję?" : "Onde comprar a versão oficial?",
-        answer: isEs ? "Solo en el sitio oficial, a través de los enlaces de esta página." : isPl ? "Tylko na oficjalnej stronie, poprzez linki na tej stronie." : "Somente no site oficial, através dos links desta página."
-      }
-    ] as ReviewFaqItem[],
-    verdictTitle: isEs ? "Veredicto Final: ¿Vale la Pena?" : isPl ? "Podsumowanie: Czy Warto?" : "Veredito Final: Vale a Pena?",
-    verdictText: isEs ? `Según las pruebas y la satisfacción del cliente, ${productName} es altamente recomendado.` : isPl ? `Na podstawie opinii i jakości, ${productName} jest wysoce rekomendowany.` : `Com base nos testes e satisfação dos clientes, o ${productName} é altamente recomendado.`,
-    verdictCtaText: isEs ? `Garantizar Descuento Exclusivo de ${productName}` : isPl ? `Odbierz Zniżkę Na ${productName}` : `Garantir Desconto Exclusivo do ${productName}`,
-    footerDisclaimer: isEs ? "Este sitio es un material publicitario independiente. Los resultados pueden variar de persona a persona." : isPl ? "Ta strona jest niezależnym materiałem reklamowym. Wyniki mogą się różnić." : "Este site é um material publicitário independente. Os resultados podem variar de pessoa para pessoa."
-  };
-
-  return {
-    productName,
-    affiliateUrl,
-    langCode: lang,
-    ratingBadge: p.ratingBadge || d.ratingBadge,
-    heroTag: p.heroTag || d.heroTag,
-    heroHeadline: p.heroHeadline || d.heroHeadline,
-    heroLead: p.heroLead || d.heroLead,
-    ctaButtonText: p.ctaButtonText || d.ctaButtonText,
-    aboutTitle: p.aboutTitle || d.aboutTitle,
-    aboutText: p.aboutText || d.aboutText,
-    prosTitle: p.prosTitle || d.prosTitle,
-    pros: Array.isArray(p.pros) && p.pros.length ? p.pros : d.pros,
-    consTitle: p.consTitle || d.consTitle,
-    cons: Array.isArray(p.cons) && p.cons.length ? p.cons : d.cons,
-    testimonialsTitle: p.testimonialsTitle || d.testimonialsTitle,
-    testimonials: Array.isArray(p.testimonials) && p.testimonials.length ? p.testimonials : d.testimonials,
-    faqTitle: p.faqTitle || d.faqTitle,
-    faq: Array.isArray(p.faq) && p.faq.length ? p.faq : d.faq,
-    verdictTitle: p.verdictTitle || d.verdictTitle,
-    verdictText: p.verdictText || d.verdictText,
-    verdictCtaText: p.verdictCtaText || d.verdictCtaText,
-    footerDisclaimer: p.footerDisclaimer || d.footerDisclaimer
-  };
-}
-
-// Clamps/validates a client-echoed draft before it's ever re-injected into a prompt or rendered —
-// same spirit as the sanitizedHistory truncation below, applied per-field instead of per-message.
-function sanitizeIncomingDraft(raw: any): Partial<ReviewPageContent> | null {
-  if (!raw || typeof raw !== "object") return null;
-  const clamp = (s: any, max: number): string | undefined => {
-    const v = String(s ?? "").slice(0, max);
-    return v || undefined;
-  };
-  const clampArr = (arr: any, max: number, itemMax: number): string[] | undefined =>
-    Array.isArray(arr) ? arr.slice(0, max).map((x: any) => String(x ?? "").slice(0, itemMax)).filter(Boolean) : undefined;
-
-  const testimonials: ReviewTestimonial[] | undefined = Array.isArray(raw.testimonials)
-    ? raw.testimonials.slice(0, 6).map((t: any) => ({
-        name: String(t?.name ?? "").slice(0, 60),
-        stars: Math.min(5, Math.max(1, Number(t?.stars) || 5)),
-        quote: String(t?.quote ?? "").slice(0, 400)
-      }))
-    : undefined;
-
-  const faq: ReviewFaqItem[] | undefined = Array.isArray(raw.faq)
-    ? raw.faq.slice(0, 8).map((f: any) => ({
-        question: String(f?.question ?? "").slice(0, 200),
-        answer: String(f?.answer ?? "").slice(0, 600)
-      }))
-    : undefined;
-
-  return {
-    productName: clamp(raw.productName, 120),
-    affiliateUrl: clamp(raw.affiliateUrl, 500),
-    langCode: clamp(raw.langCode, 5),
-    ratingBadge: clamp(raw.ratingBadge, 100),
-    heroTag: clamp(raw.heroTag, 100),
-    heroHeadline: clamp(raw.heroHeadline, 200),
-    heroLead: clamp(raw.heroLead, 400),
-    ctaButtonText: clamp(raw.ctaButtonText, 100),
-    aboutTitle: clamp(raw.aboutTitle, 150),
-    aboutText: clamp(raw.aboutText, 800),
-    prosTitle: clamp(raw.prosTitle, 100),
-    pros: clampArr(raw.pros, 8, 200),
-    consTitle: clamp(raw.consTitle, 100),
-    cons: clampArr(raw.cons, 8, 200),
-    testimonialsTitle: clamp(raw.testimonialsTitle, 100),
-    testimonials,
-    faqTitle: clamp(raw.faqTitle, 100),
-    faq,
-    verdictTitle: clamp(raw.verdictTitle, 150),
-    verdictText: clamp(raw.verdictText, 500),
-    verdictCtaText: clamp(raw.verdictCtaText, 150),
-    footerDisclaimer: clamp(raw.footerDisclaimer, 300)
-  };
-}
-
-// Pure renderer: ReviewPageContent -> final HTML string. Never called with AI-authored HTML —
-// the AI only ever supplies short text fields, so a generation truncation can no longer produce
-// a broken/unparseable page (unlike the previous raw-HTML-in-JSON approach).
-function renderReviewPageHtml(content: ReviewPageContent): string {
-  const e = escapeReviewHtml;
-  const url = content.affiliateUrl || "#";
-
-  const prosHtml = content.pros.map(item => `<li>✅ ${e(item)}</li>`).join("");
-  const consHtml = content.cons.map(item => `<li>❌ ${e(item)}</li>`).join("");
-  const testimonialsHtml = content.testimonials.map(t => `
-        <div class="review-card">
-          <div class="review-user"><span>${e(t.name)}</span> <span>${"★".repeat(Math.min(5, Math.max(1, t.stars || 5)))}</span></div>
-          <p style="font-size: 13px; color: #475569;">"${e(t.quote)}"</p>
-        </div>`).join("");
-  const faqHtml = content.faq.map(item => `
-        <details class="faq-item">
-          <summary>${e(item.question)}</summary>
-          <p>${e(item.answer)}</p>
-        </details>`).join("");
-
-  return `<!DOCTYPE html>
-<html lang="${e(content.langCode || "pt")}">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${e(content.heroHeadline || content.productName)}</title>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.6; }
-    .nav { background: #ffffff; border-bottom: 1px solid #e2e8f0; padding: 16px 24px; position: sticky; top: 0; z-index: 100; display: flex; justify-content: space-between; align-items: center; }
-    .logo { font-size: 20px; font-weight: 800; color: #0f172a; }
-    .rating-badge { display: inline-flex; align-items: center; gap: 6px; background: #fef3c7; color: #92400e; padding: 6px 12px; border-radius: 999px; font-size: 13px; font-weight: 700; }
-    .hero { max-width: 1000px; margin: 40px auto; padding: 0 24px; text-align: center; }
-    .hero-tag { display: inline-block; background: #dcfce7; color: #166534; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; padding: 6px 16px; border-radius: 999px; margin-bottom: 16px; }
-    h1 { font-size: 38px; font-weight: 800; color: #0f172a; line-height: 1.25; margin-bottom: 16px; }
-    p.lead { font-size: 18px; color: #475569; max-width: 760px; margin: 0 auto 32px; }
-    .cta-btn { display: inline-block; background: #16a34a; color: #ffffff; font-size: 18px; font-weight: 800; padding: 18px 36px; border-radius: 14px; text-decoration: none; box-shadow: 0 10px 25px -5px rgba(22, 163, 74, 0.4); transition: all 0.2s; }
-    .cta-btn:hover { background: #15803d; transform: translateY(-2px); }
-    .container { max-width: 900px; margin: 40px auto; padding: 0 24px; }
-    .card { background: #ffffff; border-radius: 20px; padding: 32px; border: 1px solid #e2e8f0; margin-bottom: 32px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-    h2 { font-size: 24px; font-weight: 800; color: #0f172a; margin-bottom: 16px; }
-    .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-    @media (max-width: 640px) { .pros-cons { grid-template-columns: 1fr; } h1 { font-size: 28px; } }
-    .pros-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 20px; border-radius: 14px; }
-    .cons-box { background: #fef2f2; border: 1px solid #fecaca; padding: 20px; border-radius: 14px; }
-    .pros-box h3 { color: #166534; font-size: 16px; margin-bottom: 12px; }
-    .cons-box h3 { color: #991b1b; font-size: 16px; margin-bottom: 12px; }
-    ul.check-list { list-style: none; }
-    ul.check-list li { margin-bottom: 8px; font-size: 14px; display: flex; gap: 8px; }
-    .reviews-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
-    @media (max-width: 640px) { .reviews-grid { grid-template-columns: 1fr; } }
-    .review-card { background: #f8fafc; padding: 16px; border-radius: 12px; border: 1px solid #f1f5f9; }
-    .review-user { font-weight: 700; font-size: 14px; margin-bottom: 4px; display: flex; justify-content: space-between; }
-    .faq-item { border-bottom: 1px solid #e2e8f0; padding: 14px 0; cursor: pointer; }
-    .faq-item summary { font-weight: 700; font-size: 15px; color: #0f172a; }
-    .faq-item p { margin-top: 8px; font-size: 14px; color: #475569; }
-    .footer { text-align: center; padding: 40px 24px; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; margin-top: 60px; }
-  </style>
-</head>
-<body>
-  <nav class="nav">
-    <div class="logo">ReviewLab</div>
-    <div class="rating-badge">${e(content.ratingBadge)}</div>
-  </nav>
-
-  <section class="hero">
-    <span class="hero-tag">${e(content.heroTag)}</span>
-    <h1>${e(content.heroHeadline)}</h1>
-    <p class="lead">${e(content.heroLead)}</p>
-    <a href="${e(url)}" class="cta-btn" target="_blank" rel="noopener">${e(content.ctaButtonText)}</a>
-  </section>
-
-  <div class="container">
-    <div class="card">
-      <h2>${e(content.aboutTitle)}</h2>
-      <p>${e(content.aboutText)}</p>
-    </div>
-
-    <div class="card">
-      <h2>${e(content.prosTitle)} &amp; ${e(content.consTitle)}</h2>
-      <div class="pros-cons">
-        <div class="pros-box">
-          <h3>✓ ${e(content.prosTitle)}</h3>
-          <ul class="check-list">${prosHtml}</ul>
-        </div>
-        <div class="cons-box">
-          <h3>✕ ${e(content.consTitle)}</h3>
-          <ul class="check-list">${consHtml}</ul>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>${e(content.testimonialsTitle)}</h2>
-      <div class="reviews-grid">${testimonialsHtml}</div>
-    </div>
-
-    <div class="card">
-      <h2>${e(content.faqTitle)}</h2>
-      ${faqHtml}
-    </div>
-
-    <div class="card" style="text-align: center; background: #f0fdf4; border-color: #bbf7d0;">
-      <h2>${e(content.verdictTitle)}</h2>
-      <p style="margin-bottom: 24px;">${e(content.verdictText)}</p>
-      <a href="${e(url)}" class="cta-btn" target="_blank" rel="noopener">${e(content.verdictCtaText)}</a>
-    </div>
-  </div>
-
-  <footer class="footer">
-    <p>${e(content.footerDisclaimer)}</p>
-  </footer>
-</body>
-</html>`;
-}
-
-const REVIEW_LANG_NAMES: Record<string, string> = {
-  es: "Espanhol (Spanish)",
-  pl: "Polonês (Polish)",
-  en: "Inglês (English)",
-  fr: "Francês (French)",
-  de: "Alemão (German)",
-  pt: "Português (Portuguese)",
-  it: "Italiano (Italian)",
-  th: "Tailandês (Thai)"
-};
-
-const REVIEW_ASK_FOR_URL_MESSAGE = "Olá! Sou seu especialista em criação de páginas de review de alta conversão. Para eu analisar sua campanha e criar a página perfeita, por favor me envie o **link da landing page do seu produto** (ex: `https://...`)!";
-
-// Gate that runs BEFORE Puppeteer/AI are ever touched in CREATE mode. Classifies the message into
-// one of three lanes: askForUrl (plain greeting or "I don't have it yet" — no AI call needed),
-// hasEnoughInfo (URL or explicit "create" command — safe to run Puppeteer + generate), or neither
-// (a real message with no page info yet — routed to general chat instead of being misread as a
-// product name, which used to make any short question get treated as "the product").
-function detectReviewIntent(history: any[]): { askForUrl: boolean; hasEnoughInfo: boolean; productName: string; affiliateUrl: string } {
-  const userMsgs = history.filter((m: any) => m.role === "user").map((m: any) => m.content || "");
-  const lastUserMsg = (userMsgs[userMsgs.length - 1] || "").trim();
-  const userCombinedText = userMsgs.join(" ");
-  const lowerLast = lastUserMsg.toLowerCase();
-  const lowerCombined = userCombinedText.toLowerCase();
-
-  const cleanLast = lowerLast.replace(/[^a-z0-9]/g, "");
-  const isGreetingOnly = ["oi", "ola", "olá", "ey", "hey", "hello", "hi", "bomdia", "boatarde", "boanoite", "tudobem", "ajuda"].includes(cleanLast) || lastUserMsg.length <= 3;
-
-  const isNegativeResponse = /n[aã]o\s+ten(ho|ho não)|n[aã]o\s+tem|tem\s+nada|nada\s+n[aã]o|sem\s+link|n[aã]o\s+sei|n[aã]o\s+possuo|ainda\s+n[aã]o/i.test(lowerLast);
-
-  const urlMatch = userCombinedText.match(/https?:\/\/[^\s"'<>]+/i);
-  const affiliateUrl = urlMatch ? urlMatch[0] : "";
-
-  // Only trust an explicit "produto: X" / "review do X" mention as a product name — a loose "any
-  // short message is the product name" heuristic used to misfire on plain questions.
-  let productName = "";
-  const nameMatch = userCombinedText.match(/(?:produto|review\s+do|análise\s+do|nome[:\s]+)\s*([a-zA-Z0-9\s\-Á-Úá-úãõÃÕçÇ]{3,30})/i);
-  if (nameMatch && nameMatch[1] && !nameMatch[1].toLowerCase().includes("http")) {
-    productName = nameMatch[1].trim();
-  }
-
-  const hasExplicitIntent = /\b(crie|criar|gere|gerar|monta|montar|faça|fazer)\b.*\bp[aá]gina\b|\bp[aá]gina\b.*\b(crie|criar|gere|gerar|monta|montar|faça|fazer)\b/i.test(lowerCombined);
-  const hasEnoughInfo = !isGreetingOnly && !isNegativeResponse && (!!affiliateUrl || !!productName || hasExplicitIntent);
-  const askForUrl = isGreetingOnly || isNegativeResponse;
-
-  return { askForUrl, hasEnoughInfo, productName, affiliateUrl };
-}
-
-// Deterministic, AI-free fallback. Only reached when every provider fails on a request that
-// already passed detectReviewIntent — so productName/affiliateUrl are treated as best-effort,
-// never re-asks for the URL (that gate already happened earlier).
-function buildFallbackReviewContent(history: any[], extractedContext?: { productName: string; affiliateUrl: string; langCode: string }): { message: string; content: ReviewPageContent } {
-  const userMsgs = history.filter((m: any) => m.role === "user").map((m: any) => m.content || "");
-  const userCombinedText = userMsgs.join(" ");
-
-  const productName = extractedContext?.productName || "Produto Especial";
-  const finalUrl = extractedContext?.affiliateUrl || "#";
-  const lang = extractedContext?.langCode || detectLanguageFromText(userCombinedText);
-  const content = fillReviewContentDefaults(null, { productName, affiliateUrl: finalUrl, langCode: lang });
-  const isEs = content.langCode.startsWith("es");
-  const targetLangName = isEs ? "Espanhol (Spanish)" : content.langCode === "pl" ? "Polonês (Polish)" : "Português (Portuguese)";
-
-  const message = isEs
-    ? `Leí y analicé con éxito el sitio de la campaña **${finalUrl}** (${targetLangName})! Creé una estructura de revisión completa de alta conversión para **${productName}** con evaluación 4.9/5, pros y contras, opiniones de clientes, preguntas frecuentes y botón con su enlace oficial.`
-    : `Li e analisei o site da campanha **${finalUrl}**! Criei uma estrutura de página de review de alta conversão para o produto **${productName}** no idioma **${targetLangName}** com avaliação 4.9/5, benefícios reais, prós e contras, depoimentos, perguntas frequentes e chamada para ação configurada.`;
-
-  return { message, content };
-}
-
 // Clamped history to send back to the AI on every turn — page content is never carried in the
 // message history anymore (it lives in the structured draft instead), so we no longer need the
 // old "strip HTML placeholder" hack, only a plain length clamp against payload bloat.
@@ -7318,62 +7062,23 @@ function sanitizeChatHistoryForPrompt(history: any[]): Array<{ role: string; con
   }));
 }
 
-// Strips ASCII control characters that break JSON.parse, escaping the three that carry real
-// meaning inside a string value (newline/carriage-return/tab) instead of just dropping them.
-function stripControlCharsForJson(input: string): string {
-  let out = "";
-  for (let i = 0; i < input.length; i++) {
-    const c = input[i];
-    const code = input.charCodeAt(i);
-    const isControlChar = code <= 0x1f || (code >= 0x7f && code <= 0x9f);
-    if (!isControlChar) {
-      out += c;
-      continue;
-    }
-    if (c === "\n") out += "\\n";
-    else if (c === "\r") out += "\\r";
-    else if (c === "\t") out += "\\t";
-  }
-  return out;
-}
-
-function parseAiJsonResponse(rawResponse: string): any | null {
-  let cleaned = rawResponse.trim();
-  cleaned = cleaned.replace(/^```(?:json)?/gi, "").replace(/```$/gi, "").trim();
-
-  const startIdx = cleaned.indexOf("{");
-  const endIdx = cleaned.lastIndexOf("}");
-  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-    cleaned = cleaned.substring(startIdx, endIdx + 1);
-  }
-
-  try {
-    return JSON.parse(cleaned);
-  } catch (parseErr: any) {
-    logger.warn({ parseErr: parseErr.message, cleanedPreview: cleaned.slice(0, 200) }, "First JSON parse attempt failed, attempting JSON string normalization");
-    try {
-      return JSON.parse(stripControlCharsForJson(cleaned));
-    } catch (secondErr: any) {
-      logger.error({ secondErr: secondErr.message }, "JSON normalization failed");
-      return null;
-    }
-  }
-}
-
 // Tries OpenRouter -> Groq -> Gemini in order, returns the first successful raw text response
 // (still JSON-ish text, not yet parsed) or null if every provider failed/is unconfigured.
-async function callChatProviders(systemPrompt: string, sanitizedHistory: Array<{ role: string; content: string }>, maxTokens: number, jsonMode: boolean = true): Promise<string | null> {
+// openRouterModel lets a caller request a specific OpenRouter-hosted model (e.g. a paid Claude
+// model) instead of the default free one — if that call fails (no credits, model unavailable),
+// it still falls through to Groq/Gemini rather than failing the whole chat.
+async function callChatProviders(systemPrompt: string, sanitizedHistory: Array<{ role: string; content: string }>, maxTokens: number, jsonMode: boolean = true, openRouterModel?: string): Promise<string | null> {
   const messages = [{ role: "system", content: systemPrompt }, ...sanitizedHistory];
 
   if (process.env.OPENROUTER_API_KEY) {
     try {
-      const r = await queryOpenRouter(messages, jsonMode, maxTokens);
+      const r = await queryOpenRouter(messages, jsonMode, maxTokens, openRouterModel);
       if (r && r.trim()) {
-        logger.info("queryReviewChat: OpenRouter AI response received successfully");
+        logger.info("callChatProviders: OpenRouter AI response received successfully");
         return r;
       }
     } catch (err: any) {
-      logger.warn({ err: err.message }, "queryReviewChat: OpenRouter API error, attempting Groq API...");
+      logger.warn({ err: err.message }, "callChatProviders: OpenRouter API error, attempting Groq API...");
     }
   }
 
@@ -7381,11 +7086,11 @@ async function callChatProviders(systemPrompt: string, sanitizedHistory: Array<{
     try {
       const r = await queryGroq(messages, jsonMode, maxTokens);
       if (r && r.trim()) {
-        logger.info("queryReviewChat: Groq AI response received successfully");
+        logger.info("callChatProviders: Groq AI response received successfully");
         return r;
       }
     } catch (err: any) {
-      logger.warn({ err: err.message }, "queryReviewChat: Groq API error, attempting Gemini API...");
+      logger.warn({ err: err.message }, "callChatProviders: Groq API error, attempting Gemini API...");
     }
   }
 
@@ -7414,226 +7119,200 @@ async function callChatProviders(systemPrompt: string, sanitizedHistory: Array<{
       const result = await chat.sendMessage(lastMessage);
       const geminiText = result.response.text();
       if (geminiText && geminiText.trim()) {
-        logger.info("queryReviewChat: Gemini AI response received successfully");
+        logger.info("callChatProviders: Gemini AI response received successfully");
         return geminiText;
       }
     } catch (err: any) {
-      logger.warn({ err: err.message }, "queryReviewChat: Gemini API error");
+      logger.warn({ err: err.message }, "callChatProviders: Gemini API error");
     }
   }
 
   return null;
 }
 
-// General conversational mode: no draft yet and not enough info to create a page (no URL and no
-// explicit "create" command), but the message is real content, not just a greeting or "I don't
-// have it" — e.g. a copywriting question or small talk. Answers directly, no Puppeteer, no draft.
-async function runReviewGeneralChat(history: any[]): Promise<{ message: string; content: null }> {
-  const systemPrompt = `Você é um Copywriter de Nível Mundial e especialista em CRO (Otimização de Taxa de Conversão), atuando como assistente de chat dentro de um criador de páginas de review de afiliados.
+// System prompt for the traffic-manager chat, sourced from the agente-gestor-trafego skill —
+// a senior paid-traffic manager persona for Google Ads/Meta Ads focused on affiliate offers.
+const TRAFFIC_MANAGER_SYSTEM_PROMPT = `Você é um **gestor de tráfego sênior** especializado em campanhas de performance para produtos de afiliados. Seu foco é **Google Ads Search/Display/PMax** e **Meta Ads (Facebook + Instagram)**. Você domina copy de alta conversão, estruturação de campanhas, compliance de plataformas e otimização por ROAS e CPA.
 
-O usuário ainda não enviou um link de produto para gerar uma página de review. Responda de forma útil, coerente e direta à mensagem dele — pode ser uma pergunta sobre copywriting, estratégia de anúncios, dúvidas gerais ou apenas conversa. NÃO invente nem finja que gerou uma página de review; isso só acontece quando ele enviar um link real.
+Você está atuando como assistente de chat dentro de uma plataforma de ferramentas para afiliados, ajudando o usuário nos primeiros passos com seus anúncios — desde a criação de uma campanha do zero até diagnóstico e otimização de campanhas existentes.
 
-Seja objetivo: no máximo 2 a 3 parágrafos curtos, sem tabelas nem listas longas (o chat exibe apenas texto simples, sem formatação markdown). Se fizer sentido no contexto, termine com um lembrete curto e natural de que, assim que ele enviar o link da landing page do produto, você gera a página de review completa automaticamente.
+---
 
-IMPORTANTE: responda SEMPRE no mesmo idioma em que o usuário escreveu a última mensagem (se ele escreveu em português, responda em português; se em espanhol, em espanhol; e assim por diante). Texto corrido, sem JSON, sem blocos de código.`;
+## MODO DE OPERAÇÃO
 
-  const sanitizedHistory = sanitizeChatHistoryForPrompt(history);
-  const rawResponse = await callChatProviders(systemPrompt, sanitizedHistory, 1100, false);
+Ao ser ativado, identifique o tipo de solicitação e execute o workflow correspondente:
 
-  if (rawResponse && rawResponse.trim()) {
-    return { message: rawResponse.trim(), content: null };
-  }
+| Tipo de solicitação | Workflow |
+|---|---|
+| Criar campanha do zero | Workflow A: Briefing Completo |
+| Criar copy / anúncio | Workflow B: Copy de Alta Conversão |
+| Criar extensões Google Ads | Workflow C: Extensões RSA |
+| Pesquisa de palavras-chave | Workflow D: Keyword Research |
+| Diagnóstico / otimização | Workflow E: Análise de Performance |
+| Meta Ads / Facebook / Instagram | Workflow F: Meta Ads |
+| Planejamento de funil | Workflow G: Funil de Tráfego Pago |
 
-  return { message: REVIEW_ASK_FOR_URL_MESSAGE, content: null };
-}
+Se não ficou claro, pergunte apenas uma coisa: "Você quer criar uma nova campanha do zero, ou precisa de ajuda com algum ativo específico (copy, palavras-chave, extensões, diagnóstico)?"
 
-// CREATE mode: no draft exists yet. Runs Puppeteer once (if a URL is present) and asks the AI for
-// a full ReviewPageContent JSON — never raw HTML — so a truncated/odd response can only ever
-// produce a page with generic-but-valid text, never a broken file.
-async function runReviewCreate(history: any[], userCombinedText: string): Promise<{ message: string; content: ReviewPageContent | null }> {
-  const urlMatch = userCombinedText.match(/https?:\/\/[^\s"'<>]+/i);
-  const affiliateUrl = urlMatch ? urlMatch[0] : "";
+---
 
-  let extractedText = "";
-  let extractedTitle = "";
-  let detectedLangCode = "es";
+## WORKFLOW A — BRIEFING COMPLETO (Campanha do Zero)
 
-  if (affiliateUrl) {
-    try {
-      logger.info({ affiliateUrl }, "queryReviewChat: Fetching reference HTML for campaign analysis...");
-      const fetched = await fetchReferenceHtml(affiliateUrl);
-      if (fetched && fetched.html) {
-        const raw = fetched.html;
+Conduza o usuário por 6 perguntas em sequência, uma de cada vez. Não pule etapas.
 
-        const titleMatch = raw.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i);
-        if (titleMatch) extractedTitle = titleMatch[1].replace(/[-|_].*$/, "").trim();
+1. **Produto e Plataforma**: nome do produto, plataforma de afiliado (Dr.Cash, Kiwi, Monetizze, Hotmart, Braip, LemonAd, outras), link do produto/LP de destino, comissão por venda ou CPA da oferta, ticket médio.
+2. **Mercado e Idioma**: país/mercado-alvo, idioma da campanha, se a presell já está criada (link, se sim), se a LP de destino é própria ou do produtor.
+3. **Objetivo e Orçamento**: objetivo principal (Vendas/Leads/Tráfego para presell), orçamento diário disponível, CPA-alvo desejado, se já tem campanhas rodando para esse produto.
+4. **Público e Concorrência**: faixa etária ideal, gênero (se relevante), palavras-chave que já usa ou suspeita que funcionam, concorrentes anunciando que conhece.
+5. **Tom e Diferencial**: principal benefício do produto em 1 frase, principal dor que resolve, prova social disponível, oferta especial/urgência/garantia.
+6. **Plataforma de Veiculação**: Google Ads (Search/Display/PMax/Discovery), Meta Ads (Feed/Instagram/Stories/Reels), ou ambas.
 
-        extractedText = raw.replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gi, "")
-          .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gi, "")
-          .replace(/<[^>]+>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim()
-          .slice(0, 3500);
+Após coletar tudo, gere o pacote completo de campanha (ver seção OUTPUT).
 
-        const langAttr = (raw.match(/<html\b[^>]*lang=["']([^"']+)["']/i) || [])[1];
-        detectedLangCode = langAttr && langAttr.length >= 2 ? langAttr.toLowerCase().slice(0, 2) : detectLanguageFromText(extractedText);
-      }
-    } catch (err: any) {
-      logger.warn({ err: err.message }, "queryReviewChat: Failed to fetch reference HTML");
-    }
-  }
+---
 
-  const productName = extractedTitle || "Produto Especial";
-  const targetLangName = REVIEW_LANG_NAMES[detectedLangCode] || "Espanhol (Spanish)";
+## WORKFLOW B — COPY DE ALTA CONVERSÃO
 
-  const systemPrompt = `Você é um Copywriter de Nível Mundial e especialista em CRO (Otimização de Taxa de Conversão).
-Sua missão é criar o CONTEÚDO ESTRUTURADO (não o HTML) de uma Página de Review de alta conversão baseada na leitura real do produto e da campanha fornecida.
+### Google Ads (RSA)
+Estrutura obrigatória: 15 headlines (máx. 30 caracteres cada), 4 descriptions (máx. 90 caracteres cada), palavra-chave principal nos primeiros 3 headlines, benefício principal no Headline 1 ou 2, CTA forte no último headline e description.
 
-## IDIOMA OBRIGATÓRIO (CRÍTICO):
-- TODO o conteúdo de texto DEVE ser 100% em: ${targetLangName}. JAMAIS responda em outro idioma.
+Fórmulas de headline: [Benefício Principal] + [Palavra-chave] | [Número] + [Resultado] + [Prazo] | [Dor] → [Solução] | [Prova Social] + [Resultado] | [Oferta/Urgência] + [CTA] | [Pergunta que a persona faz] | [Autoridade/Garantia].
 
-## CONTEÚDO LIDO E EXTRAÍDO DA PÁGINA DA CAMPANHA:
-- Produto / Título: ${productName}
-- URL de Destino: ${affiliateUrl || "#"}
-- Texto e Benefícios Extraídos do Site Original:
-${extractedText || "Produto de saúde, beleza e bem-estar."}
+Compliance Google Ads — PROIBIDO: afirmações de cura ou tratamento de doenças; garantias absolutas de resultado ("100% garantido", "perde 10kg em 7 dias"); superlativo sem prova ("o melhor", "o único"); linguagem médica sem aprovação; urgência falsa; excesso de !, ?, CAPS; caracteres especiais não permitidos em headlines (→, ©, ®, ™).
 
-Escreva textos curtos, persuasivos e específicos ao produto (evite genéricos). Evite promessas milagrosas e siga as políticas de anúncio do Google Ads.
+Compliance saúde/suplementos: nunca afirmar tratamento de condição médica específica; usar linguagem de suporte ("pode ajudar", "contribui para"); nunca citar substâncias controladas.
 
-FORMATO DE RESPOSTA (OBRIGATÓRIO, APENAS JSON, sem markdown, sem \`\`\`):
-{
-  "message": "Mensagem simpática (no idioma ${targetLangName}) explicando a análise feita e o que foi gerado.",
-  "productName": "${productName}",
-  "affiliateUrl": "${affiliateUrl || "#"}",
-  "langCode": "${detectedLangCode}",
-  "ratingBadge": "ex: ★ 4.9/5.0 (2.840 Avaliações)",
-  "heroTag": "tag curta acima do título",
-  "heroHeadline": "título principal chamativo",
-  "heroLead": "parágrafo de apoio do hero",
-  "ctaButtonText": "texto do botão principal",
-  "aboutTitle": "título da seção sobre o produto",
-  "aboutText": "parágrafo explicando o produto",
-  "prosTitle": "título da lista de prós",
-  "pros": ["3 a 4 vantagens específicas do produto"],
-  "consTitle": "título da lista de contras",
-  "cons": ["1 a 2 pontos de atenção honestos"],
-  "testimonialsTitle": "título da seção de depoimentos",
-  "testimonials": [{ "name": "Nome Fictício", "stars": 5, "quote": "depoimento curto" }],
-  "faqTitle": "título da seção de perguntas frequentes",
-  "faq": [{ "question": "pergunta", "answer": "resposta curta" }],
-  "verdictTitle": "título do veredito final",
-  "verdictText": "parágrafo de conclusão recomendando o produto",
-  "verdictCtaText": "texto do botão final",
-  "footerDisclaimer": "aviso legal curto de publicidade"
-}
-Inclua de 3 a 4 itens em "pros", 1 a 2 em "cons", 2 a 3 em "testimonials" e 3 em "faq".`;
+### Meta Ads (Facebook/Instagram)
+Estrutura do criativo: HOOK (1ª linha que para o scroll) → PROBLEMA (agitar a dor em 1-2 frases) → SOLUÇÃO (apresentar o produto) → PROVA SOCIAL (resultado ou depoimento) → CTA (chamada clara).
 
-  const sanitizedHistory = sanitizeChatHistoryForPrompt(history);
-  const rawResponse = await callChatProviders(systemPrompt, sanitizedHistory, 2200);
+Formatos: short copy (feed mobile, hook + 3 linhas + CTA, máx. 125 caracteres antes do "Ver mais"); long copy (hook expansivo + storytelling + prova + oferta + CTA + P.S.); Story/Reels (roteiro em 3 atos: problema → revelação → solução).
 
-  if (rawResponse) {
-    const parsed = parseAiJsonResponse(rawResponse);
-    if (parsed) {
-      const content = fillReviewContentDefaults(parsed, { productName, affiliateUrl: affiliateUrl || "#", langCode: parsed.langCode || detectedLangCode });
-      const message = typeof parsed.message === "string" && parsed.message.trim() ? parsed.message : `Página de review criada para ${productName}.`;
-      return { message, content };
-    }
-  }
+---
 
-  logger.info("queryReviewChat: Triggering fallback response (create)");
-  return buildFallbackReviewContent(history, { productName, affiliateUrl: affiliateUrl || "#", langCode: detectedLangCode });
-}
+## WORKFLOW C — EXTENSÕES GOOGLE ADS
 
-// UPDATE mode: a draft already exists. Puppeteer never runs here — the draft carries everything
-// the AI needs. The current draft is injected as JSON and the AI is instructed to change only
-// what the user asked for; on total provider failure we keep the previous draft untouched instead
-// of silently replacing it with a generic fallback, so an edit request can never lose prior work.
-async function runReviewUpdate(incomingDraft: Partial<ReviewPageContent>, lastUserMessage: string, history: any[]): Promise<{ message: string; content: ReviewPageContent }> {
-  const baseline = fillReviewContentDefaults(incomingDraft, {
-    productName: incomingDraft.productName || "Produto Especial",
-    affiliateUrl: incomingDraft.affiliateUrl || "#",
-    langCode: incomingDraft.langCode || "es"
-  });
+Sitelinks (mín. 4, ideal 6-8): título (máx. 25 car.) + linha 1 (máx. 35 car.) + linha 2 (máx. 35 car.). Temas: Como Funciona/Ingredientes, Depoimentos/Resultados, Garantia de Devolução, Compre Agora/Oferta Especial, FAQ, Frete Grátis.
 
-  const targetLangName = REVIEW_LANG_NAMES[baseline.langCode] || "Português (Portuguese)";
+Callouts (mín. 4, ideal 8-10): frase curta sem ponto (máx. 25 car.).
 
-  const systemPrompt = `Você é um Copywriter/Editor de páginas de review de alta conversão, atuando como assistente de chat.
-O usuário JÁ TEM uma página de review gerada, representada pelo JSON abaixo.
+Structured Snippets: cabeçalho (Características/Marcas/Serviços/Tipos) + 3-8 valores (máx. 25 car. cada).
 
-Primeiro, decida o que a ÚLTIMA MENSAGEM do usuário realmente pede:
-- Se for uma INSTRUÇÃO DE EDIÇÃO da página (ex: "muda a cor do botão", "troca o depoimento", "deixa o título mais chamativo"): aplique SOMENTE a alteração pedida, mantendo TODOS os demais campos EXATAMENTE IGUAIS ao original.
-- Se for uma PERGUNTA ou CONVERSA sobre copywriting, estratégia, ou qualquer outro assunto que NÃO seja um pedido de alteração da página (ex: "por que esse headline funciona?", "qual a melhor cor de botão pra conversão?", "me dá uma dica de CTA"): responda a pergunta de forma útil e coerente no campo "message", e devolva os campos do "CONTEÚDO ATUAL" TODOS EXATAMENTE IGUAIS, sem nenhuma alteração.
+Image Extensions: descreva a imagem ideal (produto, resultado, lifestyle — sem claims médicos).
 
-Mantenha o idioma ${targetLangName} em todos os campos de texto e nas respostas.
+---
 
-## CONTEÚDO ATUAL (JSON):
-${JSON.stringify(baseline)}
+## WORKFLOW D — KEYWORD RESEARCH
 
-## ÚLTIMA MENSAGEM DO USUÁRIO:
-"${lastUserMessage}"
+Camadas de intenção: compra direta ("comprar [produto]", alta temperatura) → solução para dor ("[dor] como resolver", média-alta) → informacional ("o que é [produto]", média) → concorrente ("[concorrente] alternativa", alta se compliance permitir).
 
-FORMATO DE RESPOSTA (OBRIGATÓRIO, APENAS JSON, sem markdown, sem \`\`\`):
-Retorne um objeto JSON com TODOS os campos do "CONTEÚDO ATUAL" acima (productName, affiliateUrl, langCode, ratingBadge, heroTag, heroHeadline, heroLead, ctaButtonText, aboutTitle, aboutText, prosTitle, pros, consTitle, cons, testimonialsTitle, testimonials, faqTitle, faq, verdictTitle, verdictText, verdictCtaText, footerDisclaimer) — alterados apenas se for uma edição pedida, ou idênticos se for uma pergunta/conversa — mais um campo adicional "message" com sua resposta (confirmando a alteração feita, OU respondendo a pergunta do usuário, conforme o caso).`;
+Estrutura de grupos: Marca do produto (exact+phrase) / Problema principal (broad modified) / Ingrediente principal (phrase+exact) / Concorrentes (exact) / Genérico solução (broad).
 
-  const sanitizedHistory = sanitizeChatHistoryForPrompt(history.slice(-6));
-  const rawResponse = await callChatProviders(systemPrompt, sanitizedHistory, 2200);
+Negative keywords padrão para suplementos: grátis, gratuito, download, pdf, bula, anvisa, reclame aqui, é golpe, é fraude, reclamação, como cancelar, reembolso, receita, prescrição, remédio (se não for medicamento).
 
-  if (rawResponse) {
-    const parsed = parseAiJsonResponse(rawResponse);
-    if (parsed) {
-      const content = fillReviewContentDefaults(parsed, { productName: baseline.productName, affiliateUrl: baseline.affiliateUrl, langCode: baseline.langCode });
-      const message = typeof parsed.message === "string" && parsed.message.trim() ? parsed.message : "Pronto, atualizei a página conforme pedido!";
-      return { message, content };
-    }
-  }
+---
 
-  logger.warn("queryReviewChat: Update failed on all providers, keeping previous draft unchanged");
-  return { message: "Não consegui aplicar a alteração agora (os provedores de IA falharam) — mantive a página como estava. Tente novamente em instantes.", content: baseline };
-}
+## WORKFLOW E — DIAGNÓSTICO E OTIMIZAÇÃO
 
-async function queryReviewChat(history: any[], incomingDraft: Partial<ReviewPageContent> | null): Promise<{ message: string; content: ReviewPageContent | null }> {
-  const userMsgs = history.filter((m: any) => m.role === "user").map((m: any) => m.content || "");
-  const lastUserMessage = (userMsgs[userMsgs.length - 1] || "").trim();
-  const userCombinedText = userMsgs.join(" ");
+Pergunte: métrica mais preocupante (CTR/CPC/CPA/ROAS/Taxa de Conversão), período analisado, estrutura atual, orçamento diário e gasto real, se pode compartilhar dados.
 
-  if (incomingDraft) {
-    return runReviewUpdate(incomingDraft, lastUserMessage, history);
-  }
+Diagnóstico por sintoma:
+- CTR baixo (<3% Search): headlines sem relação com a busca; falta de extensões; keywords genéricas; Ad Rank baixo.
+- CPC alto: Quality Score baixo; keywords competitivas; lance agressivo sem histórico.
+- Muitos cliques, zero conversão: problema na LP/presell (velocidade, UX, CTA); público errado; pixel não instalado; LP em idioma diferente da busca.
+- ROAS abaixo do break-even: CPA > comissão da oferta; ticket médio baixo para o CPC praticado; funil sem upsell/order bump.
 
-  const intent = detectReviewIntent(history);
-  if (intent.askForUrl) {
-    logger.info("queryReviewChat: Greeting/negative response, asking for URL without calling AI");
-    return { message: REVIEW_ASK_FOR_URL_MESSAGE, content: null };
-  }
-  if (!intent.hasEnoughInfo) {
-    logger.info("queryReviewChat: No page info yet, routing to general chat");
-    return runReviewGeneralChat(history);
-  }
-  return runReviewCreate(history, userCombinedText);
-}
+---
 
-router.post("/chat-review-expert", optionalAuth, async (req: any, res) => {
-  const { messages, draft } = req.body || {};
+## WORKFLOW F — META ADS
+
+Estrutura recomendada: Campanha (Conversões→Compras ou Lead) → Conjunto 1 (Público Amplo/Advantage+, com vídeo hook 15s + carrossel antes/depois + imagem estática+long copy) → Conjunto 2 (Retargeting: depoimento/prova social + oferta com urgência real).
+
+Segmentação saúde/suplementos: Advantage+ Audience; manual (interesses saúde/bem-estar/fitness + comportamento de compra online); Lookalike de compradores; exclusão de já convertidos.
+
+Compliance Meta Ads: proibido antes/depois de corpo humano explícito; proibido afirmações de cura/tratamento; permitido resultado de estilo de vida ("me sinto com mais energia"); cuidado com imagens de pessoas em situação de vulnerabilidade.
+
+---
+
+## WORKFLOW G — FUNIL DE TRÁFEGO PAGO
+
+Funil padrão: Anúncio (Google/Meta) → Presell Page (aumenta temperatura e filtra) → LP do Produtor/Order Form → Upsell/Order Bump (aumenta ticket) → Thank You Page (retargeting e LTV).
+
+KPIs por etapa: Anúncio→Clique (CTR >3% Search / >1.5% Display); Clique→Presell (rejeição <60%); Presell→LP (CTR botão >25%); LP→Compra (conv. >1.5% frio / >3% quente); Compra→Upsell (>15%).
+
+CPA break-even = Comissão × Taxa de aprovação (ex: Comissão $30 × 85% aprovação = CPA máximo $25.50).
+
+---
+
+## OUTPUT — PACOTE COMPLETO DE CAMPANHA
+
+Quando solicitado a criar campanha do zero, entregue: (1) Estrutura de Campanha (nome, objetivo, orçamento diário, estratégia de lance, período de teste 7-14 dias); (2) Grupos de Anúncio + Keywords por intenção; (3) Anúncios RSA (15 headlines + 4 descriptions) ou Criativos Meta (3 variações); (4) Extensões completas (Google); (5) Negative Keywords por categoria; (6) Checklist de Compliance; (7) Plano de Otimização D+7.
+
+---
+
+## REGRAS ABSOLUTAS DE COMPLIANCE
+
+Google Ads: nunca prometer resultado específico de saúde; nunca usar "cura"/"trata"/"elimina [doença]"; nunca comparar com medicamentos; nunca usar urgência artificial não verificável; URL final deve corresponder ao domínio da display URL.
+
+Meta Ads: sem imagens de antes/depois com corpo humano; sem linguagem que implique conhecimento do estado de saúde do usuário; sem afirmações sobre perda de peso específica; sem depoimentos com resultado garantido.
+
+Afiliados em geral: nunca criar anúncio sem o link de afiliado ativo; verificar política da plataforma (Dr.Cash, Kiwi, LemonAd etc.) para o país-alvo; testar o link de afiliado antes de escalar orçamento.
+
+---
+
+Responda sempre em português do Brasil, salvo se o usuário escrever em outro idioma. Seja direto, prático e específico — evite generalidades. Quando o usuário for iniciante, explique o "porquê" por trás das recomendações, não só o "o quê".`;
+
+router.post("/chat-traffic-manager", optionalAuth, async (req: any, res) => {
+  const { messages } = req.body || {};
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     res.status(400).json({ error: "Missing messages array" });
     return;
   }
 
   try {
-    const incomingDraft = sanitizeIncomingDraft(draft);
-    const { message, content } = await queryReviewChat(messages, incomingDraft);
-    const html = content ? renderReviewPageHtml(content) : "";
+    const sanitizedHistory = sanitizeChatHistoryForPrompt(messages);
 
-    res.json({
-      message,
-      draft: content,
-      html,
-      productName: content?.productName || "",
-      affiliateUrl: content?.affiliateUrl || ""
-    });
+    // Prefer Claude Sonnet (paid, via OpenRouter) for higher-quality advisory answers — this
+    // chat is meant to feel as capable as Claude's own chat, which the free-tier models can't
+    // reliably match. Gated by a daily token budget (SONNET_DAILY_TOKEN_LIMIT) so cost stays
+    // bounded; once the day's budget is spent, or if the call fails/there's no credit yet, this
+    // falls through to the existing free cascade (OpenRouter free model -> Groq -> Gemini) so the
+    // chat keeps working regardless.
+    let reply: string | null = null;
+    if (process.env.OPENROUTER_API_KEY) {
+      const usedToday = await getTodaySonnetTokenUsage();
+      if (usedToday < SONNET_DAILY_TOKEN_LIMIT) {
+        try {
+          const result = await openRouterRequest(
+            [{ role: "system", content: TRAFFIC_MANAGER_SYSTEM_PROMPT }, ...sanitizedHistory],
+            false,
+            2000,
+            "anthropic/claude-sonnet-4.5"
+          );
+          if (result.text && result.text.trim()) {
+            reply = result.text;
+            await addSonnetTokenUsage(result.usage?.total_tokens || 0);
+          }
+        } catch (err: any) {
+          logger.warn({ err: err.message }, "chat-traffic-manager: Sonnet via OpenRouter failed, falling back to free providers");
+        }
+      } else {
+        logger.info({ usedToday, limit: SONNET_DAILY_TOKEN_LIMIT }, "chat-traffic-manager: daily Sonnet token budget reached, using free providers");
+      }
+    }
+
+    if (!reply || !reply.trim()) {
+      reply = await callChatProviders(TRAFFIC_MANAGER_SYSTEM_PROMPT, sanitizedHistory, 2000, false);
+    }
+
+    if (!reply || !reply.trim()) {
+      res.status(502).json({ error: "Não foi possível obter resposta da IA no momento. Tente novamente em instantes." });
+      return;
+    }
+
+    res.json({ message: reply.trim() });
   } catch (err: any) {
-    logger.error({ err: err.message }, "Error in chat-review-expert route");
-    res.status(500).json({ error: "Erro ao processar chat com IA especialista." });
+    logger.error({ err: err.message }, "Error in chat-traffic-manager route");
+    res.status(500).json({ error: "Erro ao processar chat com o gestor de tráfego." });
   }
 });
 

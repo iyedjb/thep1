@@ -4,7 +4,7 @@ import https from "https";
 import { requireAuth } from "./auth";
 import { CreateKeywordBody } from "@workspace/api-zod";
 import { analyzeKeywordWithAI, generateKeywordSuggestionsWithAI, getTopKeywordsByTheme, getRealProductRankingsWithAI, getKeywordMetricsWithAI } from "../lib/gemini";
-import { getKeywordMetrics, getKeywordIdeas, getKeywordMetricsBatch } from "../lib/google-ads";
+import { getKeywordMetrics, getKeywordIdeas, getKeywordMetricsBatch, isGoogleAdsConfigured } from "../lib/google-ads";
 import { logger } from "../lib/logger";
 import { getGoogleAdsConnection } from "../lib/google-ads-connections";
 
@@ -48,33 +48,29 @@ router.get("/keywords/suggestions", requireAuth, async (req: any, res) => {
     return;
   }
 
-  // If Google Ads is not configured, fall back directly to Gemini AI
+  // Use the user's own Google Ads connection if they have one; otherwise fall
+  // back to the platform's shared Google Ads account so every user still gets
+  // real Keyword Planner data (search volume/CPC/competition are not
+  // account-specific, so the shared account works for anyone).
   const connection = await getGoogleAdsConnection(req.userId);
-  if (!connection?.customerId) {
+  const credentials = connection?.customerId ? toCredentials(connection) : undefined;
+
+  if (isGoogleAdsConfigured(credentials)) {
     try {
-      const suggestions = await generateKeywordSuggestionsWithAI(seed, location);
-      res.json({ suggestions, source: "gemini-ai", message: "Google Ads não configurado. Utilizando sugestões de IA." });
-    } catch (err: any) {
-      res.status(500).json({ error: "Failed to generate suggestions with AI: " + err.message });
+      const ideas = await getKeywordIdeas(seed, location, credentials);
+      res.json({ suggestions: ideas, source: "google-keyword-planner" });
+      return;
+    } catch (error: any) {
+      // If Google Ads fails (e.g. CUSTOMER_NOT_ENABLED), fall back to Gemini AI instead of failing
+      logger.warn({ err: error.message }, "Google Ads keyword suggestions failed, falling back to Gemini AI");
     }
-    return;
   }
 
   try {
-    const ideas = await getKeywordIdeas(seed, location, toCredentials(connection));
-    res.json({ suggestions: ideas, source: "google-keyword-planner" });
-  } catch (error: any) {
-    // If Google Ads fails (e.g. CUSTOMER_NOT_ENABLED), fall back to Gemini AI instead of failing
-    try {
-      const suggestions = await generateKeywordSuggestionsWithAI(seed, location);
-      res.json({
-        suggestions,
-        source: "gemini-ai-fallback",
-        message: `Falha ao conectar ao Google Ads (${error.message || error}). Utilizando sugestões de IA.`
-      });
-    } catch (aiErr: any) {
-      res.status(500).json({ error: "Failed to fetch suggestions: " + error.message });
-    }
+    const suggestions = await generateKeywordSuggestionsWithAI(seed, location);
+    res.json({ suggestions, source: "gemini-ai", message: "Não foi possível obter dados do Google Ads. Utilizando sugestões de IA." });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to generate suggestions with AI: " + err.message });
   }
 });
 
@@ -107,13 +103,18 @@ router.get("/keywords/stats", requireAuth, async (req: any, res) => {
   const kwList = keywordsStr.split(",").map(k => k.trim()).filter(Boolean);
   const results: any[] = [];
 
+  // Use the user's own Google Ads connection if they have one; otherwise fall
+  // back to the platform's shared Google Ads account so every user still gets
+  // real auction/CPC data (search volume/CPC/competition are not
+  // account-specific, so the shared account works for anyone).
   const connection = await getGoogleAdsConnection(req.userId);
+  const credentials = connection?.customerId ? toCredentials(connection) : undefined;
   let batchMetrics: Record<string, any> = {};
   let googleAdsSuccess = false;
 
-  if (connection?.customerId) {
+  if (isGoogleAdsConfigured(credentials)) {
     try {
-      batchMetrics = await getKeywordMetricsBatch(kwList, location, toCredentials(connection));
+      batchMetrics = await getKeywordMetricsBatch(kwList, location, credentials);
       googleAdsSuccess = true;
     } catch (err: any) {
       logger.warn({ err: err.message }, "Google Ads batch stats call failed, falling back to Gemini AI");
@@ -522,9 +523,10 @@ router.post("/keywords", requireAuth, async (req: any, res) => {
   let realTrends: Array<{ month: string; volume: number }> | undefined;
 
   const connection = await getGoogleAdsConnection(req.userId);
-  if (connection?.customerId) {
+  const credentials = connection?.customerId ? toCredentials(connection) : undefined;
+  if (isGoogleAdsConfigured(credentials)) {
     try {
-      const realMetrics = await getKeywordMetrics(keyword, locationStr, toCredentials(connection));
+      const realMetrics = await getKeywordMetrics(keyword, locationStr, credentials);
       if (realMetrics) {
         searchVolume = realMetrics.avgMonthlySearches;
         competition = realMetrics.competition;

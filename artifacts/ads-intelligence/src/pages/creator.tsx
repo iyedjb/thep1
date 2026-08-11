@@ -77,44 +77,8 @@ interface SavedWebsite {
   lemonPhpFileName?: string;
 }
 
-interface ReviewTestimonial {
-  name: string;
-  stars: number;
-  quote: string;
-}
-
-interface ReviewFaqItem {
-  question: string;
-  answer: string;
-}
-
-interface ReviewPageContent {
-  productName: string;
-  affiliateUrl: string;
-  langCode: string;
-  ratingBadge: string;
-  heroTag: string;
-  heroHeadline: string;
-  heroLead: string;
-  ctaButtonText: string;
-  aboutTitle: string;
-  aboutText: string;
-  prosTitle: string;
-  pros: string[];
-  consTitle: string;
-  cons: string[];
-  testimonialsTitle: string;
-  testimonials: ReviewTestimonial[];
-  faqTitle: string;
-  faq: ReviewFaqItem[];
-  verdictTitle: string;
-  verdictText: string;
-  verdictCtaText: string;
-  footerDisclaimer: string;
-}
-
-const CHAT_STORAGE_KEY = "presell_chat_state";
-const CHAT_GREETING = "Olá! Sou seu especialista em criação de páginas de review de alta conversão. Para começarmos, me diga qual é o nome do produto e o link de afiliado, ou qualquer outro detalhe de design/texto que você prefira.";
+const TRAFFIC_CHAT_STORAGE_KEY = "traffic_manager_chat_state";
+const TRAFFIC_CHAT_GREETING = "Olá! Sou seu gestor de tráfego especializado em Google Ads e Meta Ads para produtos de afiliados. Posso te ajudar a criar uma campanha do zero, escrever copy de alta conversão, montar extensões, pesquisar palavras-chave ou diagnosticar uma campanha que já está rodando. Por onde quer começar?";
 
 export default function Creator() {
   const { toast } = useToast();
@@ -159,17 +123,13 @@ export default function Creator() {
 
   const [savedWebsites, setSavedWebsites] = useState<SavedWebsite[]>([]);
 
-  const [activeMode, setActiveMode] = useState<"redirect" | "chat">("redirect");
-  const [chatMessages, setChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([
-    { role: "assistant", content: CHAT_GREETING }
+  const [activeMode, setActiveMode] = useState<"redirect" | "traffic">("redirect");
+  const [trafficChatMessages, setTrafficChatMessages] = useState<Array<{ role: "user" | "assistant"; content: string }>>([
+    { role: "assistant", content: TRAFFIC_CHAT_GREETING }
   ]);
-  const [chatInput, setChatInput] = useState("");
-  const [isChatSending, setIsChatSending] = useState(false);
-  const [chatGeneratedHtml, setChatGeneratedHtml] = useState("");
-  const [chatProductName, setChatProductName] = useState("");
-  const [chatAffiliateUrl, setChatAffiliateUrl] = useState("");
-  const [chatDraft, setChatDraft] = useState<ReviewPageContent | null>(null);
-  const [chatStateLoaded, setChatStateLoaded] = useState(false);
+  const [trafficChatInput, setTrafficChatInput] = useState("");
+  const [isTrafficChatSending, setIsTrafficChatSending] = useState(false);
+  const [trafficChatStateLoaded, setTrafficChatStateLoaded] = useState(false);
 
   const fetchPresells = async () => {
     try {
@@ -199,94 +159,42 @@ export default function Creator() {
     }
   };
 
-  const handleChatSend = async (e: React.FormEvent) => {
+  const handleTrafficChatSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatInput.trim() || isChatSending) return;
+    if (!trafficChatInput.trim() || isTrafficChatSending) return;
 
-    const userMsg = chatInput.trim();
-    setChatInput("");
-    
-    const newMessages = [...chatMessages, { role: "user" as const, content: userMsg }];
-    setChatMessages(newMessages);
-    setIsChatSending(true);
+    const userMsg = trafficChatInput.trim();
+    setTrafficChatInput("");
+
+    const newMessages = [...trafficChatMessages, { role: "user" as const, content: userMsg }];
+    setTrafficChatMessages(newMessages);
+    setIsTrafficChatSending(true);
 
     const token = localStorage.getItem("ads_token");
     try {
-      const response = await fetch("/api/chat-review-expert", {
+      const response = await fetch("/api/chat-traffic-manager", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": token ? `Bearer ${token}` : ""
         },
-        body: JSON.stringify({ messages: newMessages, draft: chatDraft })
+        body: JSON.stringify({ messages: newMessages })
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Erro ao conversar com a IA.");
+      if (!response.ok) throw new Error(data.error || "Erro ao conversar com o gestor de tráfego.");
 
-      setChatMessages(prev => [...prev, { role: "assistant" as const, content: data.message }]);
-
-      if (data.draft) setChatDraft(data.draft);
-
-      if (data.html) {
-        setChatGeneratedHtml(data.html);
-        if (data.productName) setChatProductName(data.productName);
-        if (data.affiliateUrl) setChatAffiliateUrl(data.affiliateUrl);
-
-        // Auto save review metadata to history database
-        try {
-          const dbRes = await fetch("/api/presells", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": token ? `Bearer ${token}` : ""
-            },
-            body: JSON.stringify({
-              referenceUrl: "",
-              destinationUrl: data.affiliateUrl || chatAffiliateUrl || "#",
-              productName: data.productName || chatProductName || "Página de Review",
-              productCategory: "Review",
-              selectedOption: "review"
-            })
-          });
-          if (dbRes.ok) {
-            fetchPresells();
-          }
-        } catch (dbErr) {
-          console.error("Erro ao salvar a review no banco de dados", dbErr);
-        }
-      }
+      setTrafficChatMessages(prev => [...prev, { role: "assistant" as const, content: data.message }]);
     } catch (err: any) {
       toast({ title: "Erro no Chat", description: err.message, variant: "destructive" });
     } finally {
-      setIsChatSending(false);
+      setIsTrafficChatSending(false);
     }
   };
 
-  const handleChatDownload = () => {
-    if (!chatGeneratedHtml) return;
+  const handleTrafficChatReset = () => {
+    setTrafficChatMessages([{ role: "assistant", content: TRAFFIC_CHAT_GREETING }]);
     try {
-      const blob = new Blob([chatGeneratedHtml], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const cleanName = (chatProductName || "review").toLowerCase().replace(/[^a-z0-9]/g, "-");
-      a.download = `review-${cleanName}.html`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast({ title: "Download Iniciado ⬇️", description: "O arquivo HTML da página de review foi baixado com sucesso." });
-    } catch (err: any) {
-      toast({ title: "Erro ao baixar arquivo", description: err.message, variant: "destructive" });
-    }
-  };
-
-  const handleChatReset = () => {
-    setChatMessages([{ role: "assistant", content: CHAT_GREETING }]);
-    setChatGeneratedHtml("");
-    setChatProductName("");
-    setChatAffiliateUrl("");
-    setChatDraft(null);
-    try {
-      localStorage.removeItem(CHAT_STORAGE_KEY);
+      localStorage.removeItem(TRAFFIC_CHAT_STORAGE_KEY);
     } catch (err) {
       console.error("Erro ao limpar chat salvo", err);
     }
@@ -317,32 +225,26 @@ export default function Creator() {
     fetchDefaultToken();
 
     try {
-      const savedChatState = localStorage.getItem(CHAT_STORAGE_KEY);
+      const savedChatState = localStorage.getItem(TRAFFIC_CHAT_STORAGE_KEY);
       if (savedChatState) {
         const parsed = JSON.parse(savedChatState);
-        if (Array.isArray(parsed.chatMessages) && parsed.chatMessages.length > 0) setChatMessages(parsed.chatMessages);
-        if (parsed.chatDraft) setChatDraft(parsed.chatDraft);
-        if (parsed.chatGeneratedHtml) setChatGeneratedHtml(parsed.chatGeneratedHtml);
-        if (parsed.chatProductName) setChatProductName(parsed.chatProductName);
-        if (parsed.chatAffiliateUrl) setChatAffiliateUrl(parsed.chatAffiliateUrl);
+        if (Array.isArray(parsed.trafficChatMessages) && parsed.trafficChatMessages.length > 0) setTrafficChatMessages(parsed.trafficChatMessages);
       }
     } catch (err) {
       console.error("Erro ao restaurar chat salvo", err);
     } finally {
-      setChatStateLoaded(true);
+      setTrafficChatStateLoaded(true);
     }
   }, []);
 
   useEffect(() => {
-    if (!chatStateLoaded) return;
+    if (!trafficChatStateLoaded) return;
     try {
-      localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify({
-        chatMessages, chatDraft, chatGeneratedHtml, chatProductName, chatAffiliateUrl
-      }));
+      localStorage.setItem(TRAFFIC_CHAT_STORAGE_KEY, JSON.stringify({ trafficChatMessages }));
     } catch (err) {
       console.error("Erro ao salvar chat no localStorage", err);
     }
-  }, [chatStateLoaded, chatMessages, chatDraft, chatGeneratedHtml, chatProductName, chatAffiliateUrl]);
+  }, [trafficChatStateLoaded, trafficChatMessages]);
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -698,15 +600,15 @@ export default function Creator() {
               </button>
               <button
                 type="button"
-                onClick={() => { setActiveMode("chat"); }}
+                onClick={() => { setActiveMode("traffic"); }}
                 className={`px-4 py-2 text-xs font-bold rounded-lg transition-all duration-200 flex items-center gap-1.5 ${
-                  activeMode === "chat"
+                  activeMode === "traffic"
                     ? "bg-primary text-primary-foreground shadow-xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                Chat Especialista (Review)
+                Gestor de Tráfego
               </button>
             </div>
 
@@ -919,6 +821,8 @@ export default function Creator() {
                           <option value="nl">Holandês (nl)</option>
                           <option value="sv">Sueco (sv)</option>
                           <option value="da">Dinamarquês (da)</option>
+                          <option value="fi">Finlandês (fi)</option>
+                          <option value="no">Norueguês (no)</option>
                           <option value="ro">Romeno (ro)</option>
                           <option value="pl">Polonês (pl)</option>
                           <option value="ar">Árabe (ar)</option>
@@ -1232,28 +1136,28 @@ export default function Creator() {
               </>
             )}
 
-            {/* Chat Mode Panel */}
-            {activeMode === "chat" && (
+            {/* Traffic Manager Chat Panel */}
+            {activeMode === "traffic" && (
               <div className="space-y-4 animate-slide-up">
                 <Card className="border border-border bg-card shadow-md rounded-2xl overflow-hidden">
                   <div className="h-1 w-full bg-gradient-to-r from-primary via-violet-500 to-primary" />
-                  <CardContent className="p-6 space-y-4 flex flex-col h-[520px]">
+                  <CardContent className="p-6 space-y-4 flex flex-col h-[640px]">
                     <div className="flex items-center justify-between border-b border-border pb-3">
                       <div>
                         <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
                           <Sparkles className="h-4 w-4 text-primary animate-pulse" />
-                          Chat Especialista (Review Page)
+                          Gestor de Tráfego
                         </h2>
-                        <p className="text-[10px] text-muted-foreground">Otimizado com inteligência CRO e Google Ads Compliance.</p>
+                        <p className="text-[10px] text-muted-foreground">Google Ads e Meta Ads para produtos de afiliados — campanhas, copy, keywords e diagnóstico.</p>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={handleChatReset} className="h-7 text-[10px] rounded-lg text-muted-foreground hover:text-foreground">
+                      <Button variant="ghost" size="sm" onClick={handleTrafficChatReset} className="h-7 text-[10px] rounded-lg text-muted-foreground hover:text-foreground">
                         Resetar Chat
                       </Button>
                     </div>
 
                     {/* Chat Messages Log */}
                     <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-xs">
-                      {chatMessages.map((msg, idx) => (
+                      {trafficChatMessages.map((msg, idx) => (
                         <div key={idx} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
                           <div className={`max-w-[85%] rounded-2xl p-3 leading-relaxed ${
                             msg.role === "user"
@@ -1261,85 +1165,39 @@ export default function Creator() {
                               : "bg-muted/80 text-foreground rounded-tl-none border border-border/40"
                           }`}>
                             <p className="font-semibold text-[10px] opacity-80 mb-1">
-                              {msg.role === "user" ? "Você" : "Especialista CRO"}
+                              {msg.role === "user" ? "Você" : "Gestor de Tráfego"}
                             </p>
                             <p className="whitespace-pre-line text-[11px]">{msg.content}</p>
                           </div>
                         </div>
                       ))}
-                      {isChatSending && (
+                      {isTrafficChatSending && (
                         <div className="flex justify-start">
                           <div className="bg-muted/60 text-muted-foreground rounded-2xl rounded-tl-none p-3 border border-border/30 max-w-[85%] flex items-center gap-2">
                             <Loader2 className="h-3.5 w-3.5 animate-spin text-primary mr-1" />
-                            <span className="text-[10px] font-medium">Escrevendo código e copy...</span>
+                            <span className="text-[10px] font-medium">Pensando na melhor estratégia...</span>
                           </div>
                         </div>
                       )}
                     </div>
 
                     {/* Chat Input form */}
-                    <form onSubmit={handleChatSend} className="flex gap-2 pt-2 border-t border-border/40">
+                    <form onSubmit={handleTrafficChatSend} className="flex gap-2 pt-2 border-t border-border/40">
                       <Input
                         type="text"
-                        placeholder="Instruções da página (Ex: Review do LiftCaps...)"
-                        value={chatInput}
-                        onChange={(e) => setChatInput(e.target.value)}
+                        placeholder="Ex: Quero criar uma campanha do zero para meu produto..."
+                        value={trafficChatInput}
+                        onChange={(e) => setTrafficChatInput(e.target.value)}
                         className="rounded-xl h-10 text-xs bg-muted/40 border-border focus-visible:ring-primary placeholder:text-muted-foreground/60 flex-1"
-                        disabled={isChatSending}
+                        disabled={isTrafficChatSending}
                         required
                       />
-                      <Button type="submit" size="sm" className="rounded-xl h-10 px-4 bg-primary text-primary-foreground hover:bg-primary/95" disabled={isChatSending}>
+                      <Button type="submit" size="sm" className="rounded-xl h-10 px-4 bg-primary text-primary-foreground hover:bg-primary/95" disabled={isTrafficChatSending}>
                         Enviar
                       </Button>
                     </form>
                   </CardContent>
                 </Card>
-
-                {/* Chat Generation Output Sidepanel */}
-                {chatGeneratedHtml && (
-                  <Card className="border border-emerald-500/25 bg-emerald-500/5 rounded-2xl overflow-hidden animate-slide-up">
-                    <CardContent className="p-5 space-y-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center border border-emerald-500/25">
-                          <CheckCircle className="h-4 w-4 text-emerald-500" />
-                        </div>
-                        <div>
-                          <h3 className="text-xs font-bold text-foreground">Página de Review Pronta! 🚀</h3>
-                          <p className="text-[10px] text-muted-foreground">HTML compilado com sucesso de acordo com as instruções.</p>
-                        </div>
-                      </div>
-
-                      <div className="bg-card border border-border/50 rounded-xl p-3.5 space-y-1.5 text-[11px]">
-                        <div className="flex justify-between items-center py-0.5">
-                          <span className="text-muted-foreground">Produto:</span>
-                          <span className="font-bold text-foreground">{chatProductName || "N/A"}</span>
-                        </div>
-                        <div className="flex justify-between items-center py-0.5">
-                          <span className="text-muted-foreground">Destino:</span>
-                          <span className="font-mono text-primary truncate max-w-[150px]">{chatAffiliateUrl || "#"}</span>
-                        </div>
-                      </div>
-
-                      <div className="rounded-xl border border-border/50 overflow-hidden h-[420px] bg-white">
-                        <iframe
-                          srcDoc={chatGeneratedHtml}
-                          sandbox="allow-scripts"
-                          title="Preview da Página de Review"
-                          className="w-full h-full border-0"
-                        />
-                      </div>
-
-                      <Button
-                        type="button"
-                        size="lg"
-                        onClick={handleChatDownload}
-                        className="w-full rounded-xl h-11 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 transition-all shadow-md shadow-emerald-600/10"
-                      >
-                        <Download className="h-4 w-4" /> Baixar Review (HTML)
-                      </Button>
-                    </CardContent>
-                  </Card>
-                )}
               </div>
             )}
           </div>
@@ -1447,36 +1305,26 @@ export default function Creator() {
                                   <div className="flex items-center justify-end gap-0.5">
                                     <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60"
                                       onClick={() => {
-                                        if (site.selectedOption === "review") {
-                                          setActiveMode("chat");
-                                          setChatProductName(site.productName || "");
-                                          setChatAffiliateUrl(site.destinationUrl || "");
-                                          setChatMessages([
-                                            { role: "assistant", content: `Olá! Carreguei as configurações do produto '${site.productName}' e o link '${site.destinationUrl}' para esta página de review. O que gostaria de alterar ou gerar para ela?` }
-                                          ]);
-                                          setChatGeneratedHtml("");
-                                        } else {
-                                          setDestinationUrl(site.destinationUrl);
-                                          setReferenceUrl(site.referenceUrl || "");
-                                          setScripts(site.scripts.length > 0 ? site.scripts : [""]);
-                                          setProductName(site.productName || "");
-                                          setProductHeadline(site.productHeadline || "");
-                                          setProductDescription(site.productDescription || "");
-                                          setProductCategory(site.productCategory || "Saúde & Bem-estar");
-                                          setCtaText(site.ctaText || "Ir para o Site Oficial");
-                                          setSupportEmail(site.supportEmail || "");
-                                          setApiToken(site.apiToken || "");
-                                          setStreamCode(site.streamCode || "");
-                                          setLeadNetwork(site.leadNetwork || (site.apiToken && site.streamCode ? "drcash" : "none"));
-                                          setLemonOfferId(site.lemonOfferId || "");
-                                          setLemonWebmasterToken(site.lemonWebmasterToken || "");
-                                          setLemonCost(site.lemonCost || "");
-                                          setLemonPhpHtml(site.lemonPhpHtml || "");
-                                          setLemonPhpFileName(site.lemonPhpFileName || "");
-                                          setSelectedOption(site.selectedOption || "a");
-                                          setActiveMode("redirect");
-                                          setStep("form");
-                                        }
+                                        setDestinationUrl(site.destinationUrl);
+                                        setReferenceUrl(site.referenceUrl || "");
+                                        setScripts(site.scripts.length > 0 ? site.scripts : [""]);
+                                        setProductName(site.productName || "");
+                                        setProductHeadline(site.productHeadline || "");
+                                        setProductDescription(site.productDescription || "");
+                                        setProductCategory(site.productCategory || "Saúde & Bem-estar");
+                                        setCtaText(site.ctaText || "Ir para o Site Oficial");
+                                        setSupportEmail(site.supportEmail || "");
+                                        setApiToken(site.apiToken || "");
+                                        setStreamCode(site.streamCode || "");
+                                        setLeadNetwork(site.leadNetwork || (site.apiToken && site.streamCode ? "drcash" : "none"));
+                                        setLemonOfferId(site.lemonOfferId || "");
+                                        setLemonWebmasterToken(site.lemonWebmasterToken || "");
+                                        setLemonCost(site.lemonCost || "");
+                                        setLemonPhpHtml(site.lemonPhpHtml || "");
+                                        setLemonPhpFileName(site.lemonPhpFileName || "");
+                                        setSelectedOption(site.selectedOption === "b" ? "b" : "a");
+                                        setActiveMode("redirect");
+                                        setStep("form");
                                         setActiveView("create");
                                         toast({ title: "Configuração carregada!", description: "Campos preenchidos com os parâmetros selecionados." });
                                       }}
