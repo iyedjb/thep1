@@ -276,7 +276,9 @@ export default function Creator() {
     setGeneratedHtml(""); setPublishedUrl(""); setDesignSummary("");
 
     setTimeout(() => setGeneratingMessage("🧠 Treinando contexto com skills de presell e upsell..."), 900);
-    setTimeout(() => setGeneratingMessage("⚡ Gerando HTML world-class com Groq GPT-OSS 120B..."), 1800);
+    setTimeout(() => setGeneratingMessage(keepOriginalStructure
+      ? "⚡ Revisando a estrutura original com Groq..."
+      : "⚡ Gerando a nova página com Groq..."), 1800);
 
     try {
       const response = await fetch("/api/generate-bridge-ai", {
@@ -735,7 +737,10 @@ export default function Creator() {
                         aria-label="Voltar para minhas presells"
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-background text-lg text-primary shadow-[0_6px_20px_rgba(15,23,42,0.06)] hover:bg-primary/[0.06]"
                       >
-                        ←
+                        <span className="relative block h-3.5 w-4" aria-hidden="true">
+                          <span className="absolute left-0 top-1/2 h-px w-4 -translate-y-1/2 bg-current" />
+                          <span className="absolute left-0 top-[3px] h-2 w-2 rotate-45 border-b border-l border-current" />
+                        </span>
                       </button>
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-foreground">Nova presell</p>

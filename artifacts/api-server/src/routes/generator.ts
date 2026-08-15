@@ -4357,8 +4357,8 @@ function chunkComplianceCandidates(list: ComplianceCandidateItem[], maxChars = 1
   return chunks;
 }
 
-// Runs one batch of candidates through the provider cascade, returns the rewrite mapping for
-// just that batch (or null if all three providers failed/returned unusable output for it).
+// Runs one batch through Groq. The keep-original-structure path deliberately has one
+// provider so it cannot silently drift to a different model or router.
 async function runComplianceBatch(batch: ComplianceCandidateItem[]): Promise<Array<{ original?: string; rewritten?: string }> | null> {
   const systemMessage = { role: "system", content: COMPLIANCE_SYSTEM_PROMPT };
   const userMessage = {
@@ -4369,29 +4369,22 @@ Textos para analisar:
 ${JSON.stringify(batch.map(c => c.plain), null, 2)}`
   };
 
-  // Provider chain: OpenRouter (free, currently the only reliably available one) -> Groq ->
-  // Gemini -> local dictionary. A provider that resolves with an empty/unparseable response
-  // (no exception thrown) must also cascade to the next one instead of dropping straight to
-  // the local dictionary — confirmed happening in practice with OpenRouter's free-tier model.
-  const providers: Array<{ name: string; run: () => Promise<string> }> = [
-    { name: "OpenRouter", run: () => queryOpenRouter([systemMessage, userMessage], true, 4000) },
-    { name: "Groq", run: () => queryGroq([systemMessage, userMessage], true) },
-    { name: "Gemini", run: () => queryGemini(COMPLIANCE_SYSTEM_PROMPT, userMessage.content, true) }
-  ];
-
-  for (const provider of providers) {
-    try {
-      const responseText = await provider.run();
-      const parsed = JSON.parse(responseText);
-      if (!parsed || !Array.isArray(parsed.respostas) || parsed.respostas.length === 0) {
-        throw new Error("Response parsed but contained no rewrites");
-      }
-      return parsed.respostas;
-    } catch (err: any) {
-      logger.warn({ err: err.message, provider: provider.name }, "Compliance rewriter provider failed or returned unusable response, trying next...");
-    }
+  if (!process.env.GROQ_API_KEY) {
+    logger.error("Compliance rewriter: GROQ_API_KEY is not configured");
+    return null;
   }
-  return null;
+
+  try {
+    const responseText = await queryGroq([systemMessage, userMessage], true, 5000);
+    const parsed = extractJsonObject(responseText);
+    if (!parsed || !Array.isArray(parsed.respostas) || parsed.respostas.length === 0) {
+      throw new Error("Groq response contained no compliance rewrites");
+    }
+    return parsed.respostas;
+  } catch (err: any) {
+    logger.warn({ err: err.message }, "Compliance rewriter: Groq response failed; applying local safety dictionary");
+    return null;
+  }
 }
 
 async function rewriteClaimsForCompliance(html: string): Promise<{ html: string; aiFailed: boolean }> {
@@ -4426,8 +4419,7 @@ async function rewriteClaimsForCompliance(html: string): Promise<{ html: string;
     let rewritesCount = 0;
     let anyBatchFailed = false;
 
-    // Sequential (not parallel) on purpose — the free-tier providers here are rate-limit
-    // fragile, and firing every batch at once would make that worse, not better.
+    // Sequential on purpose so a large cloned page stays within Groq rate limits.
     for (const batch of batches) {
       const responsesArray = await runComplianceBatch(batch);
       if (!responsesArray) {

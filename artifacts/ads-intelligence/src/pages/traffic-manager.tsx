@@ -130,7 +130,7 @@ export default function TrafficManager() {
         </div>
       </main>
 
-      <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-white via-white/95 to-transparent px-6 pb-8 pt-14 sm:px-10">
+      <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-white via-white/95 to-transparent px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-12 md:px-10 md:pb-8 md:pt-14">
         <form onSubmit={send} className="pointer-events-auto mx-auto flex w-full max-w-3xl items-center gap-2">
           <div className="flex h-[54px] min-w-0 flex-1 items-center rounded-[27px] border border-slate-200/80 bg-white/85 px-5 shadow-[0_8px_32px_rgba(15,23,42,0.08)] backdrop-blur-sm">
             <Input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Pergunte ao Gestor de Tráfego" className="h-full flex-1 border-0 bg-transparent px-0 text-[16px] font-medium text-slate-900 shadow-none placeholder:text-[#9CA3AF] focus-visible:ring-0" />

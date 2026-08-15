@@ -2,12 +2,13 @@ import { ReactNode, useEffect, useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
 import { useGetMe } from "@workspace/api-client-react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Sun, Moon, ChevronDown, RefreshCw } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { MobileBottomNavigation, MobileProfileMenu } from "./mobile-navigation";
 
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -140,18 +141,28 @@ export function Layout({ children }: { children: ReactNode }) {
         <main className="relative flex h-screen flex-1 flex-col overflow-y-auto overflow-x-hidden bg-background min-w-0">
           {/* Top bar */}
           <header className={isTrafficManager
-            ? "pointer-events-none absolute left-0 top-0 z-40 flex items-center p-5"
+            ? "pointer-events-none absolute inset-x-0 top-0 z-40 flex items-center justify-between p-5"
             : "sticky top-0 z-50 flex h-14 shrink-0 items-center justify-between border-b border-border/60 bg-background/95 px-4 backdrop-blur-xl md:px-5"
           }>
             <div className="flex items-center gap-3">
               <SidebarTrigger className={isTrafficManager
-                ? "pointer-events-auto h-10 w-10 rounded-full border border-slate-200/80 bg-white/85 text-slate-500 shadow-[0_8px_32px_rgba(15,23,42,0.06)] backdrop-blur-sm hover:bg-white hover:text-slate-900"
-                : "text-muted-foreground hover:text-foreground hover:bg-white/5 rounded-lg transition-colors w-8 h-8"
+                ? "pointer-events-auto hidden h-10 w-10 rounded-full border border-slate-200/80 bg-white/85 text-slate-500 shadow-[0_8px_32px_rgba(15,23,42,0.06)] backdrop-blur-sm hover:bg-white hover:text-slate-900 md:flex"
+                : "hidden h-8 w-8 rounded-lg text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground md:flex"
               } />
-              {!isTrafficManager && <div className="h-4 w-px bg-border/60" />}
+              {isTrafficManager && (
+                <Link href="/creator" aria-label="Voltar para home" className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-primary/20 bg-white text-primary shadow-[0_6px_20px_rgba(15,23,42,0.06)] md:hidden">
+                  <span className="relative block h-3.5 w-4" aria-hidden="true">
+                    <span className="absolute left-0 top-1/2 h-px w-4 -translate-y-1/2 bg-current" />
+                    <span className="absolute left-0 top-[3px] h-2 w-2 rotate-45 border-b border-l border-current" />
+                  </span>
+                </Link>
+              )}
+              {!isTrafficManager && <div className="hidden h-4 w-px bg-border/60 md:block" />}
               {!isTrafficManager && <span className="text-sm font-semibold text-foreground/70">{pageTitle}</span>}
             </div>
             {!isTrafficManager && <div className="flex items-center gap-4">
+              <MobileProfileMenu user={user} />
+              <div className="hidden items-center gap-4 md:flex">
               {adsStatus?.status === "connected" && adsStatus.accounts && adsStatus.accounts.length > 0 && (
                 <>
                   <DropdownMenu>
@@ -191,12 +202,14 @@ export function Layout({ children }: { children: ReactNode }) {
               >
                 {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4 text-amber-400" />}
               </Button>
+              </div>
             </div>}
           </header>
-          <div className="flex-1">
+          <div className="flex-1 pb-24 md:pb-0">
             {children}
           </div>
         </main>
+        <MobileBottomNavigation />
       </div>
     </SidebarProvider>
   );
