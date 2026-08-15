@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
@@ -6,13 +6,15 @@ import { useToast } from "@/hooks/use-toast";
 type Message = { role: "user" | "assistant"; content: string };
 
 const STORAGE_KEY = "traffic_manager_chat_state";
-const GREETING = "Como posso ajudar com sua campanha hoje?";
+const GREETING = "Olá. O que vamos construir hoje?";
 
 export default function TrafficManager() {
   const { toast } = useToast();
   const [messages, setMessages] = useState<Message[]>([{ role: "assistant", content: GREETING }]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -20,7 +22,12 @@ export default function TrafficManager() {
       if (!saved) return;
       const parsed = JSON.parse(saved);
       if (Array.isArray(parsed.trafficChatMessages) && parsed.trafficChatMessages.length) {
-        setMessages(parsed.trafficChatMessages);
+        const restored = parsed.trafficChatMessages as Message[];
+        if (restored.length === 1 && restored[0]?.role === "assistant") {
+          setMessages([{ role: "assistant", content: GREETING }]);
+        } else {
+          setMessages(restored);
+        }
       }
     } catch (_) {}
   }, []);
@@ -28,6 +35,10 @@ export default function TrafficManager() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ trafficChatMessages: messages }));
   }, [messages]);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [messages, sending]);
 
   const send = async (event: FormEvent) => {
     event.preventDefault();
@@ -59,28 +70,46 @@ export default function TrafficManager() {
   };
 
   return (
-    <div className="mx-auto flex h-[calc(100vh-56px)] w-full max-w-4xl flex-col overflow-hidden px-6 py-8 sm:px-10 lg:px-14">
-      <div className="flex shrink-0 items-center justify-between pb-6">
-        <h1 className="text-[28px] font-semibold tracking-[-0.035em]">Gestor de Tráfego</h1>
-        <button type="button" onClick={reset} className="text-sm text-muted-foreground hover:text-foreground">Limpar conversa</button>
-      </div>
+    <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden bg-white font-sans">
+      <svg aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 1200 900" preserveAspectRatio="none">
+        <path d="M -80 700 Q 180 430 500 120" stroke="rgb(0 166 251 / 0.10)" strokeWidth="1.5" strokeDasharray="7 8" fill="none" />
+        <path d="M 500 920 Q 760 500 1160 80" stroke="rgb(0 166 251 / 0.08)" strokeWidth="1.5" strokeDasharray="7 8" fill="none" />
+      </svg>
 
-      <div className="flex-1 space-y-8 overflow-y-auto overscroll-contain py-10 pr-2">
-        {messages.map((message, index) => (
-          <div key={index} className={message.role === "user" ? "ml-auto max-w-[82%]" : "max-w-[90%]"}>
-            <p className="mb-2 px-1 text-[11px] font-semibold text-muted-foreground">{message.role === "user" ? "Você" : "Gestor de Tráfego"}</p>
-            <p className={`break-words whitespace-pre-line text-[15px] leading-7 ${message.role === "user" ? "rounded-[20px] rounded-br-md bg-primary px-5 py-3.5 text-primary-foreground" : "px-1 text-foreground"}`}>
-              {message.content}
-            </p>
+      <button
+        type="button"
+        onClick={reset}
+        className="absolute right-6 top-6 z-20 rounded-full border border-slate-200/80 bg-white/80 px-4 py-2 text-xs font-medium text-slate-500 shadow-[0_8px_32px_rgba(15,23,42,0.06)] backdrop-blur-sm hover:text-slate-900 sm:right-10"
+      >
+        Nova conversa
+      </button>
+
+      <main ref={scrollRef} className="relative z-10 h-full overflow-y-auto overscroll-contain px-6 sm:px-10">
+        <div className="mx-auto w-full max-w-3xl space-y-10 pb-40 pt-28">
+          {messages.map((message, index) => (
+            <div key={index} className={`flex w-full ${message.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className={message.role === "user" ? "max-w-[82%]" : "w-full max-w-[90%]"}>
+                <p className={`break-words whitespace-pre-wrap text-[16px] font-normal leading-[1.55] ${message.role === "user" ? "rounded-[20px] rounded-br-[5px] bg-primary px-5 py-3.5 text-white shadow-sm" : "text-[#374151]"}`}>
+                  {message.content}
+                </p>
+              </div>
+            </div>
+          ))}
+          {sending && <p className="text-[16px] text-[#9CA3AF] animate-pulse">Pensando...</p>}
+          <div ref={endRef} className="h-3" />
+        </div>
+      </main>
+
+      <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-white via-white/95 to-transparent px-6 pb-8 pt-14 sm:px-10">
+        <form onSubmit={send} className="pointer-events-auto mx-auto flex w-full max-w-3xl items-center gap-2">
+          <div className="flex h-[54px] min-w-0 flex-1 items-center rounded-[27px] border border-slate-200/80 bg-white/85 px-5 shadow-[0_8px_32px_rgba(15,23,42,0.08)] backdrop-blur-sm">
+            <Input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Pergunte ao Gestor de Tráfego" className="h-full flex-1 border-0 bg-transparent px-0 text-[16px] font-medium text-slate-900 shadow-none placeholder:text-[#9CA3AF] focus-visible:ring-0" />
           </div>
-        ))}
-        {sending && <p className="text-sm text-muted-foreground">Respondendo…</p>}
-      </div>
-
-      <form onSubmit={send} className="flex shrink-0 gap-3 bg-background pb-2 pt-5">
-        <Input value={input} onChange={(event) => setInput(event.target.value)} placeholder="Escreva sua mensagem" className="h-[52px] rounded-full border-border bg-background px-6 text-[15px] shadow-sm" />
-        <Button type="submit" disabled={sending || !input.trim()} className="h-[52px] rounded-full bg-primary px-7 text-primary-foreground shadow-sm hover:bg-primary/90">Enviar</Button>
-      </form>
+          <Button type="submit" aria-label="Enviar" disabled={sending || !input.trim()} className="h-[54px] w-[54px] shrink-0 rounded-full bg-primary p-0 text-xl font-semibold text-white shadow-[0_8px_32px_rgba(0,166,251,0.18)] hover:bg-primary/90 disabled:border disabled:border-slate-200 disabled:bg-white/85 disabled:text-[#9CA3AF] disabled:opacity-100">
+            ↑
+          </Button>
+        </form>
+      </footer>
     </div>
   );
 }
