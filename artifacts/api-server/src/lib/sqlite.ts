@@ -131,6 +131,9 @@ async function initPostgresDb() {
       product_name VARCHAR(255),
       product_category VARCHAR(100),
       selected_option VARCHAR(50),
+      published_url TEXT,
+      publish_path TEXT,
+      status VARCHAR(20) NOT NULL DEFAULT 'local',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -280,6 +283,15 @@ async function initPostgresDb() {
     await db.exec("ALTER TABLE campaigns ADD COLUMN end_date VARCHAR(50);");
   } catch (e) {}
   try {
+    await db.exec("ALTER TABLE presells ADD COLUMN published_url TEXT;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE presells ADD COLUMN publish_path TEXT;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE presells ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'local';");
+  } catch (e) {}
+  try {
     await db.exec(`
       CREATE TABLE IF NOT EXISTS ai_usage_daily (
         usage_date DATE PRIMARY KEY,
@@ -391,6 +403,9 @@ async function initSqliteDb() {
       product_name TEXT,
       product_category TEXT,
       selected_option TEXT,
+      published_url TEXT,
+      publish_path TEXT,
+      status TEXT NOT NULL DEFAULT 'local',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -458,6 +473,9 @@ async function initSqliteDb() {
     "ALTER TABLE campaigns ADD COLUMN start_date TEXT;",
     "ALTER TABLE campaigns ADD COLUMN end_date TEXT;",
     "ALTER TABLE keywords ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;",
+    "ALTER TABLE presells ADD COLUMN published_url TEXT;",
+    "ALTER TABLE presells ADD COLUMN publish_path TEXT;",
+    "ALTER TABLE presells ADD COLUMN status TEXT NOT NULL DEFAULT 'local';",
   ];
   for (const stmt of alterStatements) {
     try {

@@ -10,6 +10,16 @@ import puppeteer from "puppeteer";
 
 const router = Router();
 
+function resolvePublishedPagesRoot() {
+  const candidates = [
+    path.resolve(process.cwd(), "artifacts/ads-intelligence/public"),
+    path.resolve(process.cwd(), "../ads-intelligence/public"),
+    path.resolve(import.meta.dirname, "../../../ads-intelligence/public"),
+    path.resolve(import.meta.dirname, "../../ads-intelligence/public"),
+  ];
+  return candidates.find((candidate) => fs.existsSync(path.dirname(candidate))) || candidates[0];
+}
+
 type BridgeMode = "presell" | "upsell";
 
 const PRESELL_SKILL = `
@@ -6950,32 +6960,67 @@ ${richContext}`;
   }
 });
 
-router.post("/publish-bridge", requireAuth, (req, res) => {
-  const { htmlContent, fileName, thankYouHtml, thankYouFileName } = req.body;
-  if (!htmlContent || !fileName) {
-    res.status(400).json({ error: "Missing htmlContent or fileName" });
+router.post("/publish-bridge", requireAuth, async (req: any, res) => {
+  const { htmlContent, presellId, pageName, thankYouHtml, thankYouFileName } = req.body || {};
+  if (!htmlContent || !presellId) {
+    res.status(400).json({ error: "htmlContent e presellId são obrigatórios." });
     return;
   }
 
   try {
-    const targetDir = path.resolve(process.cwd(), "../ads-intelligence/public");
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
+    const db = getDb();
+    const presell = await db.prepare("SELECT id, publish_path FROM presells WHERE id = ? AND user_id = ?").get(presellId, req.userId);
+    if (!presell) {
+      res.status(404).json({ error: "Presell não encontrada." });
+      return;
     }
 
-    const filePath = path.join(targetDir, fileName);
+    const user = await db.prepare("SELECT name, email FROM users WHERE id = ?").get(req.userId);
+    const slugify = (value: string, fallback: string) => {
+      const slug = String(value || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 48);
+      return slug || fallback;
+    };
+    const userSlug = slugify(user?.name || user?.email?.split("@")[0], `usuario-${req.userId}`);
+    const pageSlug = slugify(pageName, "presell");
+    const existingPath = String(presell.publish_path || "").replace(/^\/+|\/+$/g, "");
+    const relativeDir = existingPath || `p/${userSlug}/${pageSlug}-${presellId}-${Math.random().toString(36).slice(2, 8)}`;
+    const publicRoot = resolvePublishedPagesRoot();
+    const targetDir = path.resolve(publicRoot, relativeDir);
+    if (!targetDir.startsWith(publicRoot + path.sep)) {
+      res.status(400).json({ error: "Caminho de publicação inválido." });
+      return;
+    }
+    fs.mkdirSync(targetDir, { recursive: true });
+
+    const filePath = path.join(targetDir, "index.html");
     fs.writeFileSync(filePath, htmlContent, "utf8");
+    const pausedBackup = path.join(targetDir, "index.active.html");
+    if (fs.existsSync(pausedBackup)) fs.unlinkSync(pausedBackup);
     logger.info({ filePath }, "Bridge page published successfully");
 
     if (thankYouHtml && thankYouFileName) {
-      const tyFilePath = path.join(targetDir, thankYouFileName);
+      const safeThankYouName = path.basename(String(thankYouFileName).replace(/^\.\//, ""));
+      const tyFilePath = path.join(targetDir, safeThankYouName);
       fs.writeFileSync(tyFilePath, thankYouHtml, "utf8");
       logger.info({ filePath: tyFilePath }, "Thank you page published successfully");
     }
 
+    // Vite's development server does not resolve nested directory indexes, so the
+    // explicit filename keeps the generated link functional locally and on hosting.
+    const publicUrl = `/${relativeDir.replace(/\\/g, "/")}/index.html`;
+    await db.prepare(
+      "UPDATE presells SET published_url = ?, publish_path = ?, status = 'active' WHERE id = ? AND user_id = ?"
+    ).run(publicUrl, relativeDir, presellId, req.userId);
+
     res.json({
       success: true,
-      url: `/${fileName}`,
+      url: publicUrl,
     });
   } catch (err: any) {
     logger.error({ err: err.message }, "Failed to publish bridge page");
@@ -6991,7 +7036,7 @@ router.delete("/delete-bridge", requireAuth, (req, res) => {
   }
 
   try {
-    const targetDir = path.resolve(process.cwd(), "../ads-intelligence/public");
+    const targetDir = resolvePublishedPagesRoot();
     const filePath = path.join(targetDir, fileName);
     
     if (fs.existsSync(filePath)) {
@@ -7041,6 +7086,53 @@ router.post("/presells", requireAuth, async (req: any, res) => {
   } catch (err: any) {
     logger.error({ err: err.message }, "Error inserting presell");
     res.status(500).json({ error: "Erro ao salvar presell." });
+  }
+});
+
+router.patch("/presells/:id/status", requireAuth, async (req: any, res) => {
+  const { id } = req.params;
+  const status = req.body?.status;
+  if (status !== "active" && status !== "paused") {
+    res.status(400).json({ error: "Status inválido." });
+    return;
+  }
+  try {
+    const db = getDb();
+    const presell = await db.prepare(
+      "SELECT publish_path FROM presells WHERE id = ? AND user_id = ? AND published_url IS NOT NULL"
+    ).get(id, req.userId);
+    if (!presell?.publish_path) {
+      res.status(404).json({ error: "Presell publicada não encontrada." });
+      return;
+    }
+
+    const publicRoot = resolvePublishedPagesRoot();
+    const targetDir = path.resolve(publicRoot, String(presell.publish_path));
+    if (!targetDir.startsWith(publicRoot + path.sep)) {
+      res.status(400).json({ error: "Caminho de publicação inválido." });
+      return;
+    }
+    const indexPath = path.join(targetDir, "index.html");
+    const activeBackupPath = path.join(targetDir, "index.active.html");
+    if (status === "paused" && fs.existsSync(indexPath) && !fs.existsSync(activeBackupPath)) {
+      fs.renameSync(indexPath, activeBackupPath);
+      fs.writeFileSync(indexPath, "<!doctype html><html lang=\"pt-BR\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Página pausada</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px system-ui;color:#111;background:#fff}main{text-align:center;padding:32px}p{color:#667085}</style><main><h1>Página temporariamente pausada</h1><p>Este endereço voltará a ficar disponível em breve.</p></main></html>", "utf8");
+    } else if (status === "active" && fs.existsSync(activeBackupPath)) {
+      if (fs.existsSync(indexPath)) fs.unlinkSync(indexPath);
+      fs.renameSync(activeBackupPath, indexPath);
+    }
+
+    const result = await db.prepare(
+      "UPDATE presells SET status = ? WHERE id = ? AND user_id = ? AND published_url IS NOT NULL"
+    ).run(status, id, req.userId);
+    if (!result.changes) {
+      res.status(404).json({ error: "Presell publicada não encontrada." });
+      return;
+    }
+    res.json({ success: true, status });
+  } catch (err: any) {
+    logger.error({ err: err.message }, "Error updating presell status");
+    res.status(500).json({ error: "Erro ao atualizar a presell." });
   }
 });
 
@@ -7290,7 +7382,15 @@ router.delete("/presells/:id", requireAuth, async (req: any, res) => {
   const { id } = req.params;
   try {
     const db = getDb();
+    const presell = await db.prepare("SELECT publish_path FROM presells WHERE id = ? AND user_id = ?").get(id, req.userId);
     await db.prepare("DELETE FROM presells WHERE id = ? AND user_id = ?").run(id, req.userId);
+    if (presell?.publish_path) {
+      const publicRoot = resolvePublishedPagesRoot();
+      const targetDir = path.resolve(publicRoot, String(presell.publish_path));
+      if (targetDir.startsWith(publicRoot + path.sep) && fs.existsSync(targetDir)) {
+        fs.rmSync(targetDir, { recursive: true, force: true });
+      }
+    }
     res.json({ success: true });
   } catch (err: any) {
     logger.error({ err: err.message }, "Error deleting presell");

@@ -2,13 +2,14 @@ import { ReactNode, useEffect, useState } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./app-sidebar";
 import { useGetMe } from "@workspace/api-client-react";
-import { Link, useLocation } from "wouter";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Sun, Moon, ChevronDown, RefreshCw } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { MobileBottomNavigation, MobileProfileMenu } from "./mobile-navigation";
+import { BackButton } from "@/components/ui/back-button";
 
 const PAGE_TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -150,12 +151,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 : "hidden h-8 w-8 rounded-lg text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground md:flex"
               } />
               {isTrafficManager && (
-                <Link href="/creator" aria-label="Voltar para home" className="pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full border border-primary/20 bg-white text-primary shadow-[0_6px_20px_rgba(15,23,42,0.06)] md:hidden">
-                  <span className="relative block h-3.5 w-4" aria-hidden="true">
-                    <span className="absolute left-0 top-1/2 h-px w-4 -translate-y-1/2 bg-current" />
-                    <span className="absolute left-0 top-[3px] h-2 w-2 rotate-45 border-b border-l border-current" />
-                  </span>
-                </Link>
+                <BackButton href="/creator" label="Voltar para home" iconOnly className="pointer-events-auto bg-white md:hidden" />
               )}
               {!isTrafficManager && <div className="hidden h-4 w-px bg-border/60 md:block" />}
               {!isTrafficManager && <span className="text-sm font-semibold text-foreground/70">{pageTitle}</span>}

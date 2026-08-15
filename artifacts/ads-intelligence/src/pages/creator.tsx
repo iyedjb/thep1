@@ -17,6 +17,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { BackButton } from "@/components/ui/back-button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Sparkles,
   Download,
@@ -149,7 +157,10 @@ export default function Creator() {
             productCategory: site.product_category,
             selectedOption: site.selected_option,
             createdAt: site.created_at ? new Date(site.created_at).toLocaleDateString("pt-BR") : "",
-            status: "local" as const,
+            publishedUrl: site.published_url || "",
+            fileName: site.publish_path || "",
+            status: (site.status || "local") as SavedWebsite["status"],
+            generatedHtml: "",
             scripts: []
           }));
           setSavedWebsites(mapped);
@@ -272,13 +283,13 @@ export default function Creator() {
     const combinedAiTags = scripts.filter(s => s.trim() !== "").join("\n    ");
 
     setStep("generating");
-    setGeneratingMessage("🔍 Pesquisando design e idioma com IA...");
+      setGeneratingMessage("Pesquisando design e idioma");
     setGeneratedHtml(""); setPublishedUrl(""); setDesignSummary("");
 
-    setTimeout(() => setGeneratingMessage("🧠 Treinando contexto com skills de presell e upsell..."), 900);
+    setTimeout(() => setGeneratingMessage("Organizando a estrutura da presell"), 900);
     setTimeout(() => setGeneratingMessage(keepOriginalStructure
-      ? "⚡ Revisando a estrutura original com Groq..."
-      : "⚡ Gerando a nova página com Groq..."), 1800);
+      ? "Revisando a estrutura original"
+      : "Gerando a nova página"), 1800);
 
     try {
       const response = await fetch("/api/generate-bridge-ai", {
@@ -355,7 +366,7 @@ export default function Creator() {
       };
       setSavedWebsites(prev => [newSite, ...prev]);
       setRawHtml(""); // Reset pasted HTML on success
-      setGeneratingMessage("✅ Finalizando e salvando no histórico...");
+      setGeneratingMessage("Finalizando e salvando");
       setStep("done");
       setTimeout(() => {
         setStep("actions");
@@ -377,8 +388,8 @@ export default function Creator() {
       try { domain = new URL(destinationUrl).hostname.replace("www.", "").split(".")[0]; } catch (_) {}
       a.download = `redirect-${domain}.html`;
       a.click();
-      URL.revokeObjectURL(url);
-      toast({ title: "Download Iniciado ⬇️", description: "O arquivo HTML foi baixado com sucesso." });
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast({ title: "Download iniciado", description: "O arquivo HTML está pronto para abrir." });
     } catch (err: any) {
       toast({ title: "Erro ao baixar arquivo", description: err.message, variant: "destructive" });
     }
@@ -386,7 +397,7 @@ export default function Creator() {
 
   const handleDownloadHostingerZip = async () => {
     try {
-      toast({ title: "Gerando Pacote Hostinger 📦", description: "Organizando HTML, pasta CSS e imagens..." });
+      toast({ title: "Preparando o pacote", description: "Organizando HTML, CSS e imagens." });
       const zip = new JSZip();
       let html = generatedHtml;
 
@@ -398,42 +409,39 @@ export default function Creator() {
         cssContent += styleMatch[1] + "\n\n";
       }
 
-      // Only fetch external stylesheet links for full page clones/reviews (selectedOption !== "a")
+      // Keep any stylesheet that cannot be downloaded. Previously every link was removed,
+      // which left local ZIP previews without the source page styling when CORS blocked fetch().
+      const downloadedStyleTags = new Set<string>();
       if (selectedOption !== "a") {
-        const linkRegex = /<link\s+[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*>/gi;
-        let linkMatch;
-        const cssUrls: string[] = [];
-        while ((linkMatch = linkRegex.exec(generatedHtml)) !== null) {
-          const href = linkMatch[1];
-          if (href && !href.includes("css/styles.css")) {
-            cssUrls.push(href);
-          }
-        }
-
-        // Fetch external CSS files if any
-        for (const cssHref of cssUrls) {
+        const stylesheetTags = generatedHtml.match(/<link\b[^>]*>/gi) || [];
+        for (const tag of stylesheetTags) {
+          const rel = tag.match(/\brel=["']([^"']+)["']/i)?.[1] || "";
+          const cssHref = tag.match(/\bhref=["']([^"']+)["']/i)?.[1] || "";
+          if (!/\bstylesheet\b/i.test(rel) || !cssHref || cssHref.includes("css/styles.css")) continue;
           try {
-            let fullUrl = cssHref;
-            if (!/^https?:\/\//i.test(cssHref)) {
-              fullUrl = new URL(cssHref, destinationUrl).href;
-            }
+            const fullUrl = new URL(cssHref, referenceUrl || destinationUrl).href;
             const res = await fetch(fullUrl);
             if (res.ok) {
-              const text = await res.text();
+              const text = (await res.text()).replace(
+                /url\(\s*(["']?)(?!data:|https?:|\/\/|#)([^"')]+)\1\s*\)/gi,
+                (_match, quote, assetPath) => `url(${quote}${new URL(assetPath.trim(), fullUrl).href}${quote})`,
+              );
               cssContent += text + "\n\n";
+              downloadedStyleTags.add(tag);
             }
           } catch (_) {}
         }
       }
 
-      // Clean HTML: extract all inline styles into css/styles.css for separated architecture and maximum loading performance
+      // Inline styles are moved to a real local file. Only external links successfully copied
+      // into that file are removed; failed links remain usable as remote fallbacks.
       html = html.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, "");
-      html = html.replace(/<link\s+[^>]*rel=["']stylesheet["'][^>]*>/gi, "");
+      downloadedStyleTags.forEach((tag) => { html = html.replace(tag, ""); });
 
       if (/<head>/i.test(html)) {
-        html = html.replace(/<head>/i, '<head>\n  <link rel="stylesheet" href="css/styles.css">');
+        html = html.replace(/<head>/i, '<head>\n  <link rel="stylesheet" href="./css/styles.css">');
       } else {
-        html = '<link rel="stylesheet" href="css/styles.css">\n' + html;
+        html = '<link rel="stylesheet" href="./css/styles.css">\n' + html;
       }
 
       // 2. Extract Base64 images and save to images/ folder
@@ -449,7 +457,7 @@ export default function Creator() {
         if (imagesFolder) {
           imagesFolder.file(filename, cleanBase64, { base64: true });
         }
-        return `images/${filename}`;
+        return `./images/${filename}`;
       });
 
       const replacedCss = cssContent.replace(dataUriRegex, (matchStr, mimeType, base64Data) => {
@@ -499,10 +507,10 @@ export default function Creator() {
       a.href = url;
       a.download = `${prefix}-${domain}.zip`;
       a.click();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 
       toast({
-        title: "Pacote ZIP Pronto 🚀",
+        title: "Pacote ZIP pronto",
         description: (lemonPhpHtml && lemonPhpFileName)
           ? "Descompacte num hosting com PHP ativo. Inclui lemon.php — sem suporte a PHP o formulário de lead não vai funcionar."
           : "Descompacte na Hostinger (hPanel). Arquivos index.html, css/ e images/ criados!"
@@ -510,6 +518,67 @@ export default function Creator() {
     } catch (err: any) {
       toast({ title: "Erro ao gerar pacote ZIP", description: err.message, variant: "destructive" });
     }
+  };
+
+  const handlePublish = async () => {
+    if (!generatedHtml || !currentWebsiteId || isPublishing) return;
+    setIsPublishing(true);
+    const token = localStorage.getItem("ads_token");
+    try {
+      const response = await fetch("/api/publish-bridge", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({
+          htmlContent: generatedHtml,
+          presellId: currentWebsiteId,
+          pageName: productName || new URL(destinationUrl).hostname,
+          thankYouHtml,
+          thankYouFileName,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Não foi possível publicar a página.");
+      const absoluteUrl = new URL(data.url, window.location.origin).href;
+      setPublishedUrl(absoluteUrl);
+      setSavedWebsites((current) => current.map((site) => site.id === currentWebsiteId
+        ? { ...site, publishedUrl: absoluteUrl, fileName: data.url, status: "active" }
+        : site));
+      toast({ title: "Página publicada", description: "O link já está disponível em Minhas Presells." });
+    } catch (err: any) {
+      toast({ title: "Erro ao publicar", description: err.message, variant: "destructive" });
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const updateWebsiteStatus = async (site: SavedWebsite) => {
+    const nextStatus = site.status === "paused" ? "active" : "paused";
+    const token = localStorage.getItem("ads_token");
+    try {
+      const response = await fetch(`/api/presells/${site.id}/status`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Não foi possível alterar o status.");
+      setSavedWebsites((current) => current.map((item) => item.id === site.id ? { ...item, status: nextStatus } : item));
+      toast({ title: nextStatus === "paused" ? "Presell pausada" : "Presell ativada" });
+    } catch (err: any) {
+      toast({ title: "Erro ao atualizar", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const copyPublishedUrl = async (url: string) => {
+    const absoluteUrl = new URL(url, window.location.origin).href;
+    await navigator.clipboard.writeText(absoluteUrl);
+    toast({ title: "Link copiado" });
   };
 
   const deleteWebsite = async (site: SavedWebsite) => {
@@ -731,17 +800,7 @@ export default function Creator() {
                   <div className="hidden" />
                   <CardContent className="space-y-7 p-0">
                     <div className="sticky top-14 z-30 -mx-4 flex h-16 items-center gap-3 border-b border-border/70 bg-background/95 px-4 backdrop-blur-xl md:mx-0 md:rounded-b-2xl">
-                      <button
-                        type="button"
-                        onClick={() => setActiveView("websites")}
-                        aria-label="Voltar para minhas presells"
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-background text-lg text-primary shadow-[0_6px_20px_rgba(15,23,42,0.06)] hover:bg-primary/[0.06]"
-                      >
-                        <span className="relative block h-3.5 w-4" aria-hidden="true">
-                          <span className="absolute left-0 top-1/2 h-px w-4 -translate-y-1/2 bg-current" />
-                          <span className="absolute left-0 top-[3px] h-2 w-2 rotate-45 border-b border-l border-current" />
-                        </span>
-                      </button>
+                      <BackButton onClick={() => setActiveView("websites")} label="Voltar para minhas presells" iconOnly className="shrink-0" />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-semibold text-foreground">Nova presell</p>
                         <p className="truncate text-xs text-muted-foreground">Redirecionamento</p>
@@ -1116,44 +1175,31 @@ export default function Creator() {
             {/* STEP: Generating */}
             {step === "generating" && (
               <div className="animate-slide-up">
-                <Card className="border-0 bg-transparent shadow-none rounded-none overflow-visible">
-                  <div className="hidden" />
-                  <CardContent className="p-10 text-center space-y-6">
-                    <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
-                      <div className="absolute inset-0 rounded-full bg-primary/10 animate-ping" />
-                      <div className="absolute inset-0 rounded-full border-4 border-border border-t-primary animate-spin" />
-                      <Sparkles className="h-8 w-8 text-primary" />
-                    </div>
-                    <div className="space-y-2">
-                      <h3 className="text-base font-bold text-foreground">{generatingMessage}</h3>
-                      <p className="text-xs text-muted-foreground leading-relaxed max-w-xs mx-auto">
-                        Aguarde enquanto a IA processa o design da página original e constrói código premium.
-                      </p>
-                    </div>
-                    <div className="flex justify-center gap-1.5">
-                      {[0, 1, 2].map(i => (
-                        <div key={i} className="w-2 h-2 rounded-full bg-primary animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="mx-auto max-w-xl py-20 text-center">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Construindo</p>
+                  <h3 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">{generatingMessage.replace(/^[^\p{L}\p{N}]+/u, "")}</h3>
+                  <div className="mx-auto mt-10 grid max-w-sm grid-cols-3 gap-2" aria-label="Progresso da criação">
+                    {[0, 1, 2].map((item) => (
+                      <span key={item} className="h-1.5 overflow-hidden rounded-full bg-primary/10">
+                        <span className="block h-full origin-left animate-pulse rounded-full bg-primary" style={{ animationDelay: `${item * 220}ms` }} />
+                      </span>
+                    ))}
+                  </div>
+                  <p className="mx-auto mt-6 max-w-sm text-sm leading-6 text-muted-foreground">Organizando a estrutura, os estilos e os links finais.</p>
+                </div>
               </div>
             )}
 
             {/* STEP: Done */}
             {step === "done" && (
               <div className="animate-slide-up">
-                <Card className="border-0 bg-transparent shadow-none rounded-none overflow-visible">
-                  <CardContent className="p-10 text-center space-y-4">
-                    <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/15 border-2 border-emerald-500/30 flex items-center justify-center">
-                      <Check className="h-8 w-8 text-emerald-500" strokeWidth={3} />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-foreground">Concluído! 🎉</h3>
-                      <p className="text-xs text-muted-foreground mt-1">Estrutura compilada com sucesso.</p>
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="mx-auto max-w-xl py-20 text-center">
+                  <div className="mx-auto h-1.5 max-w-sm overflow-hidden rounded-full bg-primary/10">
+                    <div className="h-full w-full animate-pulse rounded-full bg-primary" />
+                  </div>
+                  <h3 className="mt-7 text-2xl font-semibold tracking-tight text-foreground">Página pronta</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">Abrindo as opções finais.</p>
+                </div>
               </div>
             )}
 
@@ -1161,22 +1207,20 @@ export default function Creator() {
             {step === "actions" && (
               <div className="space-y-4 animate-slide-up">
                 <Card className="border-0 bg-transparent shadow-none rounded-none overflow-visible">
-                  <div className="hidden" />
-                  <CardContent className="p-6 space-y-5">
-                    <div className="text-center space-y-2">
-                      <div className="mx-auto w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                        <CheckCircle className="h-6 w-6 text-emerald-500" />
-                      </div>
+                  <CardContent className="space-y-7 p-0">
+                    <div className="flex items-start justify-between gap-4 border-b border-border pb-6">
                       <div>
-                        <h3 className="font-bold text-lg text-foreground">Página Criada! 🚀</h3>
-                        <p className="text-xs text-muted-foreground">Pronta para download ou publicação instantânea.</p>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">Página pronta</p>
+                        <h3 className="mt-2 text-3xl font-semibold tracking-tight text-foreground">Instale ou publique</h3>
+                        <p className="mt-2 text-sm text-muted-foreground">Escolha onde deseja usar a nova presell.</p>
                       </div>
+                      <BackButton onClick={handleBackToEdit} label="Editar configuração" />
                     </div>
 
                     {/* Summary */}
-                    <div className="bg-muted/30 border border-border/60 rounded-xl p-4 space-y-2 text-xs">
+                    <div className="space-y-2 border-y border-border py-5 text-xs">
                       {[
-                        { label: "Modelo", value: selectedOption === "b" ? "Clone Limpo 🎯" : "Cookies ✅" },
+                        { label: "Modelo", value: selectedOption === "b" ? "Clone limpo" : "Cookies" },
                         { label: "Referência", value: referenceUrl, mono: true },
                         { label: "Destino", value: destinationUrl, mono: true, highlight: true },
                       ].map(({ label, value, mono, highlight }) => (
@@ -1188,34 +1232,45 @@ export default function Creator() {
                       {designSummary && (
                         <div className="pt-2">
                           <span className="font-semibold text-muted-foreground block mb-1.5">Status IA:</span>
-                          <p className="text-muted-foreground leading-relaxed text-[10px] bg-card border border-border/50 p-2.5 rounded-lg">{designSummary}</p>
+                          <p className="text-[11px] leading-relaxed text-muted-foreground">{designSummary}</p>
                         </div>
                       )}
                     </div>
 
                     {/* Action buttons */}
-                    <div className="space-y-2.5">
-                      <Button variant="default" size="lg"
-                        className="w-full rounded-xl h-11 text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground flex items-center justify-center gap-2 transition-all shadow-md"
-                        onClick={handleDownloadHostingerZip}
-                      >
-                        <FolderArchive className="h-4 w-4" /> Baixar Pacote Hostinger (.ZIP — HTML + CSS + Imagens)
-                      </Button>
-
-                      <Button variant="outline" size="lg"
-                        className="w-full rounded-xl h-11 text-xs font-bold border-border hover:border-primary/40 hover:bg-primary/5 text-foreground flex items-center justify-center gap-2 transition-all"
-                        onClick={handleDownload}
-                      >
-                        <Download className="h-4 w-4 text-primary" /> Baixar Código HTML Unificado
-                      </Button>
-
-                      <Button variant="ghost" size="sm"
-                        className="w-full rounded-xl h-9 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={handleBackToEdit}
-                      >
-                        <ChevronLeft className="mr-1 h-4 w-4" /> Configurar Outra Página
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" size="lg" className="h-12 w-full rounded-full border-primary/25 text-sm font-semibold text-primary hover:bg-primary/[0.06]">
+                            Download
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="w-64 rounded-2xl border-border p-2 shadow-xl">
+                          <DropdownMenuItem onClick={handleDownloadHostingerZip} className="cursor-pointer rounded-xl px-4 py-3 text-sm">
+                            Pacote ZIP
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={handleDownload} className="cursor-pointer rounded-xl px-4 py-3 text-sm">
+                            Arquivo HTML
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <Button size="lg" onClick={handlePublish} disabled={isPublishing || Boolean(publishedUrl)} className="h-12 rounded-full bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+                        {isPublishing ? "Publicando..." : publishedUrl ? "Publicado" : "Publicar"}
                       </Button>
                     </div>
+
+                    {publishedUrl && (
+                      <div className="flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-foreground">Link público</p>
+                          <p className="mt-1 truncate text-xs text-muted-foreground">{publishedUrl}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button type="button" onClick={() => copyPublishedUrl(publishedUrl)} className="h-9 rounded-full border border-border px-4 text-xs font-medium hover:border-primary/30">Copiar</button>
+                          <a href={publishedUrl} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center rounded-full border border-border px-4 text-xs font-medium hover:border-primary/30">Acessar</a>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -1356,7 +1411,10 @@ export default function Creator() {
                                       {displayDomain}
                                     </span>
                                     <span className="text-[9.5px] text-muted-foreground font-mono truncate mt-0.5 max-w-[160px] md:max-w-[220px]" title={site.destinationUrl}>
-                                      {site.destinationUrl}
+                                      {site.publishedUrl || site.destinationUrl}
+                                    </span>
+                                    <span className="mt-1 text-[9px] font-medium uppercase tracking-wider text-muted-foreground">
+                                      {site.status === "paused" ? "Pausada" : site.publishedUrl ? "Publicada" : "Local"}
                                     </span>
                                   </div>
                                 </TableCell>
@@ -1382,40 +1440,32 @@ export default function Creator() {
                                 </TableCell>
 
                                 <TableCell className="py-3 text-right pr-4">
-                                  <div className="flex items-center justify-end gap-0.5">
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60"
-                                      onClick={() => {
-                                        setDestinationUrl(site.destinationUrl);
-                                        setReferenceUrl(site.referenceUrl || "");
-                                        setScripts(site.scripts.length > 0 ? site.scripts : [""]);
-                                        setProductName(site.productName || "");
-                                        setProductHeadline(site.productHeadline || "");
-                                        setProductDescription(site.productDescription || "");
-                                        setProductCategory(site.productCategory || "Saúde & Bem-estar");
-                                        setCtaText(site.ctaText || "Ir para o Site Oficial");
-                                        setSupportEmail(site.supportEmail || "");
-                                        setApiToken(site.apiToken || "");
-                                        setStreamCode(site.streamCode || "");
-                                        setLeadNetwork(site.leadNetwork || (site.apiToken && site.streamCode ? "drcash" : "none"));
-                                        setLemonOfferId(site.lemonOfferId || "");
-                                        setLemonWebmasterToken(site.lemonWebmasterToken || "");
-                                        setLemonCost(site.lemonCost || "");
-                                        setLemonPhpHtml(site.lemonPhpHtml || "");
-                                        setLemonPhpFileName(site.lemonPhpFileName || "");
-                                        setSelectedOption(site.selectedOption === "b" ? "b" : "a");
-                                        setActiveMode("redirect");
-                                        setStep("form");
-                                        setActiveView("create");
-                                        toast({ title: "Configuração carregada!", description: "Campos preenchidos com os parâmetros selecionados." });
-                                      }}
-                                      title="Reutilizar / Editar"
-                                    >
-                                      <RotateCcw className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg text-destructive/60 hover:text-destructive hover:bg-destructive/10" onClick={() => deleteWebsite(site)} title="Excluir">
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <button type="button" aria-label="Abrir ações da presell" className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-transparent text-muted-foreground hover:border-border hover:bg-muted/40">
+                                        <span className="flex gap-[3px]" aria-hidden="true"><span className="h-1 w-1 rounded-full bg-current" /><span className="h-1 w-1 rounded-full bg-current" /><span className="h-1 w-1 rounded-full bg-current" /></span>
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-48 rounded-2xl border-border p-2 shadow-xl">
+                                      {site.publishedUrl && (
+                                        <>
+                                          <DropdownMenuItem onClick={() => window.open(new URL(site.publishedUrl, window.location.origin).href, "_blank", "noopener,noreferrer")} className="cursor-pointer rounded-xl px-3 py-2.5 text-sm">
+                                            Acessar
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => copyPublishedUrl(site.publishedUrl)} className="cursor-pointer rounded-xl px-3 py-2.5 text-sm">
+                                            Copiar link
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem onClick={() => updateWebsiteStatus(site)} className="cursor-pointer rounded-xl px-3 py-2.5 text-sm">
+                                            {site.status === "paused" ? "Ativar" : "Pausar"}
+                                          </DropdownMenuItem>
+                                          <DropdownMenuSeparator />
+                                        </>
+                                      )}
+                                      <DropdownMenuItem onClick={() => deleteWebsite(site)} className="cursor-pointer rounded-xl px-3 py-2.5 text-sm text-destructive focus:text-destructive">
+                                        Excluir
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </TableCell>
                               </TableRow>
                             );
@@ -1423,13 +1473,6 @@ export default function Creator() {
                         </TableBody>
                       </Table>
                     </div>
-                  </div>
-                )}
-                {filteredWebsites.length > 0 && (
-                  <div className="flex justify-end border-t border-border pt-6">
-                    <Button onClick={() => { setActiveView("create"); setStep("form"); }} className="h-12 rounded-full bg-primary px-7 text-primary-foreground hover:bg-primary/90">
-                      Nova presell
-                    </Button>
                   </div>
                 )}
               </CardContent>

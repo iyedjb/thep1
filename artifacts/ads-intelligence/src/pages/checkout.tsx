@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "wouter";
 import { BillingCycle, PlanTier, formatBRL, getSubscriptionPlan } from "@/lib/subscription-plans";
+import { BackButton } from "@/components/ui/back-button";
 
 type PaymentState = "idle" | "pending" | "approved" | "failure";
 type PaymentMethod = "card" | "pix";
@@ -163,7 +163,7 @@ export default function CheckoutPage() {
     <main className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
       <header className="border-b border-border bg-background">
         <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between px-6 lg:px-10">
-          <Link href="/pricing" className="text-sm text-muted-foreground hover:text-foreground">Voltar aos planos</Link>
+          <BackButton href="/pricing" label="Planos" />
           <span className="text-sm font-semibold">Finalizar assinatura</span>
         </div>
       </header>
