@@ -32,6 +32,8 @@ type GoogleAdsStatus = {
 
 const navItems = [
   { path: "/creator", label: "Presell com IA" },
+  { path: "/tracking", label: "Rastreamento" },
+  { path: "/domains", label: "Meus domínios" },
   { path: "/traffic-manager", label: "Gestor de Tráfego" },
   { path: "/trends", label: "Google Trends" },
 ];

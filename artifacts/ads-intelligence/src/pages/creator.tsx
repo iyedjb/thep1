@@ -85,6 +85,15 @@ interface SavedWebsite {
   lemonPhpFileName?: string;
 }
 
+type TrackingSiteOption = {
+  id: number;
+  name: string;
+  snippet: string;
+  status: string;
+  presellId?: number | null;
+  publicUrl?: string;
+};
+
 const TRAFFIC_CHAT_STORAGE_KEY = "traffic_manager_chat_state";
 const TRAFFIC_CHAT_GREETING = "Olá! Sou seu gestor de tráfego especializado em Google Ads e Meta Ads para produtos de afiliados. Posso te ajudar a criar uma campanha do zero, escrever copy de alta conversão, montar extensões, pesquisar palavras-chave ou diagnosticar uma campanha que já está rodando. Por onde quer começar?";
 
@@ -97,6 +106,8 @@ export default function Creator() {
   const [rawHtml, setRawHtml] = useState("");
   const [destinationUrl, setDestinationUrl] = useState("");
   const [scripts, setScripts] = useState<string[]>([""]);
+  const [trackingSites, setTrackingSites] = useState<TrackingSiteOption[]>([]);
+  const [selectedTrackingSiteId, setSelectedTrackingSiteId] = useState("");
   const [popupLanguage, setPopupLanguage] = useState("auto");
   const [productName, setProductName] = useState("");
   const [productHeadline, setProductHeadline] = useState("");
@@ -171,6 +182,20 @@ export default function Creator() {
     }
   };
 
+  const fetchTrackingSites = async () => {
+    try {
+      const token = localStorage.getItem("ads_token");
+      const response = await fetch("/api/tracking/sites", {
+        headers: { Authorization: token ? `Bearer ${token}` : "" },
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      setTrackingSites(Array.isArray(data.sites) ? data.sites : []);
+    } catch (error) {
+      console.error("Erro ao buscar domínios de rastreamento", error);
+    }
+  };
+
   const handleTrafficChatSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!trafficChatInput.trim() || isTrafficChatSending) return;
@@ -214,6 +239,7 @@ export default function Creator() {
 
   useEffect(() => {
     fetchPresells();
+    fetchTrackingSites();
 
     const drcashLander = localStorage.getItem("drcash_selected_lander");
     if (drcashLander) {
@@ -257,6 +283,12 @@ export default function Creator() {
       console.error("Erro ao salvar chat no localStorage", err);
     }
   }, [trafficChatStateLoaded, trafficChatMessages]);
+
+  useEffect(() => {
+    const available = trackingSites.filter((site) => site.status === "active" && !site.presellId);
+    if (available.length === 1 && !selectedTrackingSiteId) setSelectedTrackingSiteId(String(available[0].id));
+    if (selectedTrackingSiteId && !available.some((site) => String(site.id) === selectedTrackingSiteId)) setSelectedTrackingSiteId("");
+  }, [trackingSites, selectedTrackingSiteId]);
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -309,7 +341,15 @@ export default function Creator() {
         })
       });
 
-      const data = await response.json();
+      const responseBody = await response.text();
+      let data: any = {};
+      try {
+        data = responseBody ? JSON.parse(responseBody) : {};
+      } catch {
+        throw new Error(response.ok
+          ? "O servidor retornou uma resposta inválida. Tente novamente."
+          : responseBody.trim().slice(0, 180) || "Erro ao gerar página com IA.");
+      }
       if (!response.ok) throw new Error(data.error || "Erro ao gerar página com IA.");
 
       const html = data.html || "";
@@ -522,6 +562,10 @@ export default function Creator() {
 
   const handlePublish = async () => {
     if (!generatedHtml || !currentWebsiteId || isPublishing) return;
+    if (!selectedTrackingSiteId) {
+      toast({ title: "Selecione um domínio", description: "Escolha um domínio em Meus domínios antes de publicar.", variant: "destructive" });
+      return;
+    }
     setIsPublishing(true);
     const token = localStorage.getItem("ads_token");
     try {
@@ -537,6 +581,7 @@ export default function Creator() {
           pageName: productName || new URL(destinationUrl).hostname,
           thankYouHtml,
           thankYouFileName,
+          trackingSiteId: Number(selectedTrackingSiteId),
         }),
       });
       const data = await response.json().catch(() => ({ error: response.status === 413 ? "A página gerada é grande demais para publicação." : "Resposta inválida do servidor." }));
@@ -1237,6 +1282,30 @@ export default function Creator() {
                       )}
                     </div>
 
+                    <div className="space-y-3 border-b border-border pb-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-semibold text-foreground">Domínio da publicação</p>
+                          <p className="mt-1 text-xs text-muted-foreground">O rastreamento será instalado ao publicar.</p>
+                        </div>
+                        <button type="button" onClick={() => { window.location.href = "/domains"; }} className="text-xs font-semibold text-primary hover:underline">Meus domínios</button>
+                      </div>
+                      {trackingSites.some((site) => site.status === "active" && !site.presellId) ? (
+                        <Select value={selectedTrackingSiteId} onValueChange={setSelectedTrackingSiteId}>
+                          <SelectTrigger className="h-12 rounded-2xl border-border bg-background text-sm shadow-none">
+                            <SelectValue placeholder="Selecione o domínio" />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl border-border bg-popover">
+                            {trackingSites.filter((site) => site.status === "active" && !site.presellId).map((site) => (
+                              <SelectItem key={site.id} value={String(site.id)}>{site.publicUrl || site.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <button type="button" onClick={() => { window.location.href = "/domains"; }} className="h-12 w-full rounded-full border border-primary/25 text-sm font-semibold text-primary hover:bg-primary/[0.05]">Criar meu primeiro domínio</button>
+                      )}
+                    </div>
+
                     {/* Action buttons */}
                     <div className="grid gap-3 sm:grid-cols-2">
                       <DropdownMenu>
@@ -1254,7 +1323,7 @@ export default function Creator() {
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      <Button size="lg" onClick={handlePublish} disabled={isPublishing || Boolean(publishedUrl)} className="h-12 rounded-full bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+                      <Button size="lg" onClick={handlePublish} disabled={isPublishing || Boolean(publishedUrl) || !selectedTrackingSiteId} className="h-12 rounded-full bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90">
                         {isPublishing ? "Publicando..." : publishedUrl ? "Publicado" : "Publicar"}
                       </Button>
                     </div>

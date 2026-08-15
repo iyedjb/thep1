@@ -177,6 +177,44 @@ async function initPostgresDb() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS tracking_sites (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      presell_id INTEGER REFERENCES presells(id) ON DELETE CASCADE,
+      name VARCHAR(255) NOT NULL,
+      site_key VARCHAR(64) UNIQUE NOT NULL,
+      slug VARCHAR(80) UNIQUE,
+      status VARCHAR(20) NOT NULL DEFAULT 'active',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_tracking_sites_user ON tracking_sites(user_id, created_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_tracking_sites_presell_unique ON tracking_sites(presell_id) WHERE presell_id IS NOT NULL;
+
+    CREATE TABLE IF NOT EXISTS tracking_visits (
+      id SERIAL PRIMARY KEY,
+      presell_id INTEGER REFERENCES presells(id) ON DELETE CASCADE,
+      tracking_site_id INTEGER REFERENCES tracking_sites(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      visit_token VARCHAR(64) UNIQUE NOT NULL,
+      visitor_key VARCHAR(64) NOT NULL,
+      ip_address VARCHAR(100),
+      country_code VARCHAR(10),
+      country_name VARCHAR(100),
+      city VARCHAR(150),
+      device_type VARCHAR(30) NOT NULL DEFAULT 'desktop',
+      browser VARCHAR(80),
+      operating_system VARCHAR(80),
+      referrer TEXT,
+      page_path TEXT,
+      traffic_source VARCHAR(20) NOT NULL DEFAULT 'organic',
+      clicks INTEGER NOT NULL DEFAULT 0,
+      clicked_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_tracking_visits_user_created ON tracking_visits(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_tracking_visits_presell_created ON tracking_visits(presell_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_tracking_visits_visitor ON tracking_visits(visitor_key);
+
     CREATE TABLE IF NOT EXISTS payments (
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -345,6 +383,40 @@ async function initPostgresDb() {
   } catch (e) {}
   try {
     await db.exec(`
+      CREATE TABLE IF NOT EXISTS tracking_sites (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        presell_id INTEGER REFERENCES presells(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        site_key VARCHAR(64) UNIQUE NOT NULL,
+        slug VARCHAR(80) UNIQUE,
+        status VARCHAR(20) NOT NULL DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_tracking_sites_user ON tracking_sites(user_id, created_at);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_tracking_sites_presell_unique ON tracking_sites(presell_id) WHERE presell_id IS NOT NULL;
+    `);
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE tracking_visits ALTER COLUMN presell_id DROP NOT NULL;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE tracking_visits ADD COLUMN tracking_site_id INTEGER REFERENCES tracking_sites(id) ON DELETE CASCADE;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE tracking_sites ADD COLUMN slug VARCHAR(80);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE tracking_visits ADD COLUMN traffic_source VARCHAR(20) NOT NULL DEFAULT 'organic';");
+  } catch (e) {}
+  try {
+    await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_tracking_sites_slug_unique ON tracking_sites(slug) WHERE slug IS NOT NULL;");
+  } catch (e) {}
+  try {
+    await db.exec("UPDATE tracking_visits SET country_code = 'LOCAL', country_name = 'Ambiente local', city = 'Localhost' WHERE ip_address IN ('::1', '127.0.0.1') AND (country_name IS NULL OR country_name = 'Não identificado');");
+  } catch (e) {}
+  try {
+    await db.exec(`
       CREATE TABLE IF NOT EXISTS ai_usage_daily (
         usage_date DATE PRIMARY KEY,
         tokens_used INTEGER NOT NULL DEFAULT 0
@@ -502,6 +574,44 @@ async function initSqliteDb() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS tracking_sites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      presell_id INTEGER REFERENCES presells(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      site_key TEXT UNIQUE NOT NULL,
+      slug TEXT UNIQUE,
+      status TEXT NOT NULL DEFAULT 'active',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_tracking_sites_user ON tracking_sites(user_id, created_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_tracking_sites_presell_unique ON tracking_sites(presell_id) WHERE presell_id IS NOT NULL;
+
+    CREATE TABLE IF NOT EXISTS tracking_visits (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      presell_id INTEGER REFERENCES presells(id) ON DELETE CASCADE,
+      tracking_site_id INTEGER REFERENCES tracking_sites(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      visit_token TEXT UNIQUE NOT NULL,
+      visitor_key TEXT NOT NULL,
+      ip_address TEXT,
+      country_code TEXT,
+      country_name TEXT,
+      city TEXT,
+      device_type TEXT NOT NULL DEFAULT 'desktop',
+      browser TEXT,
+      operating_system TEXT,
+      referrer TEXT,
+      page_path TEXT,
+      traffic_source TEXT NOT NULL DEFAULT 'organic',
+      clicks INTEGER NOT NULL DEFAULT 0,
+      clicked_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_tracking_visits_user_created ON tracking_visits(user_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_tracking_visits_presell_created ON tracking_visits(presell_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_tracking_visits_visitor ON tracking_visits(visitor_key);
+
     CREATE TABLE IF NOT EXISTS payments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
@@ -573,11 +683,57 @@ async function initSqliteDb() {
     "ALTER TABLE presells ADD COLUMN thank_you_html TEXT;",
     "ALTER TABLE presells ADD COLUMN thank_you_file_name TEXT;",
     "ALTER TABLE presells ADD COLUMN status TEXT NOT NULL DEFAULT 'local';",
+    "ALTER TABLE tracking_visits ADD COLUMN tracking_site_id INTEGER REFERENCES tracking_sites(id) ON DELETE CASCADE;",
+    "ALTER TABLE tracking_sites ADD COLUMN slug TEXT;",
+    "ALTER TABLE tracking_visits ADD COLUMN traffic_source TEXT NOT NULL DEFAULT 'organic';",
   ];
   for (const stmt of alterStatements) {
     try {
       db.execSync(stmt);
     } catch (e) {}
+  }
+  try {
+    db.execSync("CREATE UNIQUE INDEX IF NOT EXISTS idx_tracking_sites_slug_unique ON tracking_sites(slug) WHERE slug IS NOT NULL;");
+  } catch (e) {}
+  try {
+    db.execSync("UPDATE tracking_visits SET country_code = 'LOCAL', country_name = 'Ambiente local', city = 'Localhost' WHERE ip_address IN ('::1', '127.0.0.1') AND (country_name IS NULL OR country_name = 'Não identificado');");
+  } catch (e) {}
+
+  const visitColumns = _sqlite.prepare("PRAGMA table_info(tracking_visits)").all() as Array<{ name: string; notnull: number }>;
+  const presellColumn = visitColumns.find((column) => column.name === "presell_id");
+  if (presellColumn?.notnull) {
+    db.execSync(`
+      ALTER TABLE tracking_visits RENAME TO tracking_visits_legacy;
+      CREATE TABLE tracking_visits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        presell_id INTEGER REFERENCES presells(id) ON DELETE CASCADE,
+        tracking_site_id INTEGER REFERENCES tracking_sites(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        visit_token TEXT UNIQUE NOT NULL,
+        visitor_key TEXT NOT NULL,
+        ip_address TEXT,
+        country_code TEXT,
+        country_name TEXT,
+        city TEXT,
+        device_type TEXT NOT NULL DEFAULT 'desktop',
+        browser TEXT,
+        operating_system TEXT,
+        referrer TEXT,
+        page_path TEXT,
+        traffic_source TEXT NOT NULL DEFAULT 'organic',
+        clicks INTEGER NOT NULL DEFAULT 0,
+        clicked_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+      INSERT INTO tracking_visits
+        (id, presell_id, tracking_site_id, user_id, visit_token, visitor_key, ip_address, country_code, country_name, city, device_type, browser, operating_system, referrer, page_path, traffic_source, clicks, clicked_at, created_at)
+      SELECT id, presell_id, tracking_site_id, user_id, visit_token, visitor_key, ip_address, country_code, country_name, city, device_type, browser, operating_system, referrer, page_path, 'organic', clicks, clicked_at, created_at
+      FROM tracking_visits_legacy;
+      DROP TABLE tracking_visits_legacy;
+      CREATE INDEX IF NOT EXISTS idx_tracking_visits_user_created ON tracking_visits(user_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_tracking_visits_presell_created ON tracking_visits(presell_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_tracking_visits_visitor ON tracking_visits(visitor_key);
+    `);
   }
 
   return db;

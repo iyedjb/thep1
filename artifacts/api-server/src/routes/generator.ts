@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { logger } from "../lib/logger";
 import { getDb } from "../lib/sqlite";
+import { injectClickTracker, recordPublishedVisit, recordTrackingVisit, type TrackingSite } from "../lib/tracking";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import puppeteer from "puppeteer";
 
@@ -20,6 +21,38 @@ function resolvePublishedPagesRoot() {
     path.resolve(import.meta.dirname, "../../ads-intelligence/public"),
   ];
   return candidates.find((candidate) => fs.existsSync(path.dirname(candidate))) || candidates[0];
+}
+
+function publicAppBaseUrl(req: any) {
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
+  const forwardedProtocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  return String(process.env.PUBLIC_APP_URL || `${forwardedProtocol || req.protocol}://${forwardedHost || req.get("host")}`).replace(/\/$/, "");
+}
+
+async function serveDomainPresell(req: any, res: any, presell: any, fileName: string, slug: string) {
+  if (!presell) return void res.status(404).send("Página não encontrada.");
+  if (presell.status === "paused") return void res.status(503).type("html").set("Cache-Control", "no-store").send(PAUSED_PRESELL_HTML);
+  let html = fileName === "index.html"
+    ? String(presell.published_html || "")
+    : fileName === path.basename(String(presell.thank_you_file_name || ""))
+      ? String(presell.thank_you_html || "")
+      : "";
+  if (!html) return void res.status(404).send("Página não encontrada.");
+  if (fileName === "index.html") {
+    try {
+      const site = await getDb().prepare("SELECT * FROM tracking_sites WHERE slug = ? AND presell_id = ? AND status = 'active'").get(slug, presell.id) as TrackingSite | undefined;
+      if (site) {
+        const query = req.originalUrl.includes("?") ? req.originalUrl.slice(req.originalUrl.indexOf("?")) : "";
+        const visitToken = await recordTrackingVisit(req, site, `/${slug}${query}`, String(req.headers.referer || ""));
+        html = html.replace(/<script\b([^>]*data-site=["'][a-f0-9]{48}["'][^>]*)>/i, `<script$1 data-visit-token="${visitToken}">`);
+      }
+    } catch (trackingError: any) {
+      logger.warn({ err: trackingError.message, presellId: presell.id }, "Domain presell served without analytics");
+    }
+    const baseTag = `<base href="/${slug}/">`;
+    html = /<head\b[^>]*>/i.test(html) ? html.replace(/<head\b[^>]*>/i, (head: string) => `${head}${baseTag}`) : `${baseTag}${html}`;
+  }
+  res.type("html").set({ "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff" }).send(html);
 }
 
 type BridgeMode = "presell" | "upsell";
@@ -6965,6 +6998,23 @@ ${richContext}`;
 // Public pages are served from the active database, not from a mutable frontend
 // build directory. This keeps publication durable and identical on SQLite and
 // PostgreSQL, while still allowing the local filesystem to act as a cache.
+router.get(/^\/public\/[^/]+(?:\/[^/]+)?$/, async (req, res) => {
+  try {
+    const parts = req.path.split("/").filter(Boolean);
+    const slug = String(parts[1] || "").toLowerCase();
+    const fileName = path.basename(parts[2] || "index.html");
+    const presell = await getDb().prepare(
+      `SELECT p.id, p.user_id, p.product_name, p.status, p.published_html, p.thank_you_html, p.thank_you_file_name
+       FROM tracking_sites t JOIN presells p ON p.id = t.presell_id
+       WHERE t.slug = ? AND t.status = 'active' AND p.published_url IS NOT NULL`
+    ).get(slug) as any;
+    await serveDomainPresell(req, res, presell, fileName, slug);
+  } catch (err: any) {
+    logger.error({ err: err.message }, "Failed to serve domain presell");
+    res.status(500).send("Não foi possível abrir esta página.");
+  }
+});
+
 router.get(/^\/p\/.+\/[^/]+$/, async (req, res) => {
   try {
     const parts = req.path.split("/").filter(Boolean);
@@ -6972,7 +7022,7 @@ router.get(/^\/p\/.+\/[^/]+$/, async (req, res) => {
     const publishPath = parts.join("/");
     if (!publishPath.startsWith("p/") || !fileName) return void res.status(404).send("Página não encontrada.");
     const presell = await getDb().prepare(
-      "SELECT status, published_html, thank_you_html, thank_you_file_name FROM presells WHERE publish_path = ? AND published_url IS NOT NULL"
+      "SELECT id, user_id, product_name, status, published_html, thank_you_html, thank_you_file_name FROM presells WHERE publish_path = ? AND published_url IS NOT NULL"
     ).get(publishPath) as any;
     if (!presell) return void res.status(404).send("Página não encontrada.");
     if (presell.status === "paused") return void res.status(503).type("html").set("Cache-Control", "no-store").send(PAUSED_PRESELL_HTML);
@@ -6989,6 +7039,27 @@ router.get(/^\/p\/.+\/[^/]+$/, async (req, res) => {
       if (filePath.startsWith(path.resolve(publicRoot, publishPath) + path.sep) && fs.existsSync(filePath)) html = fs.readFileSync(filePath, "utf8");
     }
     if (!html) return void res.status(404).send("Página não encontrada.");
+    if (fileName === "index.html") {
+      try {
+        const selectedKey = html.match(/data-site=["']([a-f0-9]{48})["']/i)?.[1] || "";
+        const selectedSite = selectedKey
+          ? await getDb().prepare("SELECT * FROM tracking_sites WHERE site_key = ? AND user_id = ? AND status = 'active'").get(selectedKey, presell.user_id) as TrackingSite | undefined
+          : undefined;
+        if (selectedSite) {
+          if (!selectedSite.presell_id) {
+            await getDb().prepare("UPDATE tracking_sites SET presell_id = ? WHERE id = ? AND user_id = ?").run(presell.id, selectedSite.id, presell.user_id);
+            selectedSite.presell_id = presell.id;
+          }
+          const visitToken = await recordTrackingVisit(req, selectedSite);
+          html = html.replace(/<script\b([^>]*data-site=["'][a-f0-9]{48}["'][^>]*)>/i, `<script$1 data-visit-token="${visitToken}">`);
+        } else {
+          const visitToken = await recordPublishedVisit(req, presell);
+          html = injectClickTracker(html, visitToken);
+        }
+      } catch (trackingError: any) {
+        logger.warn({ err: trackingError.message, presellId: presell.id }, "Presell served without analytics");
+      }
+    }
     res.type("html").set({ "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff" }).send(html);
   } catch (err: any) {
     logger.error({ err: err.message }, "Failed to serve published presell");
@@ -6997,9 +7068,9 @@ router.get(/^\/p\/.+\/[^/]+$/, async (req, res) => {
 });
 
 router.post("/publish-bridge", requireAuth, async (req: any, res) => {
-  const { htmlContent, presellId, pageName, thankYouHtml, thankYouFileName } = req.body || {};
-  if (!htmlContent || !presellId) {
-    res.status(400).json({ error: "htmlContent e presellId são obrigatórios." });
+  const { htmlContent, presellId, pageName, thankYouHtml, thankYouFileName, trackingSiteId } = req.body || {};
+  if (!htmlContent || !presellId || !trackingSiteId) {
+    res.status(400).json({ error: "Página, presell e domínio são obrigatórios para publicar." });
     return;
   }
 
@@ -7008,6 +7079,17 @@ router.post("/publish-bridge", requireAuth, async (req: any, res) => {
     const presell = await db.prepare("SELECT id, publish_path FROM presells WHERE id = ? AND user_id = ?").get(presellId, req.userId);
     if (!presell) {
       res.status(404).json({ error: "Presell não encontrada." });
+      return;
+    }
+    const trackingSite = await db.prepare(
+      "SELECT id, name, site_key, slug, presell_id FROM tracking_sites WHERE id = ? AND user_id = ? AND status = 'active'"
+    ).get(trackingSiteId, req.userId) as any;
+    if (!trackingSite) {
+      res.status(404).json({ error: "Domínio de rastreamento não encontrado." });
+      return;
+    }
+    if (trackingSite.presell_id && Number(trackingSite.presell_id) !== Number(presellId)) {
+      res.status(409).json({ error: "Este domínio já está conectado a outra presell." });
       return;
     }
 
@@ -7027,10 +7109,16 @@ router.post("/publish-bridge", requireAuth, async (req: any, res) => {
     const existingPath = String(presell.publish_path || "").replace(/^\/+|\/+$/g, "");
     const relativeDir = existingPath || `p/${userSlug}/${pageSlug}-${presellId}-${Math.random().toString(36).slice(2, 8)}`;
     const safeThankYouName = thankYouHtml && thankYouFileName ? path.basename(String(thankYouFileName).replace(/^\.\//, "")) : null;
-    const publicUrl = `/api/${relativeDir.replace(/\\/g, "/")}/index.html`;
+    const internalUrl = `/api/${relativeDir.replace(/\\/g, "/")}/index.html`;
+    const publicUrl = `${publicAppBaseUrl(req)}/${trackingSite.slug}`;
+    const trackerTag = `<script async src="/api/tracker.js" data-site="${trackingSite.site_key}"></script>`;
+    const publishedHtml = /<\/head\s*>/i.test(String(htmlContent))
+      ? String(htmlContent).replace(/<\/head\s*>/i, `  ${trackerTag}\n</head>`)
+      : `${trackerTag}\n${String(htmlContent)}`;
     await db.prepare(
       "UPDATE presells SET published_url = ?, publish_path = ?, published_html = ?, thank_you_html = ?, thank_you_file_name = ?, status = 'active' WHERE id = ? AND user_id = ?"
-    ).run(publicUrl, relativeDir, String(htmlContent), thankYouHtml ? String(thankYouHtml) : null, safeThankYouName, presellId, req.userId);
+    ).run(publicUrl, relativeDir, publishedHtml, thankYouHtml ? String(thankYouHtml) : null, safeThankYouName, presellId, req.userId);
+    await db.prepare("UPDATE tracking_sites SET presell_id = ? WHERE id = ? AND user_id = ?").run(presellId, trackingSite.id, req.userId);
 
     // Best-effort local cache for direct Vite access and older links. Publication
     // remains successful when a production filesystem is read-only or ephemeral.
@@ -7039,7 +7127,7 @@ router.post("/publish-bridge", requireAuth, async (req: any, res) => {
       const targetDir = path.resolve(publicRoot, relativeDir);
       if (targetDir.startsWith(publicRoot + path.sep)) {
         fs.mkdirSync(targetDir, { recursive: true });
-        fs.writeFileSync(path.join(targetDir, "index.html"), String(htmlContent), "utf8");
+        fs.writeFileSync(path.join(targetDir, "index.html"), publishedHtml, "utf8");
         const pausedBackup = path.join(targetDir, "index.active.html");
         if (fs.existsSync(pausedBackup)) fs.unlinkSync(pausedBackup);
         if (thankYouHtml && safeThankYouName) fs.writeFileSync(path.join(targetDir, safeThankYouName), String(thankYouHtml), "utf8");
@@ -7047,11 +7135,12 @@ router.post("/publish-bridge", requireAuth, async (req: any, res) => {
     } catch (cacheError: any) {
       logger.warn({ err: cacheError.message, relativeDir }, "Published presell saved in database; filesystem cache unavailable");
     }
-    logger.info({ presellId, publicUrl }, "Bridge page published successfully");
+    logger.info({ presellId, publicUrl, internalUrl }, "Bridge page published successfully");
 
     res.json({
       success: true,
       url: publicUrl,
+      domain: trackingSite.name,
     });
   } catch (err: any) {
     logger.error({ err: err.message }, "Failed to publish bridge page");

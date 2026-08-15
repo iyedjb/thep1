@@ -1,0 +1,282 @@
+import { Router } from "express";
+import crypto from "crypto";
+import { getDb } from "../lib/sqlite";
+import { logger } from "../lib/logger";
+import { recordTrackingVisit, type TrackingSite } from "../lib/tracking";
+import { requireAuth } from "./auth";
+
+const router = Router();
+
+function publicBaseUrl(req: any) {
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
+  const forwardedProtocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  return String(process.env.PUBLIC_APP_URL || `${forwardedProtocol || req.protocol}://${forwardedHost || req.get("host")}`).replace(/\/$/, "");
+}
+
+const RESERVED_SLUGS = new Set([
+  "api", "admin", "assets", "campaigns", "checkout", "creator", "dashboard", "domains",
+  "drcash", "favicon", "google-trends", "keywords", "login", "p", "pricing", "reports",
+  "signup", "support", "tracking", "traffic-manager", "trends",
+]);
+
+function normalizeSlug(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48);
+}
+
+async function ensureSiteSlug(site: any) {
+  const current = String(site.slug || "");
+  if (current && !current.startsWith(`site-${Number(site.id)}-`)) return current;
+  const friendly = normalizeSlug(String(site.name || ""));
+  if (friendly.length >= 3 && !RESERVED_SLUGS.has(friendly)) {
+    const collision = await getDb().prepare("SELECT id FROM tracking_sites WHERE slug = ? AND id <> ?").get(friendly, site.id) as any;
+    if (!collision) {
+      await getDb().prepare("UPDATE tracking_sites SET slug = ? WHERE id = ?").run(friendly, site.id);
+      return friendly;
+    }
+  }
+  const fallback = `site-${Number(site.id)}-${String(site.site_key).slice(0, 6)}`;
+  await getDb().prepare("UPDATE tracking_sites SET slug = ? WHERE id = ?").run(fallback, site.id);
+  return fallback;
+}
+
+function installationSnippet(baseUrl: string, siteKey: string) {
+  return `<script async src="${baseUrl}/api/tracker.js" data-site="${siteKey}"></script>`;
+}
+
+router.get("/tracker.js", (_req, res) => {
+  res.type("application/javascript").set("Cache-Control", "public, max-age=300").send(`(function(){
+var s=document.currentScript,k=s&&s.getAttribute('data-site');if(!k)return;
+var o=new URL(s.src).origin,t=s.getAttribute('data-visit-token')||'';
+if(!t)fetch(o+'/api/tracking/visit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({siteKey:k,pageUrl:location.href,referrer:document.referrer}),keepalive:true,credentials:'omit'}).then(function(r){return r.ok?r.json():null}).then(function(d){t=d&&d.token||''}).catch(function(){});
+document.addEventListener('click',function(e){var n=e.target&&e.target.closest?e.target.closest('a,button,[role="button"],input[type="submit"]'):null;if(!n||!t)return;var b=JSON.stringify({token:t});try{if(navigator.sendBeacon)navigator.sendBeacon(o+'/api/tracking/click',new Blob([b],{type:'application/json'}));else fetch(o+'/api/tracking/click',{method:'POST',headers:{'Content-Type':'application/json'},body:b,keepalive:true,credentials:'omit'});}catch(_){ }},true);
+})();`);
+});
+
+router.post("/tracking/visit", async (req, res) => {
+  const siteKey = String(req.body?.siteKey || "");
+  if (!/^[a-f0-9]{48}$/.test(siteKey)) {
+    res.status(400).json({ error: "Identificador de rastreamento inválido." });
+    return;
+  }
+  try {
+    const site = await getDb().prepare("SELECT * FROM tracking_sites WHERE site_key = ? AND status = 'active'").get(siteKey) as TrackingSite | undefined;
+    if (!site) {
+      res.status(404).json({ error: "Rastreador não encontrado." });
+      return;
+    }
+    const token = await recordTrackingVisit(
+      req,
+      site,
+      String(req.body?.pageUrl || "").slice(0, 2048),
+      String(req.body?.referrer || "").slice(0, 2048),
+    );
+    res.json({ token });
+  } catch (error: any) {
+    logger.warn({ err: error.message }, "Unable to register external visit");
+    res.status(500).json({ error: "Não foi possível registrar a visita." });
+  }
+});
+
+router.post("/tracking/sites", requireAuth, async (req: any, res) => {
+  const slug = normalizeSlug(String(req.body?.slug || req.body?.name || ""));
+  const name = String(req.body?.name || slug).trim().replace(/\s+/g, " ").slice(0, 80) || slug;
+  if (slug.length < 3) {
+    res.status(400).json({ error: "O endereço precisa ter pelo menos 3 caracteres." });
+    return;
+  }
+  if (RESERVED_SLUGS.has(slug)) {
+    res.status(400).json({ error: "Este endereço é reservado. Escolha outro nome." });
+    return;
+  }
+  try {
+    const siteKey = crypto.randomBytes(24).toString("hex");
+    const result = await getDb().prepare(
+      "INSERT INTO tracking_sites (user_id, name, site_key, slug) VALUES (?, ?, ?, ?)"
+    ).run(req.userId, name, siteKey, slug);
+    const baseUrl = publicBaseUrl(req);
+    res.status(201).json({
+      id: Number(result.lastInsertRowid),
+      name,
+      siteKey,
+      slug,
+      publicUrl: `${baseUrl}/${slug}`,
+      trackingAddress: `${baseUrl}/${slug}`,
+      snippet: installationSnippet(baseUrl, siteKey),
+      status: "active",
+    });
+  } catch (error: any) {
+    if (/unique|duplicate/i.test(String(error.message))) {
+      res.status(409).json({ error: "Este endereço já está em uso. Escolha outro nome." });
+      return;
+    }
+    logger.error({ err: error.message }, "Unable to create tracking site");
+    res.status(500).json({ error: "Não foi possível criar o domínio." });
+  }
+});
+
+router.get("/tracking/sites", requireAuth, async (req: any, res) => {
+  try {
+    const rows = await getDb().prepare(
+      "SELECT id, name, site_key, slug, status, presell_id, created_at FROM tracking_sites WHERE user_id = ? ORDER BY created_at DESC"
+    ).all(req.userId) as any[];
+    const baseUrl = publicBaseUrl(req);
+    const sites = await Promise.all(rows.map(async (site) => {
+      const slug = await ensureSiteSlug(site);
+      return {
+        id: Number(site.id), name: site.name, siteKey: site.site_key, slug, status: site.status,
+        presellId: site.presell_id ? Number(site.presell_id) : null,
+        publicUrl: `${baseUrl}/${slug}`,
+        trackingAddress: `${baseUrl}/${slug}`,
+        snippet: installationSnippet(baseUrl, site.site_key),
+      };
+    }));
+    res.json({ baseUrl, sites });
+  } catch (error: any) {
+    logger.error({ err: error.message }, "Unable to list tracking sites");
+    res.status(500).json({ error: "Não foi possível carregar os domínios." });
+  }
+});
+
+router.post("/tracking/click", async (req, res) => {
+  const token = String(req.body?.token || "");
+  if (!/^[a-f0-9]{48}$/.test(token)) {
+    res.status(204).end();
+    return;
+  }
+  try {
+    await getDb().prepare(
+      "UPDATE tracking_visits SET clicks = clicks + 1, clicked_at = CURRENT_TIMESTAMP WHERE visit_token = ?"
+    ).run(token);
+  } catch (error: any) {
+    logger.warn({ err: error.message }, "Unable to register tracked click");
+  }
+  res.status(204).end();
+});
+
+router.get("/tracking/overview", requireAuth, async (req: any, res) => {
+  try {
+    const days = req.query.period === "30d" ? 30 : req.query.period === "90d" ? 90 : 7;
+    const source = req.query.source === "paid" ? "paid" : req.query.source === "organic" ? "organic" : "all";
+    const requestedSite = Number(req.query.siteId || 0);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 19)
+      .replace("T", " ");
+    const db = getDb();
+    const presells = await db.prepare(
+      `SELECT id, product_name, destination_url, published_url, status, created_at
+       FROM presells WHERE user_id = ? ORDER BY created_at DESC`
+    ).all(req.userId) as any[];
+    const sites = await db.prepare(
+      "SELECT id, presell_id, name, site_key, slug, status, created_at FROM tracking_sites WHERE user_id = ? ORDER BY created_at DESC"
+    ).all(req.userId) as any[];
+    for (const site of sites) site.slug = await ensureSiteSlug(site);
+    const allowedSiteIds = new Set(sites.map((item) => Number(item.id)));
+    const selectedSite = requestedSite && allowedSiteIds.has(requestedSite) ? requestedSite : 0;
+    const visits = selectedSite
+      ? await db.prepare("SELECT * FROM tracking_visits WHERE user_id = ? AND tracking_site_id = ? AND created_at >= ? ORDER BY created_at DESC").all(req.userId, selectedSite, since)
+      : await db.prepare("SELECT * FROM tracking_visits WHERE user_id = ? AND created_at >= ? ORDER BY created_at DESC").all(req.userId, since);
+
+    const unfilteredRows = visits as any[];
+    const rows = source === "all" ? unfilteredRows : unfilteredRows.filter((row) => String(row.traffic_source || "organic") === source);
+    const uniqueVisitors = new Set(rows.map((row) => row.visitor_key)).size;
+    const engagedVisits = rows.filter((row) => Number(row.clicks || 0) > 0).length;
+    const clickEvents = rows.reduce((sum, row) => sum + Number(row.clicks || 0), 0);
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const todayVisits = rows.filter((row) => String(row.created_at).slice(0, 10) === todayKey).length;
+
+    const countBy = (key: string, fallback: string) => {
+      const totals = new Map<string, number>();
+      for (const row of rows) {
+        const label = String(row[key] || fallback);
+        totals.set(label, (totals.get(label) || 0) + 1);
+      }
+      return [...totals.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+    };
+
+    const trackedPresellIds = new Set(sites.filter((site) => site.presell_id).map((site) => Number(site.presell_id)));
+    const siteStats = sites.map((site) => {
+      const pageVisits = rows.filter((row) => Number(row.tracking_site_id) === Number(site.id));
+      const clicks = pageVisits.filter((row) => Number(row.clicks || 0) > 0).length;
+      const total = pageVisits.length;
+      return {
+        id: Number(site.id),
+        name: site.name,
+        url: `${publicBaseUrl(req)}/${site.slug}`,
+        snippet: installationSnippet(publicBaseUrl(req), site.site_key),
+        status: site.status,
+        visits: total,
+        clicks,
+        clickRate: total ? Math.round((clicks / total) * 100) : 0,
+        escapeRate: total ? Math.round(((total - clicks) / total) * 100) : 0,
+      };
+    });
+    const legacyPresellStats = presells.filter((presell) => !trackedPresellIds.has(Number(presell.id))).map((presell) => {
+      const pageVisits = rows.filter((row) => Number(row.presell_id) === Number(presell.id));
+      const clicks = pageVisits.filter((row) => Number(row.clicks || 0) > 0).length;
+      const total = pageVisits.length;
+      return { id: `presell-${presell.id}`, name: presell.product_name || `Presell ${presell.id}`, url: presell.published_url || presell.destination_url, status: presell.status, visits: total, clicks, clickRate: total ? Math.round((clicks / total) * 100) : 0, escapeRate: total ? Math.round(((total - clicks) / total) * 100) : 0 };
+    });
+    const pageStats = [...siteStats, ...legacyPresellStats].sort((a, b) => b.visits - a.visits);
+
+    const dailyMap = new Map<string, { visits: number; clicks: number }>();
+    for (let offset = days - 1; offset >= 0; offset -= 1) {
+      const date = new Date(Date.now() - offset * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+      dailyMap.set(date, { visits: 0, clicks: 0 });
+    }
+    for (const row of rows) {
+      const date = new Date(row.created_at).toISOString().slice(0, 10);
+      const point = dailyMap.get(date);
+      if (point) {
+        point.visits += 1;
+        if (Number(row.clicks || 0) > 0) point.clicks += 1;
+      }
+    }
+
+    res.json({
+      period: `${days}d`,
+      source,
+      presells,
+      sites: sites.map((site) => ({
+        id: Number(site.id),
+        name: site.name,
+        siteKey: site.site_key,
+        slug: site.slug,
+        status: site.status,
+        publicUrl: `${publicBaseUrl(req)}/${site.slug}`,
+        trackingAddress: `${publicBaseUrl(req)}/${site.slug}`,
+        snippet: installationSnippet(publicBaseUrl(req), site.site_key),
+      })),
+      summary: {
+        visits: rows.length,
+        uniqueVisitors,
+        todayVisits,
+        engagedVisits,
+        clickEvents,
+        escapeRate: rows.length ? Math.round(((rows.length - engagedVisits) / rows.length) * 100) : 0,
+      },
+      pages: pageStats,
+      devices: countBy("device_type", "desktop"),
+      countries: countBy("country_name", "Não identificado").slice(0, 8),
+      daily: [...dailyMap.entries()].map(([date, values]) => ({ date, ...values })),
+      recentVisitors: rows.slice(0, 12).map((row) => ({
+        id: row.visit_token.slice(0, 12),
+        ip: row.ip_address || "—",
+        country: row.country_name || "Não identificado",
+        city: row.city || "",
+        device: row.device_type,
+        browser: row.browser || "Outro",
+        operatingSystem: row.operating_system || "Outro",
+        clicked: Number(row.clicks || 0) > 0,
+        source: row.traffic_source || "organic",
+        createdAt: row.created_at,
+      })),
+    });
+  } catch (error: any) {
+    logger.error({ err: error.message }, "Unable to load tracking overview");
+    res.status(500).json({ error: "Não foi possível carregar o rastreamento." });
+  }
+});
+
+export default router;

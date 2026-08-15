@@ -170,7 +170,10 @@ export default function AdminPage() {
     try { setActivities(await adminApi(activityPath(range))); } catch (error: any) { toast({ title: "Não foi possível filtrar", description: error.message, variant: "destructive" }); } finally { setLoading(false); }
   };
   const applyCustomActivityRange = async () => {
-    if (!activityFrom || !activityTo) return toast({ title: "Selecione as duas datas", variant: "destructive" });
+    if (!activityFrom || !activityTo) {
+      toast({ title: "Selecione as duas datas", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     try { setActivities(await adminApi(`/api/admin/audit-logs?range=custom&from=${activityFrom}&to=${activityTo}`)); } catch (error: any) { toast({ title: "Não foi possível filtrar", description: error.message, variant: "destructive" }); } finally { setLoading(false); }
   };

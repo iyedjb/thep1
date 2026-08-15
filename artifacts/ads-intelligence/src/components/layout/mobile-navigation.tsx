@@ -8,6 +8,8 @@ import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTri
 
 const mobileLinks = [
   { path: "/creator", label: "Home" },
+  { path: "/tracking", label: "Dados" },
+  { path: "/domains", label: "Domínios" },
   { path: "/traffic-manager", label: "Gestor IA" },
   { path: "/trends", label: "Trends" },
 ];
@@ -21,7 +23,7 @@ export function MobileBottomNavigation() {
   const [location] = useLocation();
   if (location === "/traffic-manager") return null;
   return (
-    <nav aria-label="Navegação principal" className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-1/2 z-50 grid w-[calc(100%-1.25rem)] max-w-sm -translate-x-1/2 grid-cols-3 rounded-full border border-primary/15 bg-white/95 p-1.5 shadow-[0_16px_50px_rgba(15,23,42,0.16)] backdrop-blur-xl md:hidden">
+    <nav aria-label="Navegação principal" className="fixed bottom-[max(0.75rem,env(safe-area-inset-bottom))] left-1/2 z-50 grid w-[calc(100%-1rem)] max-w-lg -translate-x-1/2 grid-cols-5 rounded-full border border-primary/15 bg-white/95 p-1.5 shadow-[0_16px_50px_rgba(15,23,42,0.16)] backdrop-blur-xl md:hidden">
       {mobileLinks.map((item) => {
         const active = location === item.path;
         return (

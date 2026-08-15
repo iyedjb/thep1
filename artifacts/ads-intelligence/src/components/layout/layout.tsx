@@ -19,6 +19,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/trends": "Google Trends",
   "/creator": "Presell com IA",
   "/traffic-manager": "Gestor de Tráfego",
+  "/tracking": "Rastreamento",
+  "/domains": "Meus domínios",
   "/drcash": "Dr. Cash",
   "/pricing": "Planos",
   "/support": "Suporte",
