@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CreditCard, LayoutDashboard, Menu, ShieldCheck, Users, WalletCards, type LucideIcon } from "lucide-react";
+import { Area, AreaChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ClipboardList, CreditCard, LayoutDashboard, Menu, ShieldCheck, Users, WalletCards, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -10,8 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/hooks/use-toast";
 
-type Permission = "dashboard.view" | "clients.view" | "clients.manage" | "cashbox.view" | "cashbox.manage" | "payments.view" | "access.manage";
-type Section = "dashboard" | "clients" | "cashbox" | "payments" | "access";
+type Permission = "dashboard.view" | "clients.view" | "clients.manage" | "cashbox.view" | "cashbox.manage" | "payments.view" | "audit.view" | "access.manage";
+type Section = "dashboard" | "clients" | "cashbox" | "payments" | "activities" | "access";
 type AdminSession = { id: number; name: string; email: string; roleName: string; isOwner: boolean; permissions: Permission[] };
 type Client = { id: number; name: string; email: string; subscription_tier: string; subscription_status: string; account_status: string; subscription_expires_at?: string; created_at: string; approved_payments: number };
 type Payment = { id: number; user_name?: string; user_email?: string; status: string; transaction_amount: number; plan_tier: string; billing_cycle: string; payment_method_id?: string; created_at: string };
@@ -19,12 +19,14 @@ type Message = { id: number; sender_type: "user" | "admin"; content: string; cre
 type ClientDetail = { user: Client; payments: Payment[]; chat: { id: number; status: string } | null; messages: Message[] };
 type AdminAccount = AdminSession & { active: boolean; createdAt?: string };
 type CashMovement = { id: string; source: "payment" | "manual"; movement_type: "entry" | "exit"; amount: number; description: string; category?: string; payment_method?: string; movement_date: string };
+type AuditLog = { id: number; adminName: string; adminEmail: string; action: string; targetType?: string; targetId?: string; details: Record<string, any>; createdAt: string };
 
 const nav: Array<{ id: Section; label: string; permission: Permission; icon: LucideIcon }> = [
   { id: "dashboard", label: "Dashboard", permission: "dashboard.view", icon: LayoutDashboard },
   { id: "clients", label: "Clientes", permission: "clients.view", icon: Users },
   { id: "cashbox", label: "Caixa", permission: "cashbox.view", icon: WalletCards },
   { id: "payments", label: "Pagamentos", permission: "payments.view", icon: CreditCard },
+  { id: "activities", label: "Atividades", permission: "audit.view", icon: ClipboardList },
   { id: "access", label: "Acessos", permission: "access.manage", icon: ShieldCheck },
 ];
 const permissionLabels: Array<{ id: Permission; label: string }> = [
@@ -34,6 +36,7 @@ const permissionLabels: Array<{ id: Permission; label: string }> = [
   { id: "cashbox.view", label: "Visualizar o caixa" },
   { id: "cashbox.manage", label: "Registrar entradas e saídas" },
   { id: "payments.view", label: "Visualizar checkouts e relatórios" },
+  { id: "audit.view", label: "Visualizar histórico de atividades" },
 ];
 
 async function adminApi(path: string, init?: RequestInit) {
@@ -50,7 +53,27 @@ function formatDate(value?: string) {
   if (dateOnly) return `${dateOnly[3]}/${dateOnly[2]}/${dateOnly[1]}`;
   return new Date(value).toLocaleDateString("pt-BR");
 }
+function databaseDate(value: string) { return new Date(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value) ? value.replace(" ", "T") + "Z" : value); }
+function formatDateTime(value: string) { return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" }).format(databaseDate(value)); }
 function planName(value: string) { return ({ free: "Gratuito", starter: "Essencial", pro: "Profissional", enterprise: "Escala" } as Record<string, string>)[value] || value; }
+const actionLabels: Record<string, string> = {
+  "admin.login": "Entrou no painel", "admin.owner.created": "Criou o acesso proprietário", "admin.access.created": "Criou um acesso administrativo", "admin.access.status.updated": "Alterou o status de um acesso", "admin.access.deleted": "Excluiu um acesso administrativo",
+  "client.created": "Criou um cliente", "client.plan.updated": "Alterou o plano de um cliente", "client.status.updated": "Alterou o status de um cliente", "client.deleted": "Excluiu um cliente",
+  "cashbox.movement.created": "Registrou um movimento no caixa", "cashbox.movement.deleted": "Excluiu um movimento do caixa", "support.reply.sent": "Respondeu uma conversa", "support.status.updated": "Alterou uma conversa",
+};
+function actionLabel(log: AuditLog) { return actionLabels[log.action] || log.action; }
+function actionDetail(log: AuditLog) {
+  const detail = log.details || {};
+  const target = detail.targetName ? `${detail.targetName}${detail.targetEmail ? ` · ${detail.targetEmail}` : ""}` : "";
+  if (log.action === "client.plan.updated") return `${target ? `${target} · ` : ""}Plano: ${planName(detail.planTier || "")}`;
+  if (log.action === "client.status.updated") return `${target ? `${target} · ` : ""}Status: ${{ active: "Ativo", paused: "Pausado", banned: "Bloqueado" }[detail.status as "active" | "paused" | "banned"] || detail.status || "—"}`;
+  if (log.action === "client.created") return `${detail.name || "Cliente"} · ${planName(detail.planTier || "free")}`;
+  if (log.action === "client.deleted") return target || `Cliente #${log.targetId || "—"}`;
+  if (log.action === "cashbox.movement.created") return `${detail.movementType === "exit" ? "Saída" : "Entrada"} · ${formatMoney(detail.amount)} · ${detail.description || ""}`;
+  if (log.action === "cashbox.movement.deleted" && detail.amount) return `${detail.movementType === "exit" ? "Saída" : "Entrada"} · ${formatMoney(detail.amount)} · ${detail.description || ""}`;
+  if (log.action.startsWith("admin.access.")) return detail.targetName || detail.roleName || `Acesso #${log.targetId || "—"}`;
+  return log.targetId ? `${log.targetType || "Registro"} #${log.targetId}` : "Ação administrativa";
+}
 
 async function downloadPaymentPdf(payments: Payment[], summary: any) {
   const [{ jsPDF }, { default: autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
@@ -65,6 +88,23 @@ async function downloadPaymentPdf(payments: Payment[], summary: any) {
   doc.save(`pagamentos-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
+async function downloadCashboxPdf(cashbox: any) {
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  doc.setFillColor(0, 166, 251); doc.rect(0, 0, 210, 7, "F"); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold"); doc.setFontSize(20); doc.text("Clic Lab", 16, 24); doc.setFontSize(12); doc.text("Relatório de caixa", 16, 33); doc.setFont("helvetica", "normal"); doc.setTextColor(100, 116, 139); doc.setFontSize(9); doc.text(`Gerado em ${new Date().toLocaleString("pt-BR")}`, 16, 40);
+  doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.text("ENTRADAS", 16, 54); doc.text("SAÍDAS", 82, 54); doc.text("SALDO FINAL", 143, 54); doc.setFontSize(14); doc.text(formatMoney(cashbox.summary.entries), 16, 63); doc.text(formatMoney(cashbox.summary.exits), 82, 63); doc.text(formatMoney(cashbox.summary.balance), 143, 63);
+  autoTable(doc, { startY: 75, head: [["Data", "Movimentação", "Tipo", "Método", "Valor"]], body: cashbox.movements.map((item: CashMovement) => [formatDate(item.movement_date), item.description, item.movement_type === "entry" ? "Entrada" : "Saída", item.payment_method || "—", `${item.movement_type === "entry" ? "+" : "-"}${formatMoney(item.amount)}`]), styles: { font: "helvetica", fontSize: 8, cellPadding: 3, lineColor: [226, 232, 240], lineWidth: 0.15 }, headStyles: { fillColor: [0, 166, 251], textColor: 255 }, alternateRowStyles: { fillColor: [248, 250, 252] }, margin: { left: 16, right: 16 }, didDrawPage: ({ pageNumber }) => { doc.setFontSize(8); doc.setTextColor(148, 163, 184); doc.text(`Clic Lab · Caixa · Página ${pageNumber}`, 16, 290); } });
+  doc.save(`caixa-${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
+async function downloadAuditPdf(logs: AuditLog[], rangeLabel: string) {
+  const [{ jsPDF }, { default: autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
+  doc.setFillColor(0, 166, 251); doc.rect(0, 0, 297, 7, "F"); doc.setTextColor(15, 23, 42); doc.setFont("helvetica", "bold"); doc.setFontSize(20); doc.text("Clic Lab", 16, 24); doc.setFontSize(12); doc.text("Relatório de atividades administrativas", 16, 33); doc.setFont("helvetica", "normal"); doc.setTextColor(100, 116, 139); doc.setFontSize(9); doc.text(`${rangeLabel} · Gerado em ${new Date().toLocaleString("pt-BR")}`, 16, 40);
+  autoTable(doc, { startY: 50, head: [["Data e hora", "Administrador", "Ação", "Detalhes"]], body: logs.map((log) => [formatDateTime(log.createdAt), `${log.adminName}\n${log.adminEmail}`, actionLabel(log), actionDetail(log)]), styles: { font: "helvetica", fontSize: 8, cellPadding: 3, lineColor: [226, 232, 240], lineWidth: 0.15 }, headStyles: { fillColor: [0, 166, 251], textColor: 255 }, alternateRowStyles: { fillColor: [248, 250, 252] }, margin: { left: 16, right: 16 }, didDrawPage: ({ pageNumber }) => { doc.setFontSize(8); doc.setTextColor(148, 163, 184); doc.text(`Clic Lab · Auditoria permanente · Página ${pageNumber}`, 16, 202); } });
+  doc.save(`atividades-${new Date().toISOString().slice(0, 10)}.pdf`);
+}
+
 export default function AdminPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -75,7 +115,12 @@ export default function AdminPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [cashbox, setCashbox] = useState<any>(null);
   const [payments, setPayments] = useState<any>(null);
+  const [activities, setActivities] = useState<any>(null);
   const [accounts, setAccounts] = useState<AdminAccount[]>([]);
+  const [dashboardPeriod, setDashboardPeriod] = useState<"days" | "months">("days");
+  const [activityRange, setActivityRange] = useState<"7" | "30" | "all" | "custom">("7");
+  const [activityFrom, setActivityFrom] = useState("");
+  const [activityTo, setActivityTo] = useState("");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [detail, setDetail] = useState<ClientDetail | null>(null);
@@ -94,6 +139,7 @@ export default function AdminPage() {
   const filteredClients = useMemo(() => clients.filter((client) => `${client.name} ${client.email}`.toLowerCase().includes(search.toLowerCase())), [clients, search]);
 
   const logout = () => { localStorage.removeItem("admin_token"); setLocation("/admin/login"); };
+  const activityPath = (range = activityRange) => `/api/admin/audit-logs?range=${range}${range === "custom" ? `&from=${activityFrom}&to=${activityTo}` : ""}`;
   const loadSection = async (target: Section) => {
     setLoading(true);
     try {
@@ -101,6 +147,7 @@ export default function AdminPage() {
       if (target === "clients") setClients((await adminApi("/api/admin/users")).users || []);
       if (target === "cashbox") setCashbox(await adminApi("/api/admin/cashbox"));
       if (target === "payments") setPayments(await adminApi("/api/admin/payments"));
+      if (target === "activities") setActivities(await adminApi(activityPath()));
       if (target === "access") setAccounts((await adminApi("/api/admin/accounts")).accounts || []);
     } catch (error: any) { toast({ title: "Não foi possível carregar", description: error.message, variant: "destructive" }); }
     finally { setLoading(false); }
@@ -116,6 +163,17 @@ export default function AdminPage() {
   }, []);
 
   const changeSection = (target: Section) => { setSection(target); setMobileSidebarOpen(false); loadSection(target); };
+  const changeActivityRange = async (range: "7" | "30" | "all" | "custom") => {
+    setActivityRange(range);
+    if (range === "custom") return;
+    setLoading(true);
+    try { setActivities(await adminApi(activityPath(range))); } catch (error: any) { toast({ title: "Não foi possível filtrar", description: error.message, variant: "destructive" }); } finally { setLoading(false); }
+  };
+  const applyCustomActivityRange = async () => {
+    if (!activityFrom || !activityTo) return toast({ title: "Selecione as duas datas", variant: "destructive" });
+    setLoading(true);
+    try { setActivities(await adminApi(`/api/admin/audit-logs?range=custom&from=${activityFrom}&to=${activityTo}`)); } catch (error: any) { toast({ title: "Não foi possível filtrar", description: error.message, variant: "destructive" }); } finally { setLoading(false); }
+  };
   const openClient = async (id: number) => {
     try { setDetail(await adminApi(`/api/admin/users/${id}`)); setDetailOpen(true); }
     catch (error: any) { toast({ title: "Erro ao abrir cliente", description: error.message, variant: "destructive" }); }
@@ -184,7 +242,7 @@ export default function AdminPage() {
 
           {!loading && section === "dashboard" && dashboard && <section>
             <div className="grid grid-cols-3 border-y border-border">{[["Clientes", dashboard.metrics.customers], ["Receita", formatMoney(dashboard.metrics.revenue)], ["Assinaturas ativas", dashboard.metrics.activeSubscriptions]].map(([label, value], index) => <div key={String(label)} className={`py-6 ${index ? "border-l border-border pl-5 lg:pl-8" : ""}`}><p className="text-2xl font-semibold tracking-tight lg:text-3xl">{value}</p><p className="mt-2 text-xs text-muted-foreground">{label}</p></div>)}</div>
-            <div className="mt-12"><div className="flex items-end justify-between"><div><h2 className="text-xl font-semibold">Receita</h2><p className="mt-1 text-xs text-muted-foreground">Pagamentos aprovados por mês</p></div></div><div className="mt-8 h-80 w-full border-b border-border pb-4"><ResponsiveContainer width="100%" height="100%"><AreaChart data={dashboard.revenueSeries}><defs><linearGradient id="adminRevenue" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#00a6fb" stopOpacity={0.2}/><stop offset="100%" stopColor="#00a6fb" stopOpacity={0}/></linearGradient></defs><CartesianGrid vertical={false} stroke="hsl(var(--border))" /><XAxis dataKey="month" axisLine={false} tickLine={false} fontSize={11}/><YAxis axisLine={false} tickLine={false} fontSize={11}/><Tooltip formatter={(value) => formatMoney(Number(value))}/><Area type="monotone" dataKey="total" stroke="#00a6fb" strokeWidth={2} fill="url(#adminRevenue)" /></AreaChart></ResponsiveContainer></div></div>
+            <div className="mt-12"><div className="flex flex-wrap items-end justify-between gap-4"><div><h2 className="text-xl font-semibold">Receita aprovada</h2><p className="mt-1 text-xs text-muted-foreground">Evolução real dos pagamentos no período</p></div><div className="flex rounded-full border border-border p-1">{[["days", "30 dias"], ["months", "12 meses"]].map(([value, label]) => <button key={value} onClick={() => setDashboardPeriod(value as "days" | "months")} className={`rounded-full px-4 py-2 text-xs font-semibold ${dashboardPeriod === value ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>{label}</button>)}</div></div><div className="mt-7 h-80 w-full border-b border-border pb-4"><ResponsiveContainer width="100%" height="100%"><LineChart data={dashboardPeriod === "days" ? dashboard.revenueDaily : dashboard.revenueMonthly} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}><CartesianGrid vertical={false} stroke="hsl(var(--border))" /><XAxis dataKey="label" axisLine={false} tickLine={false} fontSize={11} interval={dashboardPeriod === "days" ? 4 : 0}/><YAxis axisLine={false} tickLine={false} fontSize={11} domain={[0, dashboard.metrics.revenue > 0 ? "auto" : 1]} tickFormatter={(value) => value === 0 ? "R$ 0" : `R$ ${value}`}/><Tooltip formatter={(value) => formatMoney(Number(value))}/><Line type="monotone" dataKey="total" name="Receita" stroke="#00a6fb" strokeWidth={2.5} dot={false} activeDot={{ r: 4, fill: "#00a6fb" }}/></LineChart></ResponsiveContainer></div>{dashboard.metrics.revenue === 0 && <div className="flex flex-col items-start justify-between gap-4 border-b border-border py-7 sm:flex-row sm:items-center"><div><p className="text-sm font-semibold">Nenhuma compra aprovada ainda</p><p className="mt-1 text-xs text-muted-foreground">Quando o primeiro checkout for aprovado, a receita aparecerá nesta linha.</p></div>{can("payments.view") && <Button onClick={() => changeSection("payments")} variant="outline" className="rounded-full px-5">Ver pagamentos</Button>}</div>}</div>
           </section>}
 
           {!loading && section === "clients" && <section>
@@ -193,16 +251,24 @@ export default function AdminPage() {
           </section>}
 
           {!loading && section === "cashbox" && cashbox && <section>
-            <div className="flex items-start justify-between gap-5"><div><h2 className="text-2xl font-semibold tracking-tight">Movimentação financeira</h2><p className="mt-2 text-sm text-muted-foreground">Entradas aprovadas, registros manuais e saídas da operação.</p></div>{can("cashbox.manage") && <Button onClick={() => setMovementOpen(true)} className="rounded-full px-6">Novo movimento</Button>}</div>
-            <div className="mt-8 grid grid-cols-3 border-y border-border">{[["Entradas", formatMoney(cashbox.summary.entries)], ["Saídas", formatMoney(cashbox.summary.exits)], ["Saldo", formatMoney(cashbox.summary.balance)]].map(([label, value], index) => <div key={String(label)} className={`py-6 ${index ? "border-l border-border pl-4 sm:pl-6 lg:pl-8" : ""}`}><p className="text-xl font-semibold sm:text-2xl">{value}</p><p className="mt-2 text-xs text-muted-foreground">{label}</p></div>)}</div>
-            <div className="mt-12 grid gap-10 xl:grid-cols-[1.5fr_1fr]"><div><h3 className="text-sm font-semibold">Fluxo mensal</h3><div className="mt-5 h-72 border-b border-border"><ResponsiveContainer width="100%" height="100%"><AreaChart data={cashbox.series}><CartesianGrid vertical={false} stroke="hsl(var(--border))"/><XAxis dataKey="month" axisLine={false} tickLine={false} fontSize={11}/><YAxis axisLine={false} tickLine={false} fontSize={11}/><Tooltip formatter={(value) => formatMoney(Number(value))}/><Area type="monotone" dataKey="entries" name="Entradas" stroke="#00a6fb" fill="#00a6fb22" strokeWidth={2}/><Area type="monotone" dataKey="exits" name="Saídas" stroke="#f59e0b" fill="#f59e0b18" strokeWidth={2}/></AreaChart></ResponsiveContainer></div></div><div><h3 className="text-sm font-semibold">Entradas por método</h3><div className="mt-5 h-72"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={cashbox.methods} dataKey="value" nameKey="name" innerRadius={58} outerRadius={92} paddingAngle={2}>{cashbox.methods.map((_: any, index: number) => <Cell key={index} fill={["#00a6fb", "#38bdf8", "#7dd3fc", "#bae6fd", "#0ea5e9"][index % 5]}/>)}</Pie><Tooltip formatter={(value) => formatMoney(Number(value))}/></PieChart></ResponsiveContainer></div><div className="space-y-2">{cashbox.methods.slice(0, 5).map((method: any, index: number) => <div key={method.name} className="flex items-center justify-between text-xs"><span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ["#00a6fb", "#38bdf8", "#7dd3fc", "#bae6fd", "#0ea5e9"][index % 5] }}/>{method.name}</span><span className="font-medium">{formatMoney(method.value)}</span></div>)}</div></div></div>
-            <div className="mt-12 overflow-x-auto border-y border-border"><table className="w-full min-w-[780px]"><thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-4 font-medium">Data</th><th className="py-4 font-medium">Descrição</th><th className="py-4 font-medium">Método</th><th className="py-4 font-medium">Tipo</th><th className="py-4 text-right font-medium">Valor</th><th className="py-4 text-right font-medium">Ações</th></tr></thead><tbody>{cashbox.movements.map((movement: CashMovement) => <tr key={movement.id} className="border-b border-border/70 last:border-0"><td className="py-4 text-xs text-muted-foreground">{formatDate(movement.movement_date)}</td><td className="py-4"><p className="text-sm font-medium">{movement.description}</p><p className="mt-1 text-xs text-muted-foreground">{movement.category || (movement.source === "payment" ? "Checkout" : "Manual")}</p></td><td className="py-4 text-sm">{movement.payment_method || "—"}</td><td className="py-4"><span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${movement.movement_type === "entry" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{movement.movement_type === "entry" ? "Entrada" : "Saída"}</span></td><td className={`py-4 text-right text-sm font-semibold ${movement.movement_type === "entry" ? "text-emerald-700" : "text-amber-700"}`}>{movement.movement_type === "entry" ? "+" : "−"}{formatMoney(movement.amount)}</td><td className="py-4 text-right">{movement.source === "manual" && can("cashbox.manage") ? <DropdownMenu><DropdownMenuTrigger asChild><button aria-label={`Ações de ${movement.description}`} className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted/60">{dotButton}</button></DropdownMenuTrigger><DropdownMenuContent align="end" className="rounded-2xl p-2"><DropdownMenuItem onClick={() => setConfirmAction({ title: "Excluir movimento?", description: "O saldo do caixa será recalculado imediatamente.", actionLabel: "Excluir movimento", run: () => deleteMovement(movement) })} className="rounded-xl py-2.5 text-destructive focus:text-destructive">Excluir</DropdownMenuItem></DropdownMenuContent></DropdownMenu> : <span className="text-xs text-muted-foreground">Automático</span>}</td></tr>)}</tbody></table></div>
+            <div className="flex flex-wrap items-start justify-between gap-5"><div><h2 className="text-2xl font-semibold tracking-tight">Movimentação financeira</h2><p className="mt-2 text-sm text-muted-foreground">Entradas aprovadas, registros manuais e saídas da operação.</p></div><div className="flex flex-wrap gap-2"><Button onClick={() => downloadCashboxPdf(cashbox)} variant="outline" className="rounded-full px-5">Gerar relatório</Button>{can("cashbox.manage") && <Button onClick={() => setMovementOpen(true)} className="rounded-full px-6">Novo movimento</Button>}</div></div>
+            <div className="mt-8 grid grid-cols-3 border-y border-border">{[["Entradas", formatMoney(cashbox.summary.entries)], ["Saídas", formatMoney(cashbox.summary.exits)], ["Saldo final", formatMoney(cashbox.summary.balance)]].map(([label, value], index) => <div key={String(label)} className={`py-6 ${index ? "border-l border-border pl-4 sm:pl-6 lg:pl-8" : ""}`}><p className="text-xl font-semibold sm:text-2xl">{value}</p><p className="mt-2 text-xs text-muted-foreground">{label}</p></div>)}</div>
+            <div className="mt-12 grid gap-10 xl:grid-cols-[1.5fr_1fr]"><div><h3 className="text-sm font-semibold">Fluxo mensal</h3><div className="mt-5 h-72 border-b border-border"><ResponsiveContainer width="100%" height="100%"><AreaChart data={cashbox.series}><CartesianGrid vertical={false} stroke="hsl(var(--border))"/><XAxis dataKey="label" axisLine={false} tickLine={false} fontSize={11}/><YAxis axisLine={false} tickLine={false} fontSize={11} domain={[0, cashbox.summary.entries || cashbox.summary.exits ? "auto" : 1]}/><Tooltip formatter={(value) => formatMoney(Number(value))}/><Area type="monotone" dataKey="entries" name="Entradas" stroke="#00a6fb" fill="#00a6fb22" strokeWidth={2}/><Area type="monotone" dataKey="exits" name="Saídas" stroke="#f59e0b" fill="#f59e0b18" strokeWidth={2}/></AreaChart></ResponsiveContainer></div></div><div><h3 className="text-sm font-semibold">Entradas por método</h3>{cashbox.methods.length ? <><div className="mt-5 h-72"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={cashbox.methods} dataKey="value" nameKey="name" innerRadius={58} outerRadius={92} paddingAngle={2}>{cashbox.methods.map((_: any, index: number) => <Cell key={index} fill={["#00a6fb", "#38bdf8", "#7dd3fc", "#bae6fd", "#0ea5e9"][index % 5]}/>)}</Pie><Tooltip formatter={(value) => formatMoney(Number(value))}/></PieChart></ResponsiveContainer></div><div className="space-y-2">{cashbox.methods.slice(0, 5).map((method: any, index: number) => <div key={method.name} className="flex items-center justify-between text-xs"><span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: ["#00a6fb", "#38bdf8", "#7dd3fc", "#bae6fd", "#0ea5e9"][index % 5] }}/>{method.name}</span><span className="font-medium">{formatMoney(method.value)}</span></div>)}</div></> : <div className="mt-5 flex h-72 flex-col items-center justify-center rounded-full border border-dashed border-border text-center"><p className="text-lg font-semibold">R$ 0,00</p><p className="mt-1 text-xs text-muted-foreground">Nenhuma entrada no período</p></div>}</div></div>
+            <div className="mt-12 overflow-x-auto border-y border-border"><table className="w-full min-w-[650px]"><thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-4 font-medium">Movimentação</th><th className="py-4 font-medium">Tipo</th><th className="py-4 text-right font-medium">Valor</th><th className="py-4 text-right font-medium">Ações</th></tr></thead><tbody>{cashbox.movements.map((movement: CashMovement) => <tr key={movement.id} className="border-b border-border/70 last:border-0"><td className="py-4"><p className="text-sm font-medium">{movement.description}</p><p className="mt-1 text-xs text-muted-foreground">{formatDate(movement.movement_date)} · {movement.payment_method || "Sem método"} · {movement.category || (movement.source === "payment" ? "Checkout" : "Manual")}</p></td><td className="py-4"><span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${movement.movement_type === "entry" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>{movement.movement_type === "entry" ? "Entrada" : "Saída"}</span></td><td className={`py-4 text-right text-sm font-semibold ${movement.movement_type === "entry" ? "text-emerald-700" : "text-amber-700"}`}>{movement.movement_type === "entry" ? "+" : "−"}{formatMoney(movement.amount)}</td><td className="py-4 text-right">{movement.source === "manual" && can("cashbox.manage") ? <DropdownMenu><DropdownMenuTrigger asChild><button aria-label={`Ações de ${movement.description}`} className="inline-flex h-9 w-9 items-center justify-center rounded-full hover:bg-muted/60">{dotButton}</button></DropdownMenuTrigger><DropdownMenuContent align="end" className="rounded-2xl p-2"><DropdownMenuItem onClick={() => setConfirmAction({ title: "Excluir movimento?", description: "O saldo do caixa será recalculado imediatamente.", actionLabel: "Excluir movimento", run: () => deleteMovement(movement) })} className="rounded-xl py-2.5 text-destructive focus:text-destructive">Excluir</DropdownMenuItem></DropdownMenuContent></DropdownMenu> : <span className="text-xs text-muted-foreground">Automático</span>}</td></tr>)}{!cashbox.movements.length && <tr><td colSpan={4} className="py-10 text-center"><p className="text-sm font-semibold">Nenhum movimento registrado</p><p className="mt-1 text-xs text-muted-foreground">Entradas aprovadas e registros manuais aparecerão aqui.</p></td></tr>}</tbody></table></div>
           </section>}
 
           {!loading && section === "payments" && payments && <section>
             <div className="flex items-start justify-between gap-5"><div><h2 className="text-2xl font-semibold tracking-tight">Checkouts</h2><p className="mt-2 text-sm text-muted-foreground">Pagamentos iniciados, aprovados e pendentes.</p></div><Button onClick={() => downloadPaymentPdf(payments.payments, payments.summary)} variant="outline" className="rounded-full px-5">Gerar PDF</Button></div>
             <div className="mt-8 grid grid-cols-3 border-y border-border">{[["Receita aprovada", formatMoney(payments.summary.approvedRevenue)], ["Aprovados", payments.summary.approvedCount], ["Pendentes", payments.summary.pendingCount]].map(([label, value], index) => <div key={String(label)} className={`py-6 ${index ? "border-l border-border pl-4 sm:pl-6 lg:pl-8" : ""}`}><p className="text-xl font-semibold sm:text-2xl">{value}</p><p className="mt-2 text-xs text-muted-foreground">{label}</p></div>)}</div>
             <div className="mt-10 overflow-x-auto border-y border-border"><table className="w-full min-w-[760px]"><thead><tr className="border-b border-border text-left text-xs text-muted-foreground"><th className="py-4 font-medium">Cliente</th><th className="py-4 font-medium">Plano</th><th className="py-4 font-medium">Método</th><th className="py-4 font-medium">Valor</th><th className="py-4 font-medium">Status</th><th className="py-4 font-medium">Data</th></tr></thead><tbody>{payments.payments.map((payment: Payment) => <tr key={payment.id} className="border-b border-border/70 last:border-0"><td className="py-4"><p className="text-sm">{payment.user_name || "Cliente"}</p><p className="mt-1 text-xs text-muted-foreground">{payment.user_email}</p></td><td className="py-4 text-sm">{planName(payment.plan_tier)}</td><td className="py-4 text-sm">{payment.payment_method_id || "—"}</td><td className="py-4 text-sm font-medium">{formatMoney(payment.transaction_amount)}</td><td className="py-4"><span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${payment.status === "approved" ? "bg-emerald-100 text-emerald-700" : payment.status === "pending" ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"}`}>{payment.status}</span></td><td className="py-4 text-xs text-muted-foreground">{formatDate(payment.created_at)}</td></tr>)}</tbody></table></div>
+          </section>}
+
+          {!loading && section === "activities" && activities && <section>
+            <div className="flex flex-wrap items-start justify-between gap-5"><div><h2 className="text-2xl font-semibold tracking-tight">Atividades administrativas</h2><p className="mt-2 text-sm text-muted-foreground">Registro permanente das ações realizadas no painel.</p></div><Button onClick={() => downloadAuditPdf(activities.logs, activityRange === "7" ? "Últimos 7 dias" : activityRange === "30" ? "Últimos 30 dias" : activityRange === "all" ? "Todo o período" : `${formatDate(activityFrom)} a ${formatDate(activityTo)}`)} variant="outline" className="rounded-full px-5">Gerar relatório</Button></div>
+            <div className="mt-7 flex flex-wrap gap-2">{[["7", "7 dias"], ["30", "30 dias"], ["all", "Todo o período"], ["custom", "Personalizado"]].map(([value, label]) => <button key={value} onClick={() => changeActivityRange(value as "7" | "30" | "all" | "custom")} className={`rounded-full border px-4 py-2 text-xs font-semibold transition-colors ${activityRange === value ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:text-foreground"}`}>{label}</button>)}</div>
+            {activityRange === "custom" && <div className="mt-4 flex flex-wrap items-center gap-3"><Input type="date" aria-label="Data inicial" value={activityFrom} onChange={(event) => setActivityFrom(event.target.value)} className="h-10 w-auto rounded-full"/><span className="text-xs text-muted-foreground">até</span><Input type="date" aria-label="Data final" value={activityTo} onChange={(event) => setActivityTo(event.target.value)} className="h-10 w-auto rounded-full"/><Button onClick={applyCustomActivityRange} className="h-10 rounded-full px-5">Aplicar</Button></div>}
+            <div className="mt-8 grid grid-cols-3 border-y border-border">{[["Atividades", activities.summary.total], ["Administradores", activities.summary.administrators], ["Alterações", activities.summary.changes]].map(([label, value], index) => <div key={String(label)} className={`py-6 ${index ? "border-l border-border pl-4 sm:pl-6 lg:pl-8" : ""}`}><p className="text-xl font-semibold sm:text-2xl">{value}</p><p className="mt-2 text-xs text-muted-foreground">{label}</p></div>)}</div>
+            <div className="mt-9 border-y border-border">{activities.logs.map((log: AuditLog) => <div key={log.id} className="grid gap-3 border-b border-border/70 py-5 last:border-0 md:grid-cols-[180px_1fr_1.5fr]"><div><p className="text-xs font-medium">{formatDateTime(log.createdAt)}</p><p className="mt-1 text-[11px] text-muted-foreground">Fuso horário local</p></div><div className="min-w-0"><p className="truncate text-sm font-semibold">{log.adminName}</p><p className="mt-1 truncate text-xs text-muted-foreground">{log.adminEmail || "Acesso removido"}</p></div><div><p className="text-sm font-medium">{actionLabel(log)}</p><p className="mt-1 text-xs text-muted-foreground">{actionDetail(log)}</p></div></div>)}{!activities.logs.length && <div className="py-12 text-center"><p className="text-sm font-semibold">Nenhuma atividade neste período</p><p className="mt-1 text-xs text-muted-foreground">Escolha outro intervalo para consultar o histórico permanente.</p></div>}</div>
           </section>}
 
           {!loading && section === "access" && <section>

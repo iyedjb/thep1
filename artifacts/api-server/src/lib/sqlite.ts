@@ -97,6 +97,8 @@ async function initPostgresDb() {
       details TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at ON admin_audit_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_admin_id ON admin_audit_logs(admin_id);
 
     CREATE TABLE IF NOT EXISTS campaigns (
       id SERIAL PRIMARY KEY,
@@ -408,6 +410,8 @@ async function initSqliteDb() {
       details TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+    CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created_at ON admin_audit_logs(created_at);
+    CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_admin_id ON admin_audit_logs(admin_id);
 
     CREATE TABLE IF NOT EXISTS campaigns (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
