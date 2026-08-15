@@ -76,6 +76,7 @@ allowBuilds:
   unrs-resolver: true
   protobufjs: true
   puppeteer: true
+  core-js: false
 
 overrides:
   # replit uses linux-x64 only, we can exclude all other platforms

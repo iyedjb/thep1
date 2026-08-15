@@ -4,13 +4,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Eye, EyeOff } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { getGetMeQueryKey, useLogin } from "@workspace/api-client-react";
+import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 declare global {
   interface Window {
@@ -44,12 +45,15 @@ function GoogleIcon() {
 
 export default function Login() {
   const [, setLocation] = useLocation();
-  const loginMutation = useLogin();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(() => Boolean(localStorage.getItem("ads_token")));
+  const [loginPending, setLoginPending] = useState(false);
+  const [accessMessage, setAccessMessage] = useState(() => sessionStorage.getItem("account_access_error") || "");
+
+  useEffect(() => { sessionStorage.removeItem("account_access_error"); }, []);
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -71,6 +75,8 @@ export default function Login() {
           setLocation("/creator");
           return;
         }
+        const denied = await response.json().catch(() => ({}));
+        if (response.status === 403) setAccessMessage(denied.error || "Seu acesso à plataforma está temporariamente indisponível.");
         localStorage.removeItem("ads_token");
         queryClient.removeQueries({ queryKey: getGetMeQueryKey() });
       })
@@ -133,15 +139,20 @@ export default function Login() {
     }
   }, []);
 
-  const onSubmit = (data: z.infer<typeof loginSchema>) => {
-    loginMutation.mutate({ data }, {
-      onSuccess: (result) => {
-        localStorage.setItem("ads_token", result.token);
-        queryClient.setQueryData(getGetMeQueryKey(), result.user);
-        setLocation("/creator");
-      },
-      onError: () => toast({ title: "Não foi possível entrar", description: "Confira seu e-mail e sua senha.", variant: "destructive" }),
-    });
+  const onSubmit = async (data: z.infer<typeof loginSchema>) => {
+    setLoginPending(true);
+    try {
+      const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 403) { setAccessMessage(result.error || "Seu acesso está indisponível."); return; }
+        throw new Error(result.error || "Confira seu e-mail e sua senha.");
+      }
+      localStorage.setItem("ads_token", result.token);
+      queryClient.setQueryData(getGetMeQueryKey(), result.user);
+      setLocation("/creator");
+    } catch (error: any) { toast({ title: "Não foi possível entrar", description: error.message, variant: "destructive" }); }
+    finally { setLoginPending(false); }
   };
 
   if (checkingSession) {
@@ -150,6 +161,7 @@ export default function Login() {
 
   return (
     <AuthShell eyebrow="Bem-vindo de volta" title="Entre na sua conta ClicLab" description="Insira seus dados para acessar o painel e gerenciar suas campanhas.">
+      <Dialog open={Boolean(accessMessage)} onOpenChange={(open) => { if (!open) setAccessMessage(""); }}><DialogContent className="max-w-sm rounded-3xl border-slate-200 bg-white p-7 text-slate-950"><DialogTitle className="text-2xl">Acesso indisponível</DialogTitle><DialogDescription className="mt-3 leading-6 text-slate-500">{accessMessage}</DialogDescription><Button onClick={() => setAccessMessage("")} className="mt-5 h-11 w-full rounded-full">Entendi</Button></DialogContent></Dialog>
       {/* Google OAuth Official Button */}
       <div id="google-button-container" className="w-full flex justify-center h-12 mb-2 [&>div]:w-full [&>div]:flex [&>div]:justify-center"></div>
 
@@ -215,11 +227,11 @@ export default function Login() {
 
           <Button
             type="submit"
-            disabled={loginMutation.isPending}
+            disabled={loginPending}
             className="h-12 w-full rounded-xl bg-primary font-semibold text-primary-foreground shadow-[0_0_20px_rgba(59,130,246,0.3)] hover:bg-primary/90 active:scale-[0.99] transition-all"
             data-testid="button-submit-login"
           >
-            {loginMutation.isPending ? (
+            {loginPending ? (
               <span className="flex items-center gap-2">
                 <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
                 Entrando...

@@ -76,6 +76,28 @@ async function initPostgresDb() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS cash_ledger (
+      id SERIAL PRIMARY KEY,
+      movement_type VARCHAR(20) NOT NULL,
+      amount REAL NOT NULL,
+      description VARCHAR(255) NOT NULL,
+      category VARCHAR(100),
+      payment_method VARCHAR(100),
+      movement_date DATE NOT NULL,
+      created_by INTEGER REFERENCES admin_accounts(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_audit_logs (
+      id SERIAL PRIMARY KEY,
+      admin_id INTEGER REFERENCES admin_accounts(id) ON DELETE SET NULL,
+      action VARCHAR(100) NOT NULL,
+      target_type VARCHAR(50),
+      target_id VARCHAR(100),
+      details TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS campaigns (
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
@@ -362,6 +384,28 @@ async function initSqliteDb() {
       is_owner BOOLEAN NOT NULL DEFAULT 0,
       active BOOLEAN NOT NULL DEFAULT 1,
       created_by INTEGER REFERENCES admin_accounts(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS cash_ledger (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      movement_type TEXT NOT NULL,
+      amount REAL NOT NULL,
+      description TEXT NOT NULL,
+      category TEXT,
+      payment_method TEXT,
+      movement_date TEXT NOT NULL,
+      created_by INTEGER REFERENCES admin_accounts(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      admin_id INTEGER REFERENCES admin_accounts(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      target_type TEXT,
+      target_id TEXT,
+      details TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 

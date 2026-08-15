@@ -8,7 +8,7 @@ import { logger } from "../lib/logger";
 
 const router = Router();
 const JWT_SECRET = process.env["SESSION_SECRET"] ?? "ads-intelligence-secret-2026";
-const ADMIN_PERMISSIONS = ["dashboard.view", "clients.view", "clients.manage", "cashout.view", "access.manage"] as const;
+const ADMIN_PERMISSIONS = ["dashboard.view", "clients.view", "clients.manage", "cashbox.view", "cashbox.manage", "payments.view", "access.manage"] as const;
 type AdminPermission = typeof ADMIN_PERMISSIONS[number];
 
 function parsePermissions(raw: unknown): AdminPermission[] {
@@ -18,6 +18,12 @@ function parsePermissions(raw: unknown): AdminPermission[] {
   } catch { return []; }
 }
 function normalizeEmail(value: unknown) { return String(value || "").trim().toLowerCase(); }
+async function audit(adminId: number, action: string, targetType?: string, targetId?: string | number | bigint, details?: unknown) {
+  try {
+    await getDb().prepare("INSERT INTO admin_audit_logs (admin_id, action, target_type, target_id, details) VALUES (?, ?, ?, ?, ?)")
+      .run(adminId, action, targetType || null, targetId == null ? null : String(targetId), details == null ? null : JSON.stringify(details));
+  } catch (error) { logger.warn({ error, adminId, action }, "Could not write admin audit log"); }
+}
 function adminPayload(account: any) {
   return {
     id: Number(account.id), email: account.email, name: account.name, roleName: account.role_name,
@@ -146,30 +152,81 @@ router.post("/admin/create-temp-user", requireAdmin, requirePermission("clients.
   } catch (err: any) { res.status(500).json({ error: "Erro ao criar cliente: " + err.message }); }
 });
 
-router.put("/admin/users/:id/tier", requireAdmin, requirePermission("clients.manage"), async (req, res) => {
+router.put("/admin/users/:id/tier", requireAdmin, requirePermission("clients.manage"), async (req: any, res) => {
   const planTier = String(req.body?.planTier || "");
   if (!["free", "starter", "pro", "enterprise"].includes(planTier)) return void res.status(400).json({ error: "Plano inválido." });
   const expiresAt = planTier === "free" ? null : new Date(Date.now() + 30 * 86400000).toISOString();
   await getDb().prepare("UPDATE users SET subscription_tier = ?, subscription_status = ?, subscription_expires_at = ? WHERE id = ?").run(planTier, planTier === "free" ? "free" : "active", expiresAt, req.params.id);
+  await audit(req.adminId, "client.plan.updated", "user", req.params.id, { planTier });
   res.json({ success: true, planTier });
 });
-router.put("/admin/users/:id/status", requireAdmin, requirePermission("clients.manage"), async (req, res) => {
+router.put("/admin/users/:id/status", requireAdmin, requirePermission("clients.manage"), async (req: any, res) => {
   const status = String(req.body?.status || "");
   if (!["active", "paused", "banned"].includes(status)) return void res.status(400).json({ error: "Status inválido." });
   await getDb().prepare("UPDATE users SET account_status = ? WHERE id = ?").run(status, req.params.id);
+  await audit(req.adminId, "client.status.updated", "user", req.params.id, { status });
   res.json({ success: true, status });
 });
-router.delete("/admin/users/:id", requireAdmin, requirePermission("clients.manage"), async (req, res) => {
+router.delete("/admin/users/:id", requireAdmin, requirePermission("clients.manage"), async (req: any, res) => {
   await getDb().prepare("DELETE FROM users WHERE id = ? AND COALESCE(role, 'user') != 'admin'").run(req.params.id);
+  await audit(req.adminId, "client.deleted", "user", req.params.id);
   res.json({ success: true });
 });
 
-router.get("/admin/cashout", requireAdmin, requirePermission("cashout.view"), async (_req, res) => {
+router.get("/admin/payments", requireAdmin, requirePermission("payments.view"), async (_req, res) => {
   try {
     const payments = await getDb().prepare("SELECT p.*, u.name as user_name, u.email as user_email FROM payments p LEFT JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC LIMIT 250").all() as any[];
     const approved = payments.filter((item) => item.status === "approved");
     res.json({ summary: { approvedRevenue: approved.reduce((sum, item) => sum + Number(item.transaction_amount || 0), 0), approvedCount: approved.length, pendingCount: payments.filter((item) => item.status === "pending").length }, payments });
   } catch (err: any) { res.status(500).json({ error: "Erro ao carregar pagamentos: " + err.message }); }
+});
+
+router.get("/admin/cashbox", requireAdmin, requirePermission("cashbox.view"), async (_req, res) => {
+  try {
+    const db = getDb();
+    const approvedPayments = await db.prepare(
+      `SELECT id, transaction_amount as amount, COALESCE(payment_method_id, 'checkout') as payment_method,
+              plan_tier, created_at FROM payments WHERE status = 'approved' ORDER BY created_at DESC`
+    ).all() as any[];
+    const manual = await db.prepare("SELECT * FROM cash_ledger ORDER BY movement_date DESC, id DESC").all() as any[];
+    const movements = [
+      ...approvedPayments.map((payment) => ({ id: `payment-${payment.id}`, source: "payment", movement_type: "entry", amount: Number(payment.amount || 0), description: `Checkout ${payment.plan_tier || ""}`.trim(), category: "Assinaturas", payment_method: payment.payment_method || "checkout", movement_date: String(payment.created_at).slice(0, 10), created_at: payment.created_at })),
+      ...manual.map((item) => ({ ...item, id: `manual-${item.id}`, source: "manual", amount: Number(item.amount || 0) })),
+    ].sort((a, b) => String(b.movement_date).localeCompare(String(a.movement_date)));
+    const entries = movements.filter((item) => item.movement_type === "entry").reduce((sum, item) => sum + item.amount, 0);
+    const exits = movements.filter((item) => item.movement_type === "exit").reduce((sum, item) => sum + item.amount, 0);
+    const seriesMap = new Map<string, { month: string; entries: number; exits: number }>();
+    const methodMap = new Map<string, number>();
+    movements.forEach((item) => {
+      const month = String(item.movement_date).slice(0, 7);
+      const point = seriesMap.get(month) || { month, entries: 0, exits: 0 };
+      if (item.movement_type === "entry") point.entries += item.amount; else point.exits += item.amount;
+      seriesMap.set(month, point);
+      if (item.movement_type === "entry") methodMap.set(item.payment_method || "Não informado", (methodMap.get(item.payment_method || "Não informado") || 0) + item.amount);
+    });
+    res.json({ summary: { entries, exits, balance: entries - exits }, movements, series: Array.from(seriesMap.values()).sort((a, b) => a.month.localeCompare(b.month)).slice(-12), methods: Array.from(methodMap, ([name, value]) => ({ name, value })) });
+  } catch (err: any) { res.status(500).json({ error: "Erro ao carregar o caixa: " + err.message }); }
+});
+
+router.post("/admin/cashbox/movements", requireAdmin, requirePermission("cashbox.manage"), async (req: any, res) => {
+  const movementType = String(req.body?.movementType || "");
+  const amount = Number(req.body?.amount);
+  const description = String(req.body?.description || "").trim();
+  const category = String(req.body?.category || "").trim();
+  const paymentMethod = String(req.body?.paymentMethod || "").trim();
+  const movementDate = String(req.body?.movementDate || "").slice(0, 10);
+  if (!["entry", "exit"].includes(movementType) || !Number.isFinite(amount) || amount <= 0 || !description || !/^\d{4}-\d{2}-\d{2}$/.test(movementDate)) return void res.status(400).json({ error: "Preencha tipo, valor, descrição e data do movimento." });
+  const db = getDb();
+  const result = await db.prepare("INSERT INTO cash_ledger (movement_type, amount, description, category, payment_method, movement_date, created_by) VALUES (?, ?, ?, ?, ?, ?, ?)")
+    .run(movementType, amount, description, category || null, paymentMethod || null, movementDate, req.adminId);
+  await audit(req.adminId, "cashbox.movement.created", "cash_ledger", result.lastInsertRowid, { movementType, amount, description });
+  res.status(201).json({ id: Number(result.lastInsertRowid) });
+});
+
+router.delete("/admin/cashbox/movements/:id", requireAdmin, requirePermission("cashbox.manage"), async (req: any, res) => {
+  await getDb().prepare("DELETE FROM cash_ledger WHERE id = ?").run(req.params.id);
+  await audit(req.adminId, "cashbox.movement.deleted", "cash_ledger", req.params.id);
+  res.json({ success: true });
 });
 
 router.get("/admin/accounts", requireAdmin, requirePermission("access.manage"), async (_req, res) => {
@@ -187,6 +244,7 @@ router.post("/admin/accounts", requireAdmin, requirePermission("access.manage"),
     const db = getDb();
     const result = await db.prepare("INSERT INTO admin_accounts (email, name, password_hash, role_name, permissions, is_owner, active, created_by) VALUES (?, ?, ?, ?, ?, false, true, ?)").run(email, name, bcrypt.hashSync(password, 12), roleName, JSON.stringify(permissions), req.adminId);
     const account = await db.prepare("SELECT * FROM admin_accounts WHERE id = ?").get(result.lastInsertRowid);
+    await audit(req.adminId, "admin.access.created", "admin_account", result.lastInsertRowid, { permissions, roleName });
     res.status(201).json({ account: adminPayload(account) });
   } catch (err: any) { res.status(409).json({ error: err.message.includes("UNIQUE") ? "Este e-mail já possui acesso." : "Erro ao criar acesso." }); }
 });

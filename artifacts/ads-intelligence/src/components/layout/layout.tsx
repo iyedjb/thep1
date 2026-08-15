@@ -110,6 +110,7 @@ export function Layout({ children }: { children: ReactNode }) {
   useEffect(() => {
     const status = (userError as any)?.status;
     if (isError && (status === 401 || status === 403)) {
+      if (status === 403) sessionStorage.setItem("account_access_error", "Sua conta está pausada ou bloqueada. Entre em contato com o suporte para recuperar o acesso.");
       localStorage.removeItem("ads_token");
       setLocation("/login");
     }
