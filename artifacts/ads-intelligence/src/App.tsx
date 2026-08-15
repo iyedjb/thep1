@@ -62,7 +62,6 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
       <Route path="/" component={LandingPage} />
-      <Route path="/pricing" component={PricingPage} />
       <Route path="/checkout" component={CheckoutPage} />
       <Route path="/admin/login" component={AdminLoginPage} />
       <Route path="/admin" component={AdminPage} />
@@ -74,6 +73,7 @@ function Router() {
       <ProtectedRoute path="/creator" component={Creator} />
       <ProtectedRoute path="/drcash" component={DrCash} />
       <ProtectedRoute path="/support" component={SupportPage} />
+      <ProtectedRoute path="/pricing" component={PricingPage} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -82,10 +82,10 @@ function Router() {
 import { useEffect } from "react";
 
 function App() {
-  // Ensure theme is applied based on localStorage or default to dark
+  // Keep the product's white-and-blue visual system as the default.
   useEffect(() => {
     if (typeof document !== "undefined") {
-      const savedTheme = localStorage.getItem("app_theme") || "dark";
+      const savedTheme = localStorage.getItem("app_theme") || "light";
       if (savedTheme === "light") {
         document.documentElement.classList.add("light");
       } else {

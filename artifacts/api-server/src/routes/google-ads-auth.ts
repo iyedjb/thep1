@@ -134,9 +134,9 @@ router.get("/auth/google-ads/callback", async (req: any, res) => {
 
     const finalCustomerIds = Array.from(allCustomerIds);
     await saveGoogleAdsConnection(payload.userId, tokens.refresh_token, finalCustomerIds, mccAccountId);
-    res.redirect(`${returnOrigin}/dashboard?googleAds=connected`);
+    res.redirect(`${returnOrigin}/creator?googleAds=connected`);
   } catch (error: any) {
-    res.redirect(`${returnOrigin}/dashboard?googleAds=error&message=${encodeURIComponent(error.message)}`);
+    res.redirect(`${returnOrigin}/creator?googleAds=error&message=${encodeURIComponent(error.message)}`);
   }
 });
 

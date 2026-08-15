@@ -17,7 +17,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { LayoutDashboard, Target, FileText, TrendingUp, Sparkles, Globe, CheckCircle2 } from "lucide-react";
+import { TrendingUp, Sparkles, CheckCircle2 } from "lucide-react";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { Logo } from "./logo";
@@ -29,15 +29,9 @@ type GoogleAdsStatus = {
   error: string | null;
 };
 
-// Keywords nav item is intentionally excluded to hide it from the sidebar
-// (the /keywords route still exists and works)
 const navItems = [
-  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { path: "/campaigns", label: "Campanhas", icon: Target },
   { path: "/creator", label: "Presell com IA", icon: Sparkles },
-  { path: "/drcash", label: "Dr. Cash", icon: Globe },
   { path: "/trends", label: "Google Trends", icon: TrendingUp },
-  { path: "/reports", label: "Relatórios", icon: FileText },
 ];
 
 function formatCustomerId(value: string) {
@@ -87,7 +81,7 @@ export function AppSidebar() {
       <Sidebar className="border-r border-sidebar-border/60">
       {/* Logo + Account ID */}
       <SidebarHeader className="px-5 pt-5 pb-4 border-b border-sidebar-border/40 space-y-4">
-        <Link href="/dashboard" className="flex items-center gap-3 group select-none">
+        <Link href="/creator" className="flex items-center gap-3 group select-none">
           <Logo iconSize={32} textClass="text-sidebar-foreground" />
         </Link>
 
@@ -159,20 +153,20 @@ export function AppSidebar() {
             <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                className="flex w-full items-center gap-3 rounded-2xl border border-blue-100 bg-white p-3 text-left shadow-[0_8px_28px_rgba(37,99,235,0.08)] transition-all hover:border-blue-200 hover:shadow-[0_10px_32px_rgba(37,99,235,0.13)] focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/40"
+                className="flex w-full items-center gap-3 rounded-2xl border border-primary/15 bg-card p-3 text-left shadow-[0_8px_28px_rgba(15,23,42,0.06)] transition-all hover:border-primary/30 hover:shadow-[0_10px_32px_rgba(15,23,42,0.09)] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
                 data-testid="button-profile-menu"
                 aria-label="Abrir menu do perfil"
               >
-                <Avatar className="h-9 w-9 border border-blue-100">
-                  <AvatarFallback className="border-0 bg-blue-50 text-sm font-bold text-blue-700">
+                <Avatar className="h-9 w-9 border border-primary/15">
+                  <AvatarFallback className="border-0 bg-primary/10 text-sm font-bold text-primary">
                     {initials}
                   </AvatarFallback>
                 </Avatar>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-semibold leading-tight text-[#111827]">
+                  <span className="block truncate text-[13px] font-semibold leading-tight text-foreground">
                     {user?.name || "Usuário"}
                   </span>
-                  <span className="mt-1 block text-[9px] font-semibold uppercase tracking-[0.16em] text-blue-500/60">
+                  <span className="mt-1 block text-[9px] font-semibold uppercase tracking-[0.16em] text-primary/60">
                     Abrir perfil
                   </span>
                 </span>
@@ -182,24 +176,24 @@ export function AppSidebar() {
               side="right"
               align="end"
               sideOffset={10}
-              className="w-60 rounded-2xl border border-blue-100 bg-white p-2 text-[#111827] shadow-[0_24px_70px_rgba(37,99,235,0.18)]"
+              className="w-60 rounded-2xl border border-primary/15 bg-popover p-2 text-popover-foreground shadow-[0_24px_70px_rgba(15,23,42,0.16)]"
             >
               <div className="px-3 pb-3 pt-2">
-                <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-blue-500/60">Sua conta</p>
+                <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-primary/60">Sua conta</p>
                 <p className="mt-2 truncate text-sm font-medium">{user?.name || "Usuário"}</p>
-                <p className="mt-0.5 truncate text-xs text-slate-500">{user?.email || ""}</p>
+                <p className="mt-0.5 truncate text-xs text-muted-foreground">{user?.email || ""}</p>
               </div>
-              <DropdownMenuSeparator className="bg-blue-100" />
-              <DropdownMenuItem asChild className="cursor-pointer rounded-xl px-3 py-3 text-sm text-slate-800 focus:bg-blue-50 focus:text-blue-700">
+              <DropdownMenuSeparator className="bg-primary/15" />
+              <DropdownMenuItem asChild className="cursor-pointer rounded-xl px-3 py-3 text-sm focus:bg-primary/10 focus:text-primary">
                 <Link href="/support">Suporte</Link>
               </DropdownMenuItem>
-              <DropdownMenuItem asChild className="cursor-pointer rounded-xl px-3 py-3 text-sm text-slate-800 focus:bg-blue-50 focus:text-blue-700">
+              <DropdownMenuItem asChild className="cursor-pointer rounded-xl px-3 py-3 text-sm focus:bg-primary/10 focus:text-primary">
                 <Link href="/pricing">Planos</Link>
               </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-blue-100" />
+              <DropdownMenuSeparator className="bg-primary/15" />
               <DropdownMenuItem
                 onSelect={() => setIsLogoutOpen(true)}
-                className="cursor-pointer rounded-xl px-3 py-3 text-sm text-slate-800 focus:bg-blue-50 focus:text-blue-700"
+                className="cursor-pointer rounded-xl px-3 py-3 text-sm focus:bg-primary/10 focus:text-primary"
               >
                 Sair
               </DropdownMenuItem>
@@ -209,24 +203,24 @@ export function AppSidebar() {
       </Sidebar>
 
       <Dialog open={isLogoutOpen} onOpenChange={setIsLogoutOpen}>
-        <DialogContent className="max-w-[440px] overflow-hidden rounded-3xl border border-blue-100 bg-white p-0 text-[#111827] shadow-[0_30px_100px_rgba(37,99,235,0.22)] [&>button]:hidden">
+        <DialogContent className="max-w-[440px] overflow-hidden rounded-3xl border border-primary/15 bg-background p-0 text-foreground shadow-[0_30px_100px_rgba(15,23,42,0.20)] [&>button]:hidden">
           <DialogTitle className="sr-only">Confirmar saída</DialogTitle>
           <DialogDescription className="sr-only">Confirme se deseja encerrar sua sessão neste dispositivo.</DialogDescription>
-          <div className="border-b border-blue-100 bg-blue-50/60 px-7 py-5">
-            <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-blue-600/65">Confirmar saída</p>
+          <div className="border-b border-primary/15 bg-primary/[0.05] px-7 py-5">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-primary/70">Confirmar saída</p>
           </div>
           <div className="px-7 py-9">
             <h2 className="max-w-xs text-4xl font-medium leading-[0.98] tracking-[-0.05em]">Deseja sair da sua conta?</h2>
-            <p className="mt-5 max-w-sm text-sm leading-6 text-slate-500">
+            <p className="mt-5 max-w-sm text-sm leading-6 text-muted-foreground">
               Sua sessão será encerrada neste dispositivo. Você poderá entrar novamente quando quiser.
             </p>
           </div>
-          <div className="grid grid-cols-2 gap-3 border-t border-blue-100 p-4">
+          <div className="grid grid-cols-2 gap-3 border-t border-primary/15 p-4">
             <Button
               type="button"
               variant="ghost"
               onClick={() => setIsLogoutOpen(false)}
-              className="h-12 rounded-full border border-blue-100 bg-white text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+              className="h-12 rounded-full border border-primary/15 bg-background text-sm text-foreground hover:bg-primary/10 hover:text-primary"
             >
               Cancelar
             </Button>
@@ -234,7 +228,7 @@ export function AppSidebar() {
               type="button"
               onClick={confirmLogout}
               disabled={logout.isPending}
-              className="h-12 rounded-full bg-blue-600 text-sm text-white hover:bg-blue-700"
+              className="h-12 rounded-full bg-primary text-sm text-primary-foreground hover:bg-primary/90"
             >
               {logout.isPending ? "Saindo…" : "Sair da conta"}
             </Button>

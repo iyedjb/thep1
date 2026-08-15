@@ -64,7 +64,7 @@ export default function Login() {
       const data = await result.json();
       if (!result.ok) throw new Error(data.error || "Não foi possível entrar com Google");
       localStorage.setItem("ads_token", data.token);
-      setLocation("/dashboard");
+      setLocation("/creator");
     } catch (error: any) {
       toast({ title: "Erro no login com Google", description: error.message, variant: "destructive" });
     } finally {
@@ -111,7 +111,7 @@ export default function Login() {
     loginMutation.mutate({ data }, {
       onSuccess: (result) => {
         localStorage.setItem("ads_token", result.token);
-        setLocation("/dashboard");
+        setLocation("/creator");
       },
       onError: () => toast({ title: "Não foi possível entrar", description: "Confira seu e-mail e sua senha.", variant: "destructive" }),
     });

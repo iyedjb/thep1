@@ -542,7 +542,7 @@ export default function Creator() {
       {/* Ambient background glows */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute -top-40 -left-20 w-[500px] h-[500px] rounded-full bg-primary/5 blur-[120px]" />
-        <div className="absolute top-1/2 -right-20 w-[400px] h-[400px] rounded-full bg-violet-500/4 blur-[100px]" />
+        <div className="absolute top-1/2 -right-20 w-[400px] h-[400px] rounded-full bg-primary/[0.025] blur-[100px]" />
         <div className="absolute -bottom-20 left-1/3 w-[350px] h-[350px] rounded-full bg-primary/4 blur-[80px]" />
       </div>
 
@@ -646,7 +646,7 @@ export default function Creator() {
               <div className="animate-slide-up">
                 <Card className="border border-border bg-card shadow-md rounded-2xl overflow-hidden">
                   {/* Card gradient top accent */}
-                  <div className="h-1 w-full bg-gradient-to-r from-primary via-violet-500 to-primary" />
+                  <div className="h-1 w-full bg-primary" />
                   <CardContent className="p-6 space-y-6">
                     <div className="space-y-1">
                       <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
@@ -1030,7 +1030,7 @@ export default function Creator() {
             {step === "generating" && (
               <div className="animate-slide-up">
                 <Card className="border border-border bg-card rounded-2xl overflow-hidden">
-                  <div className="h-1 w-full bg-gradient-to-r from-primary via-violet-500 to-primary animate-pulse" />
+                  <div className="h-1 w-full bg-primary animate-pulse" />
                   <CardContent className="p-10 text-center space-y-6">
                     <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
                       <div className="absolute inset-0 rounded-full bg-primary/10 animate-ping" />
@@ -1074,7 +1074,7 @@ export default function Creator() {
             {step === "actions" && (
               <div className="space-y-4 animate-slide-up">
                 <Card className="border border-border bg-card rounded-2xl overflow-hidden">
-                  <div className="h-1 w-full bg-gradient-to-r from-emerald-500 via-primary to-violet-500" />
+                  <div className="h-1 w-full bg-primary" />
                   <CardContent className="p-6 space-y-5">
                     <div className="text-center space-y-2">
                       <div className="mx-auto w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
@@ -1140,7 +1140,7 @@ export default function Creator() {
             {activeMode === "traffic" && (
               <div className="space-y-4 animate-slide-up">
                 <Card className="border border-border bg-card shadow-md rounded-2xl overflow-hidden">
-                  <div className="h-1 w-full bg-gradient-to-r from-primary via-violet-500 to-primary" />
+                  <div className="h-1 w-full bg-primary" />
                   <CardContent className="p-6 space-y-4 flex flex-col h-[640px]">
                     <div className="flex items-center justify-between border-b border-border pb-3">
                       <div>
@@ -1205,7 +1205,7 @@ export default function Creator() {
           {/* ── RIGHT: Bridge History Table ──────────────────── */}
           <div className={`w-full lg:col-span-7 ${activeView === "websites" ? "block" : "hidden lg:block"}`}>
             <Card className="border border-border bg-card shadow-md rounded-2xl overflow-hidden h-full">
-              <div className="h-1 w-full bg-gradient-to-r from-violet-500 via-primary to-violet-500" />
+              <div className="h-1 w-full bg-primary" />
               <CardContent className="p-6 space-y-5">
                 {/* Table header */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">

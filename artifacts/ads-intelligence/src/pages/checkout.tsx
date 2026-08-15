@@ -193,7 +193,7 @@ export default function CheckoutPage() {
           <p className="mt-6 max-w-md text-sm leading-6 text-slate-500">
             O Mercado Pago confirmou o pagamento e o plano {plan.name} já foi aplicado à sua conta.
           </p>
-          <a href="/dashboard" className="mt-10 flex h-13 items-center justify-center rounded-full bg-blue-600 px-6 text-sm font-semibold text-white hover:bg-blue-700">
+          <a href="/creator" className="mt-10 flex h-13 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
             Continuar para a plataforma
           </a>
         </section>

@@ -17,6 +17,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/trends": "Google Trends",
   "/creator": "Presell com IA",
   "/drcash": "Dr. Cash",
+  "/pricing": "Planos",
+  "/support": "Suporte",
 };
 
 type ConnectionStatus = {

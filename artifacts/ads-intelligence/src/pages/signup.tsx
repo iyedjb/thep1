@@ -47,7 +47,7 @@ export default function Signup() {
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Não foi possível criar sua conta");
       localStorage.setItem("ads_token", result.token);
-      setLocation("/dashboard");
+      setLocation("/creator");
     } catch (error: any) {
       toast({ title: "Erro ao criar conta", description: error.message, variant: "destructive" });
     } finally {
