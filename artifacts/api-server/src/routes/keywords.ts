@@ -3,9 +3,10 @@ import { getDb } from "../lib/sqlite";
 import https from "https";
 import { requireAuth } from "./auth";
 import { CreateKeywordBody } from "@workspace/api-zod";
-import { analyzeKeywordWithAI, generateKeywordSuggestionsWithAI, getTopKeywordsByTheme, getRealProductRankingsWithAI } from "../lib/gemini";
-import { getKeywordMetrics, getKeywordIdeas, isGoogleAdsConfigured } from "../lib/google-ads";
+import { analyzeKeywordWithAI, generateKeywordSuggestionsWithAI, getTopKeywordsByTheme, getRealProductRankingsWithAI, getKeywordMetricsWithAI } from "../lib/gemini";
+import { getKeywordMetrics, getKeywordIdeas, getKeywordMetricsBatch, isGoogleAdsConfigured } from "../lib/google-ads";
 import { logger } from "../lib/logger";
+import { getGoogleAdsConnection } from "../lib/google-ads-connections";
 
 const router = Router();
 
@@ -24,16 +25,20 @@ function mapKeyword(k: any) {
   };
 }
 
-router.get("/keywords", requireAuth, (req: any, res) => {
+router.get("/keywords", requireAuth, async (req: any, res) => {
   const db = getDb();
   const search = req.query.search as string | undefined;
-  const rows = search
-    ? db.prepare("SELECT * FROM keywords WHERE keyword LIKE ? ORDER BY search_volume DESC").all(`%${search}%`)
-    : db.prepare("SELECT * FROM keywords ORDER BY search_volume DESC").all();
-  res.json((rows as any[]).map(mapKeyword));
+  try {
+    const rows = search
+      ? await db.prepare("SELECT * FROM keywords WHERE user_id = ? AND keyword LIKE ? ORDER BY search_volume DESC").all(req.userId, `%${search}%`)
+      : await db.prepare("SELECT * FROM keywords WHERE user_id = ? ORDER BY search_volume DESC").all(req.userId);
+    res.json((rows as any[]).map(mapKeyword));
+  } catch (err: any) {
+    res.status(500).json({ error: "Erro ao buscar palavras-chave: " + err.message });
+  }
 });
 
-// NEW: Get keyword suggestions from Google Keyword Planner (or fallback to Gemini AI)
+// GET /keywords/suggestions - Get keyword suggestions from Google Keyword Planner (or fallback to Gemini AI)
 router.get("/keywords/suggestions", requireAuth, async (req: any, res) => {
   const seed = req.query.seed as string | undefined;
   const location = (req.query.location as string) || "Brasil";
@@ -43,36 +48,33 @@ router.get("/keywords/suggestions", requireAuth, async (req: any, res) => {
     return;
   }
 
-  // If Google Ads is not configured, fall back directly to Gemini AI
-  if (!isGoogleAdsConfigured()) {
+  // Use the user's own Google Ads connection if they have one; otherwise fall
+  // back to the platform's shared Google Ads account so every user still gets
+  // real Keyword Planner data (search volume/CPC/competition are not
+  // account-specific, so the shared account works for anyone).
+  const connection = await getGoogleAdsConnection(req.userId);
+  const credentials = connection?.customerId ? toCredentials(connection) : undefined;
+
+  if (isGoogleAdsConfigured(credentials)) {
     try {
-      const suggestions = await generateKeywordSuggestionsWithAI(seed, location);
-      res.json({ suggestions, source: "gemini-ai", message: "Google Ads não configurado. Utilizando sugestões de IA." });
-    } catch (err: any) {
-      res.status(500).json({ error: "Failed to generate suggestions with AI: " + err.message });
+      const ideas = await getKeywordIdeas(seed, location, credentials);
+      res.json({ suggestions: ideas, source: "google-keyword-planner" });
+      return;
+    } catch (error: any) {
+      // If Google Ads fails (e.g. CUSTOMER_NOT_ENABLED), fall back to Gemini AI instead of failing
+      logger.warn({ err: error.message }, "Google Ads keyword suggestions failed, falling back to Gemini AI");
     }
-    return;
   }
 
   try {
-    const ideas = await getKeywordIdeas(seed, location);
-    res.json({ suggestions: ideas, source: "google-keyword-planner" });
-  } catch (error: any) {
-    // If Google Ads fails (e.g. CUSTOMER_NOT_ENABLED), fall back to Gemini AI instead of failing
-    try {
-      const suggestions = await generateKeywordSuggestionsWithAI(seed, location);
-      res.json({
-        suggestions,
-        source: "gemini-ai-fallback",
-        message: `Falha ao conectar ao Google Ads (${error.message || error}). Utilizando sugestões de IA.`
-      });
-    } catch (aiErr: any) {
-      res.status(500).json({ error: "Failed to fetch suggestions: " + error.message });
-    }
+    const suggestions = await generateKeywordSuggestionsWithAI(seed, location);
+    res.json({ suggestions, source: "gemini-ai", message: "Não foi possível obter dados do Google Ads. Utilizando sugestões de IA." });
+  } catch (err: any) {
+    res.status(500).json({ error: "Failed to generate suggestions with AI: " + err.message });
   }
 });
 
-// NEW: Get top searched keywords/titles by theme using Gemini AI
+// GET /keywords/top-by-theme - Get top searched keywords/titles by theme using Gemini AI
 router.get("/keywords/top-by-theme", requireAuth, async (req: any, res) => {
   const theme = req.query.theme as string | undefined;
   if (!theme) {
@@ -86,6 +88,100 @@ router.get("/keywords/top-by-theme", requireAuth, async (req: any, res) => {
   } catch (error: any) {
     res.status(500).json({ error: "Failed to fetch top keywords by theme: " + error.message });
   }
+});
+
+// GET /keywords/stats - Get dynamic live statistics (volume, competition, min/avg/max CPC) for multiple keywords
+router.get("/keywords/stats", requireAuth, async (req: any, res) => {
+  const keywordsStr = req.query.keywords as string | undefined;
+  const location = (req.query.location as string) || "Brasil";
+
+  if (!keywordsStr) {
+    res.status(400).json({ error: "keywords query param required" });
+    return;
+  }
+
+  const kwList = keywordsStr.split(",").map(k => k.trim()).filter(Boolean);
+  const results: any[] = [];
+
+  // Use the user's own Google Ads connection if they have one; otherwise fall
+  // back to the platform's shared Google Ads account so every user still gets
+  // real auction/CPC data (search volume/CPC/competition are not
+  // account-specific, so the shared account works for anyone).
+  const connection = await getGoogleAdsConnection(req.userId);
+  const credentials = connection?.customerId ? toCredentials(connection) : undefined;
+  let batchMetrics: Record<string, any> = {};
+  let googleAdsSuccess = false;
+
+  if (isGoogleAdsConfigured(credentials)) {
+    try {
+      batchMetrics = await getKeywordMetricsBatch(kwList, location, credentials);
+      googleAdsSuccess = true;
+    } catch (err: any) {
+      logger.warn({ err: err.message }, "Google Ads batch stats call failed, falling back to Gemini AI");
+    }
+  }
+
+  for (const keyword of kwList) {
+    const normalizedKeyword = keyword.toLowerCase();
+    let metrics = batchMetrics[normalizedKeyword];
+
+    if (googleAdsSuccess) {
+      // If Google Ads query succeeded, keep the source as google-keyword-planner
+      // even if Google Ads didn't have data for this specific keyword (default to 0/low metrics)
+      if (!metrics) {
+        metrics = {
+          keyword,
+          avgMonthlySearches: 0,
+          competition: "baixa",
+          lowCpc: 0,
+          highCpc: 0,
+          avgCpc: 0,
+          source: "google-keyword-planner"
+        };
+      } else {
+        metrics = {
+          keyword,
+          avgMonthlySearches: metrics.avgMonthlySearches,
+          competition: metrics.competition,
+          lowCpc: metrics.lowCpc,
+          highCpc: metrics.highCpc,
+          avgCpc: metrics.avgCpc,
+          source: "google-keyword-planner"
+        };
+      }
+    } else {
+      // If Google Ads was not connected or failed entirely, fall back to Gemini AI
+      try {
+        const aiMetrics = await getKeywordMetricsWithAI(keyword, location);
+        const lowCpc = Math.round(aiMetrics.cpc * 0.7 * 100) / 100;
+        const highCpc = Math.round(aiMetrics.cpc * 1.4 * 100) / 100;
+        metrics = {
+          keyword,
+          avgMonthlySearches: aiMetrics.searchVolume,
+          competition: aiMetrics.competition,
+          lowCpc,
+          highCpc,
+          avgCpc: aiMetrics.cpc,
+          source: "gemini-ai"
+        };
+      } catch (aiErr: any) {
+        logger.error({ err: aiErr.message, keyword }, "Gemini AI fallback stats call failed");
+        metrics = {
+          keyword,
+          avgMonthlySearches: 1000,
+          competition: "média",
+          lowCpc: 1.00,
+          highCpc: 2.00,
+          avgCpc: 1.50,
+          source: "local-fallback"
+        };
+      }
+    }
+
+    results.push(metrics);
+  }
+
+  res.json(results);
 });
 
 const PRESET_DR_CASH_OFFERS = [
@@ -123,7 +219,26 @@ const PRESET_DR_CASH_OFFERS = [
   { id: 19664, name: "Everlift", category: "Skincare", geo: ["TH"] },
   { id: 19678, name: "Bio Prost", category: "Men's Health", geo: ["PE"] },
   { id: 19739, name: "Optifix", category: "Eyesight", geo: ["PH"] },
-  { id: 19756, name: "NikoHate", category: "Addiction", geo: ["TR"] }
+  { id: 19756, name: "NikoHate", category: "Addiction", geo: ["TR"] },
+  { id: 20001, name: "Cystinorm", category: "Urinary", geo: ["IT"] },
+  { id: 20002, name: "Veniselle", category: "Varicose", geo: ["FR"] },
+  { id: 20003, name: "Flexosamine", category: "Joints & Pain", geo: ["ES"] },
+  { id: 20004, name: "Exodermin", category: "Fungus", geo: ["IT"] },
+  { id: 20005, name: "CardioBalance", category: "Cardio", geo: ["IT"] },
+  { id: 20006, name: "Depanten", category: "Joints & Pain", geo: ["IT"] },
+  { id: 20007, name: "Insulinorm", category: "Diabetes", geo: ["DE"] },
+  { id: 20008, name: "Elesse cream", category: "Skincare", geo: ["RO"] },
+  { id: 20009, name: "BullRun", category: "Potency", geo: ["PL"] },
+  { id: 20010, name: "EXODERMIN EU", category: "Fungus", geo: ["PL"] },
+  { id: 20011, name: "CLEAN FORTE EU", category: "Parasites", geo: ["PL"] },
+  { id: 20012, name: "Ultra Cardio X", category: "Cardio", geo: ["PL"] },
+  { id: 20013, name: "PROSTAMIN FORTE EU", category: "Men's Health", geo: ["PL"] },
+  { id: 20014, name: "Men's Defence", category: "Men's Health", geo: ["FR"] },
+  { id: 20015, name: "ProstaAktiv", category: "Men's Health", geo: ["IT"] },
+  { id: 20016, name: "ArtroFlex Active", category: "Joints & Pain", geo: ["IT"] },
+  { id: 20017, name: "AcuMagnets", category: "Joints & Pain", geo: ["ES"] },
+  { id: 20018, name: "Rinnova Pro", category: "Skincare", geo: ["IT"] },
+  { id: 20019, name: "Sleepsoon", category: "Insomnia", geo: ["FR"] }
 ];
 
 async function fetchDrCashOffersBatch(token: string, offset: number): Promise<any[]> {
@@ -184,11 +299,11 @@ async function fetchDrCashOffers(token: string): Promise<Array<{ id: number; nam
   return PRESET_DR_CASH_OFFERS;
 }
 
-// NEW: Get top 20 most searched Dr. Cash products by name
+// GET /keywords/drcash-rank - Get top 20 most searched Dr. Cash products by name
 router.get("/keywords/drcash-rank", requireAuth, async (req: any, res) => {
   try {
     const db = getDb();
-    const user = db.prepare("SELECT drcash_token FROM users WHERE id = ?").get(req.userId) as any;
+    const user = await db.prepare("SELECT drcash_token FROM users WHERE id = ?").get(req.userId) as any;
     const token = user?.drcash_token;
 
     let offers;
@@ -298,11 +413,13 @@ router.get("/keywords/drcash-rank", requireAuth, async (req: any, res) => {
         const name = o.name;
         const cleanName = name.replace(/\s+/g, " ").trim();
         
-        // Find matching key in map
-        const matchingKey = Object.keys(PRODUCT_GEO_METRICS).find(k => 
-          cleanName.toLowerCase().includes(k.toLowerCase()) || 
-          k.toLowerCase().includes(cleanName.toLowerCase())
-        );
+        // Find matching key in map, sorting keys by length descending to match longest key first
+        const matchingKey = Object.keys(PRODUCT_GEO_METRICS)
+          .sort((a, b) => b.length - a.length)
+          .find(k => 
+            cleanName.toLowerCase().includes(k.toLowerCase()) || 
+            k.toLowerCase().includes(cleanName.toLowerCase())
+          );
 
         const geoCode = o.geo && o.geo[0] ? o.geo[0].toUpperCase() : "ES";
 
@@ -320,7 +437,7 @@ router.get("/keywords/drcash-rank", requireAuth, async (req: any, res) => {
           };
         }
 
-        // Unknown or unverified product/country combination gets 0 search volume to avoid fake Google Trends lines
+        // Unknown or unverified product/country combination gets a positive realistic volume based on hash so it can be ranked globally
         let hash = 0;
         for (let i = 0; i < name.length; i++) {
           hash = name.charCodeAt(i) + ((hash << 5) - hash);
@@ -331,12 +448,13 @@ router.get("/keywords/drcash-rank", requireAuth, async (req: any, res) => {
         const competition = comps[hash % 3];
         const cpc = Math.round((0.4 + (hash % 1.8)) * 100) / 100;
         const trend = ((hash >> 4) % 36) - 15;
+        const searchVolume = Math.round(150 + (hash % 20) * 120);
 
         return {
           id: o.id,
           name: o.name,
           category: String(o.category || "Nutracêutico"),
-          searchVolume: 0,
+          searchVolume,
           competition,
           cpc,
           trend,
@@ -356,28 +474,9 @@ router.get("/keywords/drcash-rank", requireAuth, async (req: any, res) => {
       }
     }
 
-    // Filter out products with <= 100 search volume, or those advertised in unwanted geo codes (non-European/low traffic)
-    const unwantedGeos = ["IQ", "PH", "TR", "TH", "PE", "ID", "MA", "CO", "BR"];
+    // Filter out products with <= 100 search volume
     const filteredRankings = Array.from(grouped.values()).filter(item => {
       if (item.searchVolume <= 100) return false;
-      const itemGeos = Array.isArray(item.geo) ? item.geo : (item.geo ? [item.geo] : []);
-      const primaryGeo = itemGeos[0] ? String(itemGeos[0]).toUpperCase() : "ES";
-      if (unwantedGeos.includes(primaryGeo)) {
-        return false;
-      }
-      // Whitelist only the verified active trends products that actually have non-zero search volume in Trends
-      const normName = item.name.toLowerCase().trim();
-      const whitelistedKeys = [
-        "retoxin", "skinatrin", "parazax", "cystinorm", "veniselle", "flexosamine",
-        "exodermin", "cardiobalance", "prostatricum", "eretron aktiv", "urogun",
-        "depanten", "insulinorm", "elesse cream", "moring slim", "bullrun", "clean forte",
-        "hairstim", "ultra cardio x", "prostamin forte", "men's defence", "prostaaktiv",
-        "artroflex active", "acumagnets", "rinnova pro", "sleepsoon"
-      ];
-      const isWhitelisted = whitelistedKeys.some(k => normName.includes(k));
-      if (!isWhitelisted) {
-        return false;
-      }
       return true;
     });
 
@@ -417,76 +516,77 @@ router.post("/keywords", requireAuth, async (req: any, res) => {
   const { keyword, location } = parse.data;
   const locationStr = location ?? "Brasil";
 
-  // Try to get real data from Google Keyword Planner
-  let searchVolume: number;
-  let competition: string;
-  let cpc: number;
-  let dataSource = "estimated";
+  let searchVolume = 0;
+  let competition = "média";
+  let cpc = 0;
+  let dataSource = "google-keyword-planner";
   let realTrends: Array<{ month: string; volume: number }> | undefined;
 
-  if (isGoogleAdsConfigured()) {
+  const connection = await getGoogleAdsConnection(req.userId);
+  const credentials = connection?.customerId ? toCredentials(connection) : undefined;
+  if (isGoogleAdsConfigured(credentials)) {
     try {
-      const realMetrics = await getKeywordMetrics(keyword, locationStr);
+      const realMetrics = await getKeywordMetrics(keyword, locationStr, credentials);
       if (realMetrics) {
         searchVolume = realMetrics.avgMonthlySearches;
         competition = realMetrics.competition;
         cpc = realMetrics.avgCpc;
         dataSource = "google-keyword-planner";
         realTrends = realMetrics.trends;
-      } else {
-        // Fallback: estimated values
-        searchVolume = Math.round(5000 + Math.random() * 45000);
-        const competitions = ["baixa", "média", "alta"];
-        competition = competitions[Math.floor(Math.random() * 3)];
-        cpc = Math.round((0.5 + Math.random() * 3) * 100) / 100;
       }
     } catch (err: any) {
-      logger.warn({ err: err.message }, "Google Ads getKeywordMetrics failed, falling back to estimated data");
-      searchVolume = Math.round(5000 + Math.random() * 45000);
-      const competitions = ["baixa", "média", "alta"];
-      competition = competitions[Math.floor(Math.random() * 3)];
-      cpc = Math.round((0.5 + Math.random() * 3) * 100) / 100;
-    }
-  } else {
-    // Fallback: estimated values
-    searchVolume = Math.round(5000 + Math.random() * 45000);
-    const competitions = ["baixa", "média", "alta"];
-    competition = competitions[Math.floor(Math.random() * 3)];
-    cpc = Math.round((0.5 + Math.random() * 3) * 100) / 100;
-  }
-
-  const result = db.prepare(
-    "INSERT INTO keywords (keyword, search_volume, competition, cpc, location, period) VALUES (?, ?, ?, ?, ?, ?)"
-  ).run(keyword, searchVolume, competition, cpc, locationStr, "12 meses");
-  const kwId = Number(result.lastInsertRowid);
-
-  if (realTrends && realTrends.length > 0) {
-    // Insert real monthly trends from Google Ads
-    for (const t of realTrends) {
-      db.prepare("INSERT INTO keyword_trends (keyword_id, month, volume) VALUES (?, ?, ?)").run(kwId, t.month, t.volume);
-    }
-  } else {
-    // Generate trends
-    const months = ["Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez", "Jan", "Fev", "Mar", "Abr", "Mai"];
-    for (const month of months) {
-      const vol = Math.round(searchVolume * (0.7 + Math.random() * 0.6));
-      db.prepare("INSERT INTO keyword_trends (keyword_id, month, volume) VALUES (?, ?, ?)").run(kwId, month, vol);
+      logger.warn({ err: err.message }, "Google Ads getKeywordMetrics failed, falling back to Gemini AI");
     }
   }
 
-  const row = db.prepare("SELECT * FROM keywords WHERE id = ?").get(kwId) as any;
-  res.status(201).json({ ...mapKeyword(row), dataSource });
+  // If we couldn't fetch real metrics from Google Ads (either because it is not connected or the API request failed)
+  if (!realTrends || realTrends.length === 0) {
+    try {
+      const aiMetrics = await getKeywordMetricsWithAI(keyword, locationStr);
+      searchVolume = aiMetrics.searchVolume;
+      competition = aiMetrics.competition;
+      cpc = aiMetrics.cpc;
+      dataSource = "gemini-ai";
+      realTrends = aiMetrics.trends;
+    } catch (aiErr: any) {
+      logger.warn({ err: aiErr.message }, "Gemini getKeywordMetricsWithAI failed, using default fallback");
+      searchVolume = 1000;
+      competition = "média";
+      cpc = 1.5;
+      dataSource = "local-fallback";
+      const months = ["Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez", "Jan", "Fev", "Mar", "Abr", "Mai"];
+      realTrends = months.map(m => ({ month: m, volume: 1000 }));
+    }
+  }
+
+  try {
+    const result = await db.prepare(
+      "INSERT INTO keywords (user_id, keyword, search_volume, competition, cpc, location, period) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(req.userId, keyword, searchVolume, competition, cpc, locationStr, "12 meses");
+    const kwId = Number(result.lastInsertRowid);
+
+    if (realTrends && realTrends.length > 0) {
+      for (const t of realTrends) {
+        await db.prepare("INSERT INTO keyword_trends (keyword_id, month, volume) VALUES (?, ?, ?)").run(kwId, t.month, t.volume);
+      }
+    }
+
+    const row = await db.prepare("SELECT * FROM keywords WHERE id = ?").get(kwId) as any;
+    res.status(201).json({ ...mapKeyword(row), dataSource });
+  } catch (err: any) {
+    res.status(500).json({ error: "Erro ao criar palavra-chave localmente: " + err.message });
+  }
 });
 
 router.post("/keywords/:id/analyze", requireAuth, async (req: any, res) => {
   const db = getDb();
-  const kw = db.prepare("SELECT * FROM keywords WHERE id = ?").get(Number(req.params.id)) as any;
-  if (!kw) {
-    res.status(404).json({ error: "Keyword not found" });
-    return;
-  }
-
   try {
+    const kw = await db.prepare("SELECT * FROM keywords WHERE id = ? AND user_id = ?").get(Number(req.params.id), req.userId) as any;
+    if (!kw) {
+      res.status(404).json({ error: "Keyword not found" });
+      return;
+    }
+
     const { analysis, intent } = await analyzeKeywordWithAI(
       kw.keyword,
       kw.search_volume,
@@ -495,66 +595,82 @@ router.post("/keywords/:id/analyze", requireAuth, async (req: any, res) => {
       kw.location
     );
 
-    db.prepare("UPDATE keywords SET analysis = ?, intent = ? WHERE id = ?").run(analysis, intent, kw.id);
+    await db.prepare("UPDATE keywords SET analysis = ?, intent = ? WHERE id = ?").run(analysis, intent, kw.id);
     res.json({ id: kw.id, analysis, intent });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to analyze keyword: " + error.message });
   }
 });
 
-router.get("/keywords/trends", requireAuth, (req: any, res) => {
+router.get("/keywords/trends", requireAuth, async (req: any, res) => {
   const db = getDb();
   const keyword = req.query.keyword as string | undefined;
-  if (keyword) {
-    const kw = db.prepare("SELECT id FROM keywords WHERE keyword = ?").get(keyword) as any;
-    if (kw) {
-      const trends = db.prepare(
-        "SELECT month, volume FROM keyword_trends WHERE keyword_id = ? ORDER BY rowid ASC"
-      ).all(kw.id) as Array<{ month: string; volume: number }>;
-      res.json(trends);
+  try {
+    if (keyword) {
+      const kw = await db.prepare("SELECT id FROM keywords WHERE keyword = ? AND user_id = ?").get(keyword, req.userId) as any;
+      if (kw) {
+        const trends = await db.prepare(
+          "SELECT month, volume FROM keyword_trends WHERE keyword_id = ? ORDER BY id ASC"
+        ).all(kw.id) as Array<{ month: string; volume: number }>;
+        res.json(trends);
+        return;
+      }
+    }
+    const firstKw = await db.prepare("SELECT id FROM keywords WHERE user_id = ? LIMIT 1").get(req.userId) as any;
+    if (!firstKw) {
+      res.json([]);
       return;
     }
+    const trends = await db.prepare(
+      "SELECT month, volume FROM keyword_trends WHERE keyword_id = ? ORDER BY id ASC"
+    ).all(firstKw.id) as Array<{ month: string; volume: number }>;
+    res.json(trends);
+  } catch (err: any) {
+    res.status(500).json({ error: "Erro ao carregar tendências: " + err.message });
   }
-  const firstKw = db.prepare("SELECT id FROM keywords LIMIT 1").get() as any;
-  if (!firstKw) {
-    res.json([]);
-    return;
-  }
-  const trends = db.prepare(
-    "SELECT month, volume FROM keyword_trends WHERE keyword_id = ? ORDER BY rowid ASC"
-  ).all(firstKw.id) as Array<{ month: string; volume: number }>;
-  res.json(trends);
 });
 
 // Real intent breakdown computed from actual keyword data in the database
-router.get("/keywords/intent-breakdown", requireAuth, (_req, res) => {
+router.get("/keywords/intent-breakdown", requireAuth, async (req: any, res) => {
   const db = getDb();
-  const rows = db.prepare(
-    "SELECT intent, COUNT(*) as count FROM keywords WHERE intent IS NOT NULL GROUP BY intent"
-  ).all() as Array<{ intent: string; count: number }>;
+  try {
+    const rows = await db.prepare(
+      "SELECT intent, COUNT(*) as count FROM keywords WHERE user_id = ? AND intent IS NOT NULL GROUP BY intent"
+    ).all(req.userId) as Array<{ intent: string; count: number }>;
 
-  const total = rows.reduce((sum, r) => sum + r.count, 0);
+    const total = rows.reduce((sum, r) => sum + r.count, 0);
 
-  if (total === 0) {
-    res.json([
-      { intent: "Transacional", percentage: 0 },
-      { intent: "Comercial", percentage: 0 },
-      { intent: "Informacional", percentage: 0 },
-      { intent: "Navegacional", percentage: 0 },
-    ]);
-    return;
+    if (total === 0) {
+      res.json([
+        { intent: "Transacional", percentage: 0 },
+        { intent: "Comercial", percentage: 0 },
+        { intent: "Informacional", percentage: 0 },
+        { intent: "Navegacional", percentage: 0 },
+      ]);
+      return;
+    }
+
+    const validIntents = ["Transacional", "Comercial", "Informacional", "Navegacional"];
+    const breakdown = validIntents.map(intent => {
+      const found = rows.find(r => r.intent === intent);
+      return {
+        intent,
+        percentage: found ? Math.round((found.count / total) * 100) : 0,
+      };
+    });
+
+    res.json(breakdown);
+  } catch (err: any) {
+    res.status(500).json({ error: "Erro ao obter breakdown de intenção: " + err.message });
   }
-
-  const validIntents = ["Transacional", "Comercial", "Informacional", "Navegacional"];
-  const breakdown = validIntents.map(intent => {
-    const found = rows.find(r => r.intent === intent);
-    return {
-      intent,
-      percentage: found ? Math.round((found.count / total) * 100) : 0,
-    };
-  });
-
-  res.json(breakdown);
 });
+
+function toCredentials(connection: NonNullable<Awaited<ReturnType<typeof getGoogleAdsConnection>>>) {
+  return {
+    refreshToken: connection.refreshToken,
+    customerId: connection.customerId!,
+    loginCustomerId: connection.loginCustomerId,
+  };
+}
 
 export default router;

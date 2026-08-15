@@ -50,8 +50,8 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-initDb();
-seedDb();
+await initDb();
+await seedDb();
 
 app.listen(port, (err) => {
   if (err) {

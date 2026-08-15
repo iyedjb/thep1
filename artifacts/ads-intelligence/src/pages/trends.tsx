@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Search, TrendingUp, Globe, MapPin, Sparkles, AlertCircle, Users, Heart, Cpu, Coins, Plus, Check, Loader2, BookOpen, Smartphone, Monitor, Trophy } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, PieChart, Pie, Cell } from "recharts";
+import { Search, TrendingUp, Globe, MapPin, Sparkles, AlertCircle, Users, Heart, Cpu, Coins, Plus, Check, Loader2, BookOpen, Smartphone, Monitor, Trophy, X, Edit3 } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, PieChart, Pie, Cell, AreaChart, Area, CartesianGrid } from "recharts";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useCreateKeyword, getListKeywordsQueryKey, customFetch } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -30,20 +30,31 @@ function getDemographicsForKeyword(keyword: string) {
     { name: "Desconhecido", value: unknown },
   ];
 
-  const age18 = 15 + (hash % 15);
-  const age25 = 25 + ((hash >> 2) % 20);
-  const age35 = 15 + ((hash >> 4) % 15);
-  const age45 = 10 + ((hash >> 6) % 10);
-  const age55 = 5 + ((hash >> 8) % 8);
-  const age65 = 100 - (age18 + age25 + age35 + age45 + age55);
+  // Generate raw weights for ages
+  const w18 = 10 + (hash % 15);
+  const w25 = 20 + ((hash >> 2) % 20);
+  const w35 = 15 + ((hash >> 4) % 15);
+  const w45 = 10 + ((hash >> 6) % 15);
+  const w55 = 5 + ((hash >> 8) % 10);
+  const w65 = 5 + ((hash >> 10) % 10);
+  
+  const totalWeight = w18 + w25 + w35 + w45 + w55 + w65;
+  
+  // Distribute 100% proportionally
+  const age18 = Math.round((w18 / totalWeight) * 100);
+  const age25 = Math.round((w25 / totalWeight) * 100);
+  const age35 = Math.round((w35 / totalWeight) * 100);
+  const age45 = Math.round((w45 / totalWeight) * 100);
+  const age55 = Math.round((w55 / totalWeight) * 100);
+  const age65 = 100 - (age18 + age25 + age35 + age45 + age55); // Adjust last one for exact 100%
   
   const ages = [
-    { age: "18-24", percentage: age18 },
+    { age: "18-24", percentage: age65 < 0 ? 0 : age18 },
     { age: "25-34", percentage: age25 },
     { age: "35-44", percentage: age35 },
     { age: "45-54", percentage: age45 },
     { age: "55-64", percentage: age55 },
-    { age: "65+", percentage: age65 },
+    { age: "65+", percentage: age65 < 0 ? 0 : age65 },
   ];
 
   const mobileBase = 45 + (hash % 35); // 45% to 80%
@@ -71,6 +82,74 @@ declare global {
   }
 }
 
+const COUNTRY_CODES: Record<string, string> = {
+  "Global": "",
+  "Brasil": "BR",
+  "Peru": "PE",
+  "Portugal": "PT",
+  "Espanha": "ES",
+  "Itália": "IT",
+  "Alemanha": "DE",
+  "Áustria": "AT",
+  "Suíça": "CH",
+  "México": "MX",
+  "Colômbia": "CO",
+  "Estados Unidos": "US",
+  "Argentina": "AR",
+  "Chile": "CL",
+  "Equador": "EC",
+  "Bolívia": "BO",
+  "Paraguai": "PY",
+  "Uruguai": "UY",
+  "Venezuela": "VE",
+  "República Dominicana": "DO",
+  "Panamá": "PA",
+  "Costa Rica": "CR",
+  "Guatemala": "GT",
+  "Honduras": "HN",
+  "Reino Unido": "GB",
+  "França": "FR",
+  "Canadá": "CA",
+  "Romênia": "RO",
+  "Bulgária": "BG",
+  "Polônia": "PL",
+  "Chéquia": "CZ",
+  "Hungria": "HU",
+  "Eslováquia": "SK",
+  "Rússia": "RU",
+  "Índia": "IN",
+  "Japão": "JP",
+  "Austrália": "AU",
+  "Nova Zelândia": "NZ",
+  "África do Sul": "ZA",
+  "Nigéria": "NG",
+  "Egito": "EG",
+  "Marrocos": "MA",
+  "Países Baixos": "NL",
+  "Suécia": "SE",
+  "Noruega": "NO",
+  "Dinamarca": "DK",
+  "Finlândia": "FI",
+  "Bélgica": "BE",
+  "Grécia": "GR",
+  "Coreia do Sul": "KR",
+  "Singapura": "SG",
+  "Malásia": "MY",
+  "Indonésia": "ID",
+  "Tailândia": "TH",
+  "Vietnã": "VN",
+  "Filipinas": "PH",
+  "Taiwan": "TW",
+  "Hong Kong": "HK",
+  "Emirados Árabes Unidos": "AE",
+  "Arábia Saudita": "SA",
+  "Quênia": "KE",
+  "Israel": "IL",
+  "Turquia": "TR",
+  "Ucrânia": "UA",
+  "Irlanda": "IE"
+};
+
 interface WidgetProps {
   keyword: string;
   geo: string;
@@ -88,8 +167,28 @@ function GoogleTrendsWidget({ keyword, geo, timeRange, type }: WidgetProps) {
       containerRef.current.innerHTML = "";
     }
 
-    const geoCode = geo === "Global" ? "" : geo === "Brasil" ? "BR" : geo === "Portugal" ? "PT" : geo === "Estados Unidos" ? "US" : "";
-    const timeCode = timeRange === "12m" ? "today 12-m" : timeRange === "30d" ? "today 1-m" : timeRange === "7d" ? "now 7-d" : "today 12-m";
+    const geoCode = COUNTRY_CODES[geo] || "";
+    const timeCodeRaw = timeRange === "12m" ? "today 12-m" :
+                        timeRange === "30d" ? "today 1-m" :
+                        timeRange === "7d" ? "now 7-d" :
+                        timeRange;
+
+    // Convert custom date format "DD/MM/YYYY DD/MM/YYYY" to "YYYY-MM-DD YYYY-MM-DD"
+    let timeCode = timeCodeRaw;
+    if (timeCodeRaw && timeCodeRaw.includes(" ") && !timeCodeRaw.startsWith("today") && !timeCodeRaw.startsWith("now")) {
+      const parts = timeCodeRaw.split(" ");
+      if (parts.length === 2) {
+        const convertDate = (d: string) => {
+          const dParts = d.split("/");
+          if (dParts.length === 3) {
+            // [DD, MM, YYYY] -> YYYY-MM-DD
+            return `${dParts[2]}-${dParts[1]}-${dParts[0]}`;
+          }
+          return d;
+        };
+        timeCode = `${convertDate(parts[0])} ${convertDate(parts[1])}`;
+      }
+    }
 
     const scriptId = "google-trends-embed-loader";
     let script = document.getElementById(scriptId) as HTMLScriptElement | null;
@@ -102,19 +201,29 @@ function GoogleTrendsWidget({ keyword, geo, timeRange, type }: WidgetProps) {
             exploreParams.push(`geo=${geoCode}`);
           }
           exploreParams.push(`date=${encodeURIComponent(timeCode)}`);
+          exploreParams.push(`hl=pt-BR`);
           const exploreQuery = exploreParams.join("&");
+
+          const keywords = keyword.split(",").map(k => k.trim()).filter(Boolean);
+          const comparisonItem = keywords.map(kw => ({
+            keyword: kw,
+            geo: geoCode,
+            time: timeCode
+          }));
 
           window.trends.embed.renderExploreWidgetTo(
             containerRef.current,
             type,
             {
-              comparisonItem: [{ keyword, geo: geoCode, time: timeCode }],
+              comparisonItem: comparisonItem,
               category: 0,
               property: ""
             },
             {
               exploreQuery,
-              guestPath: "https://trends.google.com:443/trends/embed/"
+              guestPath: "https://trends.google.com:443/trends/embed/",
+              hl: "pt-BR",
+              tz: new Date().getTimezoneOffset()
             }
           );
         } catch (err) {
@@ -146,7 +255,7 @@ function GoogleTrendsWidget({ keyword, geo, timeRange, type }: WidgetProps) {
   }, [keyword, geo, timeRange, type]);
 
   return (
-    <div className="w-full overflow-hidden rounded-xl bg-white p-1 border border-border/20 shadow-inner flex items-center justify-center min-h-[360px]">
+    <div className="w-full overflow-hidden rounded-xl bg-white p-1 border border-border/20 shadow-inner min-h-[360px]">
       <div ref={containerRef} className="w-full min-h-[350px]" />
     </div>
   );
@@ -161,11 +270,69 @@ export default function Trends() {
   const [activeTab, setActiveTab] = useState<string>("termo");
 
   // Term search states
-  const [keyword, setKeyword] = useState("marketing digital");
+  const [activeKeywords, setActiveKeywords] = useState<string[]>(["marketing digital"]);
+  const [selectedQueryTab, setSelectedQueryTab] = useState<string>("marketing digital");
+  const [inlineInput, setInlineInput] = useState("");
+  const [showAddInput, setShowAddInput] = useState(false);
   const [geo, setGeo] = useState("Global");
   const [timeRange, setTimeRange] = useState("12m");
-  const [searchInput, setSearchInput] = useState("marketing digital");
-  const [activeKeyword, setActiveKeyword] = useState("marketing digital");
+  const [customStartDate, setCustomStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split("T")[0];
+  });
+  const [customEndDate, setCustomEndDate] = useState(() => {
+    return new Date().toISOString().split("T")[0];
+  });
+  const [searchInput, setSearchInput] = useState("");
+  const [countrySearch, setCountrySearch] = useState("");
+
+  const activeKeyword = activeKeywords[0] || "";
+  const keyword = activeKeywords.join(",");
+
+  useEffect(() => {
+    if (activeKeywords.length > 0 && !activeKeywords.includes(selectedQueryTab)) {
+      setSelectedQueryTab(activeKeywords[0]);
+    }
+  }, [activeKeywords]);
+
+  interface KeywordStats {
+    keyword: string;
+    avgMonthlySearches: number;
+    competition: string;
+    lowCpc: number;
+    highCpc: number;
+    avgCpc: number;
+    source: string;
+  }
+
+  const [keywordStats, setKeywordStats] = useState<KeywordStats[]>([]);
+  const [loadingStats, setLoadingStats] = useState(false);
+
+  useEffect(() => {
+    if (activeKeywords.length === 0) {
+      setKeywordStats([]);
+      return;
+    }
+
+    const fetchStats = async () => {
+      setLoadingStats(true);
+      try {
+        const kwsParam = activeKeywords.join(",");
+        const locationParam = geo === "Global" ? "Brasil" : geo;
+        const res = await customFetch<KeywordStats[]>(
+          `/api/keywords/stats?keywords=${encodeURIComponent(kwsParam)}&location=${encodeURIComponent(locationParam)}`
+        );
+        setKeywordStats(res);
+      } catch (err) {
+        console.error("Failed to load keyword metrics stats:", err);
+      } finally {
+        setLoadingStats(false);
+      }
+    };
+
+    fetchStats();
+  }, [activeKeywords, geo]);
 
   // Theme search states
   const [themeInput, setThemeInput] = useState("");
@@ -178,7 +345,43 @@ export default function Trends() {
   const [drcashRank, setDrcashRank] = useState<any[]>([]);
   const [loadingRank, setLoadingRank] = useState(false);
 
+  const computedTimeRange = timeRange === "custom" ? `${customStartDate} ${customEndDate}` : timeRange;
   const demographics = getDemographicsForKeyword(activeKeyword);
+
+  // Google Trends API state
+  const [trendsData, setTrendsData] = useState<any>(null);
+  const [loadingTrends, setLoadingTrends] = useState(false);
+  const [viewMode, setViewMode] = useState<"native" | "google">("google");
+
+  useEffect(() => {
+    if (!activeKeyword) {
+      setTrendsData(null);
+      return;
+    }
+
+    const fetchTrendsData = async () => {
+      setLoadingTrends(true);
+      try {
+        const kwsParam = activeKeywords.join(",");
+        const res = await customFetch<any>(
+          `/api/trends?keyword=${encodeURIComponent(kwsParam)}&geo=${encodeURIComponent(geo)}&timeRange=${encodeURIComponent(computedTimeRange)}`
+        );
+        setTrendsData(res);
+      } catch (err) {
+        console.error("Failed to fetch Google Trends data from API:", err);
+      } finally {
+        setLoadingTrends(false);
+      }
+    };
+
+    fetchTrendsData();
+  }, [activeKeywords, geo, computedTimeRange]);
+  const normalizeString = (str: string) => 
+    str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+  const filteredCountries = Object.keys(COUNTRY_CODES).filter((c) =>
+    normalizeString(c).includes(normalizeString(countrySearch))
+  );
 
   const PRESET_THEMES = [
     { id: "Saúde", label: "Saúde", icon: Heart, description: "Nutrição, fitness, dietas e bem-estar", color: "text-red-500 bg-red-500/10 border-red-500/20" },
@@ -197,8 +400,14 @@ export default function Trends() {
       });
       return;
     }
-    setActiveKeyword(searchInput);
-    setKeyword(searchInput);
+    const newKws = searchInput.split(",")
+      .map(k => k.trim())
+      .filter(k => k && !activeKeywords.includes(k));
+      
+    if (newKws.length > 0) {
+      setActiveKeywords([...activeKeywords, ...newKws].slice(0, 5));
+    }
+    setSearchInput("");
   };
 
   const handleGeoChange = (newGeo: string) => {
@@ -208,6 +417,62 @@ export default function Trends() {
   const handleTimeRangeChange = (newRange: string) => {
     setTimeRange(newRange);
   };
+
+  const handleEditKeyword = (kw: string) => {
+    setActiveKeywords(activeKeywords.filter(k => k !== kw));
+    setInlineInput(kw);
+    setShowAddInput(true);
+  };
+
+  const handleSuggestKeywords = () => {
+    if (activeKeywords.length === 0) {
+      setActiveKeywords(["marketing digital", "e-commerce", "tráfego pago", "afiliados"].slice(0, 5));
+      toast({
+        title: "Termos sugeridos",
+        description: "Adicionados termos de tendência em marketing digital."
+      });
+      return;
+    }
+
+    const firstKw = activeKeywords[0].toLowerCase();
+    if (/\b(?:retox|flex|metonil|diaflex|caps|gel|fit|health|saude|capsula|emagrecer|prost|artic|dor|diabete)\b/i.test(firstKw)) {
+      const suggestions = ["Retoxin", "Metonil", "DiaFlex", "Fleboxin"].filter(s => !activeKeywords.includes(s));
+      if (suggestions.length > 0) {
+        setActiveKeywords([...activeKeywords, ...suggestions].slice(0, 5));
+        toast({
+          title: "Termos sugeridos",
+          description: "Adicionados termos relacionados ao nicho de saúde."
+        });
+      } else {
+        toast({
+          title: "Sugestões esgotadas",
+          description: "Todos os termos recomendados para este nicho já foram adicionados."
+        });
+      }
+    } else {
+      const suggestions = ["inteligência artificial", "chatgpt", "tecnologia", "inovação"].filter(s => !activeKeywords.includes(s));
+      if (suggestions.length > 0) {
+        setActiveKeywords([...activeKeywords, ...suggestions].slice(0, 5));
+        toast({
+          title: "Termos sugeridos",
+          description: "Adicionados termos relacionados a tecnologia e IA."
+        });
+      } else {
+        toast({
+          title: "Sem sugestões adicionais",
+          description: "Não há sugestões adicionais para este termo no momento."
+        });
+      }
+    }
+  };
+
+  const TAG_COLORS = [
+    { bg: "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300", indicator: "bg-blue-500" },
+    { bg: "bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300", indicator: "bg-red-500" },
+    { bg: "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-300", indicator: "bg-amber-500" },
+    { bg: "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-300", indicator: "bg-emerald-500" },
+    { bg: "bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/20 dark:border-purple-800 dark:text-purple-300", indicator: "bg-purple-500" }
+  ];
 
   const fetchKeywordsByTheme = async (themeName: string) => {
     setLoadingTheme(true);
@@ -270,9 +535,9 @@ export default function Trends() {
   };
 
   const handleAnalyzeOnTrends = (keywordText: string) => {
-    setSearchInput(keywordText);
-    setActiveKeyword(keywordText);
-    setKeyword(keywordText);
+    setSearchInput("");
+    setActiveKeywords([keywordText]);
+    setSelectedQueryTab(keywordText);
     setActiveTab("termo");
     toast({
       title: "Explorando no Trends",
@@ -314,15 +579,129 @@ export default function Trends() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-white/40 backdrop-blur-md p-1 border border-border/40 rounded-xl grid grid-cols-3 max-w-xl w-full">
+        <TabsList className="bg-muted/40 backdrop-blur-md p-1 border border-border/40 rounded-xl grid grid-cols-3 max-w-xl w-full">
           <TabsTrigger value="termo" className="rounded-lg text-xs md:text-sm font-semibold">Pesquisa por Termo</TabsTrigger>
           <TabsTrigger value="tema" className="rounded-lg text-xs md:text-sm font-semibold">Pesquisa por Tema</TabsTrigger>
           <TabsTrigger value="drcash" className="rounded-lg text-xs md:text-sm font-semibold">Ranking Dr. Cash</TabsTrigger>
         </TabsList>
 
         <TabsContent value="termo" className="space-y-6">
-          {/* Filters Card */}
-          <div className="flex flex-wrap md:flex-nowrap gap-4 items-center justify-between bg-white/50 backdrop-blur-md p-4 border border-border/60 rounded-2xl">
+          {/* New Tag Input Card - Matches the user screenshot */}
+          <Card className="rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-sm p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">
+                  Confira as tendências de pesquisa
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Adicione até 5 termos para comparar tendências no Google</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setActiveKeywords([]);
+                    toast({
+                      title: "Filtros limpos",
+                      description: "Todos os termos foram removidos."
+                    });
+                  }}
+                  className="rounded-xl h-9 px-4 text-xs font-semibold"
+                >
+                  Limpar
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleSuggestKeywords}
+                  className="rounded-xl h-9 px-4 text-xs font-semibold flex items-center gap-1.5 bg-muted/80 hover:bg-muted"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  Sugerir termos de pesquisa
+                </Button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3 items-center min-h-[52px] p-2 bg-muted/20 border border-border/30 rounded-xl">
+              {activeKeywords.map((kw, index) => {
+                const color = TAG_COLORS[index % TAG_COLORS.length];
+                return (
+                  <div
+                    key={kw}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-sm font-semibold shadow-sm transition-all animate-in zoom-in-95 duration-150 ${color.bg}`}
+                  >
+                    <span className={`w-2.5 h-2.5 rounded-full ${color.indicator}`} />
+                    <span>{kw}</span>
+                    <div className="flex items-center gap-1 ml-1 pl-1.5 border-l border-current/15">
+                      <button
+                        type="button"
+                        onClick={() => handleEditKeyword(kw)}
+                        className="hover:bg-black/5 dark:hover:bg-white/10 rounded-full p-0.5"
+                        title="Editar"
+                      >
+                        <Edit3 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveKeywords(activeKeywords.filter((k) => k !== kw));
+                        }}
+                        className="hover:bg-black/5 dark:hover:bg-white/10 rounded-full p-0.5 text-destructive hover:text-destructive"
+                        title="Excluir"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {showAddInput ? (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (inlineInput.trim()) {
+                      const newKws = inlineInput
+                        .split(",")
+                        .map((k) => k.trim())
+                        .filter((k) => k && !activeKeywords.includes(k));
+                      if (newKws.length > 0) {
+                        setActiveKeywords([...activeKeywords, ...newKws].slice(0, 5));
+                      }
+                      setInlineInput("");
+                      setShowAddInput(false);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 animate-in slide-in-from-left-2 duration-100"
+                >
+                  <Input
+                    value={inlineInput}
+                    onChange={(e) => setInlineInput(e.target.value)}
+                    placeholder="Digite o termo e aperte Enter..."
+                    className="h-9 w-48 text-xs rounded-xl focus-visible:ring-primary bg-background"
+                    autoFocus
+                    onBlur={() => {
+                      setTimeout(() => setShowAddInput(false), 200);
+                    }}
+                  />
+                </form>
+              ) : (
+                activeKeywords.length < 5 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAddInput(true)}
+                    className="h-9 rounded-xl border-dashed flex items-center gap-1.5 text-xs font-semibold bg-transparent"
+                  >
+                    <Plus className="h-4 w-4" /> Adicionar termo
+                  </Button>
+                )
+              )}
+            </div>
+          </Card>
+
+          {/* Filters Card under the Tags Card */}
+          <div className="flex flex-wrap md:flex-nowrap gap-4 items-center justify-between bg-card/50 backdrop-blur-md p-4 border border-border/40 rounded-2xl">
             <form onSubmit={handleSearch} className="flex gap-2 w-full md:w-auto md:max-w-md shrink-0">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -334,7 +713,7 @@ export default function Trends() {
                 />
               </div>
               <Button type="submit" className="rounded-xl h-10 px-4">
-                Pesquisar
+                Adicionar
               </Button>
             </form>
 
@@ -342,15 +721,30 @@ export default function Trends() {
               <div className="flex items-center gap-2">
                 <Globe className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm font-medium text-muted-foreground">Localização:</span>
-                <Select value={geo} onValueChange={handleGeoChange}>
+                <Select value={geo} onValueChange={handleGeoChange} onOpenChange={(open) => { if (!open) setCountrySearch(""); }}>
                   <SelectTrigger className="w-40 h-9 rounded-xl border-border/60">
                     <SelectValue placeholder="Selecione..." />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Global">Global</SelectItem>
-                    <SelectItem value="Brasil">Brasil</SelectItem>
-                    <SelectItem value="Portugal">Portugal</SelectItem>
-                    <SelectItem value="Estados Unidos">Estados Unidos</SelectItem>
+                  <SelectContent className="max-h-[300px] overflow-y-auto">
+                    <div className="p-2 sticky top-0 bg-popover z-10 border-b border-border/40">
+                      <Input
+                        placeholder="Pesquisar país..."
+                        value={countrySearch}
+                        onChange={(e) => setCountrySearch(e.target.value)}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        className="h-8 text-xs rounded-lg focus-visible:ring-primary"
+                      />
+                    </div>
+                    {filteredCountries.length > 0 ? (
+                      filteredCountries.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))
+                    ) : (
+                      <div className="p-3 text-xs text-muted-foreground text-center">
+                        Nenhum país encontrado
+                      </div>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -366,34 +760,239 @@ export default function Trends() {
                     <SelectItem value="12m">Últimos 12 meses</SelectItem>
                     <SelectItem value="30d">Últimos 30 dias</SelectItem>
                     <SelectItem value="7d">Últimos 7 dias</SelectItem>
+                    <SelectItem value="custom">Período Personalizado</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              {timeRange === "custom" && (
+                <div className="flex items-center gap-1.5 animate-in slide-in-from-top-1 duration-200">
+                  <Input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="h-9 w-[130px] rounded-xl border-border/60 text-xs px-2"
+                  />
+                  <span className="text-muted-foreground text-xs">a</span>
+                  <Input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="h-9 w-[130px] rounded-xl border-border/60 text-xs px-2"
+                  />
+                </div>
+              )}
             </div>
           </div>
 
           {activeKeyword ? (
-            <div className="grid gap-6 md:grid-cols-7">
-              {/* Interest Over Time */}
-              <Card className="md:col-span-4 rounded-2xl bg-white/50 backdrop-blur-lg border border-white/60 shadow-[0_8px_30px_rgba(100,120,255,0.02)]">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
-                    Interesse ao longo do tempo para &quot;{activeKeyword}&quot;
-                  </CardTitle>
-                  <CardDescription>Visualização interativa da popularidade de buscas históricas do Google.</CardDescription>
+            <div className="space-y-6">
+              {/* View Mode Toggle */}
+              <div className="flex justify-end animate-in fade-in duration-200">
+                <div className="flex items-center gap-1.5 p-1 bg-muted/40 border border-border/25 rounded-xl">
+                  <Button
+                    variant={viewMode === "native" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setViewMode("native")}
+                    className={`rounded-lg text-xs h-7 font-semibold px-3 transition-all ${
+                      viewMode === "native" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                    }`}
+                  >
+                    <TrendingUp className="h-3.5 w-3.5 mr-1 text-primary" />
+                    Gráfico Nativo (100% Estável)
+                  </Button>
+                  <Button
+                    variant={viewMode === "google" ? "default" : "ghost"}
+                    size="sm"
+                    onClick={() => setViewMode("google")}
+                    className={`rounded-lg text-xs h-7 font-semibold px-3 transition-all ${
+                      viewMode === "google" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"
+                    }`}
+                  >
+                    <Globe className="h-3.5 w-3.5 mr-1 text-primary" />
+                    Widget Google (Oficial)
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid gap-6 md:grid-cols-7">
+                {/* Interest Over Time */}
+                <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
+                      {viewMode === "native" ? (
+                        <TrendingUp className="h-5 w-5 text-primary" />
+                      ) : null}
+                      Interesse ao longo do tempo para: {activeKeywords.join(", ")}
+                    </CardTitle>
+                    <CardDescription>
+                      {viewMode === "native" 
+                        ? "Histórico de popularidade de buscas estimadas pelo ClicqLab." 
+                        : "Visualização interativa da popularidade de buscas históricas do Google."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="pt-4">
+                    {viewMode === "google" ? (
+                      <GoogleTrendsWidget
+                        keyword={keyword}
+                        geo={geo}
+                        timeRange={computedTimeRange}
+                        type="TIMESERIES"
+                      />
+                    ) : loadingTrends ? (
+                      <div className="flex flex-col items-center justify-center h-[350px]">
+                        <Loader2 className="h-8 w-8 text-primary animate-spin mb-2" />
+                        <span className="text-sm text-muted-foreground">Carregando gráfico nativo...</span>
+                      </div>
+                    ) : trendsData?.interestOverTime ? (
+                      <div className="h-[350px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={trendsData.interestOverTime} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4}/>
+                                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.01}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" className="stroke-border/40" vertical={false} />
+                            <XAxis 
+                              dataKey="date" 
+                              className="text-xs text-muted-foreground" 
+                              tickLine={false} 
+                              axisLine={false}
+                            />
+                            <YAxis 
+                              className="text-xs text-muted-foreground" 
+                              tickLine={false} 
+                              axisLine={false}
+                              domain={[0, 100]}
+                            />
+                            <RechartsTooltip
+                              content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  return (
+                                    <div className="bg-popover border border-border/80 p-3 rounded-xl shadow-lg">
+                                      <p className="text-xs font-semibold text-muted-foreground uppercase">{payload[0].payload.date}</p>
+                                      <p className="text-sm font-bold text-foreground mt-0.5">
+                                        Interesse: <span className="text-primary">{payload[0].value}</span>
+                                      </p>
+                                    </div>
+                                  );
+                                }
+                                // Return fallback if active is false but data exists (just for layout stability)
+                                return null;
+                              }}
+                            />
+                            <Area 
+                              type="monotone" 
+                              dataKey="value" 
+                              stroke="hsl(var(--primary))" 
+                              strokeWidth={2.5}
+                              fillOpacity={1} 
+                              fill="url(#colorValue)" 
+                            />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-[350px] border border-dashed rounded-xl text-muted-foreground text-sm">
+                        Nenhum dado de interesse disponível.
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+              {/* Keyword Auction & CPC Metrics Card */}
+              <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)] animate-in fade-in duration-200">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
+                        <Coins className="h-5 w-5 text-primary" /> Métricas de Leilão e CPC (Google Ads)
+                      </CardTitle>
+                      <CardDescription>
+                        Disputa do leilão, volume estimado de buscas mensais e custo por clique (CPC) em Reais.
+                      </CardDescription>
+                    </div>
+                    {loadingStats && <Loader2 className="h-5 w-5 text-primary animate-spin" />}
+                  </div>
                 </CardHeader>
-                <CardContent className="pt-4">
-                  <GoogleTrendsWidget
-                    keyword={activeKeyword}
-                    geo={geo}
-                    timeRange={timeRange}
-                    type="TIMESERIES"
-                  />
+                <CardContent className="pt-2">
+                  {loadingStats && keywordStats.length === 0 ? (
+                    <div className="flex items-center justify-center p-8">
+                      <Loader2 className="h-6 w-6 text-primary animate-spin mr-2" />
+                      <span className="text-sm text-muted-foreground font-medium">Carregando dados do leilão...</span>
+                    </div>
+                  ) : keywordStats.length > 0 ? (
+                    <div className="overflow-x-auto rounded-xl border border-border/45 bg-muted/10">
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-border/40 bg-muted/20 text-xs font-semibold text-muted-foreground uppercase">
+                            <th className="p-3">Palavra-chave</th>
+                            <th className="p-3 text-center">Buscas Mensais</th>
+                            <th className="p-3 text-center">Disputa (Leilão)</th>
+                            <th className="p-3 text-center">CPC Mínimo</th>
+                            <th className="p-3 text-center">CPC Médio</th>
+                            <th className="p-3 text-center">CPC Máximo</th>
+                            <th className="p-3 text-right">Fonte</th>
+                          </tr>
+                        </thead>
+                        <tbody className="text-sm divide-y divide-border/25">
+                          {keywordStats.map((stat, index) => {
+                            const color = TAG_COLORS[index % TAG_COLORS.length];
+                            
+                            // Competition color and badge logic
+                            let compBadgeColor = "bg-emerald-500/10 text-emerald-500 border-emerald-500/20";
+                            if (stat.competition.toLowerCase() === "alta") {
+                              compBadgeColor = "bg-red-500/10 text-red-500 border-red-500/20";
+                            } else if (stat.competition.toLowerCase() === "média" || stat.competition.toLowerCase() === "media") {
+                              compBadgeColor = "bg-amber-500/10 text-amber-500 border-amber-500/20";
+                            }
+
+                            return (
+                              <tr key={stat.keyword} className="hover:bg-muted/15 transition-colors">
+                                <td className="p-3 font-semibold flex items-center gap-2">
+                                  <span className={`w-2.5 h-2.5 rounded-full ${color.indicator}`} />
+                                  <span>{stat.keyword}</span>
+                                </td>
+                                <td className="p-3 text-center font-medium text-foreground/80">
+                                  {stat.avgMonthlySearches ? Number(stat.avgMonthlySearches).toLocaleString("pt-BR") : "-"}
+                                </td>
+                                <td className="p-3 text-center">
+                                  <Badge variant="outline" className={`rounded-lg px-2.5 py-0.5 font-semibold uppercase text-[10px] ${compBadgeColor}`}>
+                                    {stat.competition}
+                                  </Badge>
+                                </td>
+                                <td className="p-3 text-center font-bold text-foreground/70">
+                                  {stat.lowCpc ? `R$ ${Number(stat.lowCpc).toFixed(2).replace(".", ",")}` : "R$ 0,00"}
+                                </td>
+                                <td className="p-3 text-center font-bold text-primary">
+                                  {stat.avgCpc ? `R$ ${Number(stat.avgCpc).toFixed(2).replace(".", ",")}` : "R$ 0,00"}
+                                </td>
+                                <td className="p-3 text-center font-bold text-foreground/90">
+                                  {stat.highCpc ? `R$ ${Number(stat.highCpc).toFixed(2).replace(".", ",")}` : "R$ 0,00"}
+                                </td>
+                                <td className="p-3 text-right">
+                                  <span className="text-[11px] font-semibold text-muted-foreground bg-muted/40 px-2 py-0.5 rounded-md uppercase border border-border/10">
+                                    {stat.source === "google-keyword-planner" ? "Google Ads" : stat.source === "gemini-ai" ? "Gemini IA" : "Fallback"}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-6 text-center text-muted-foreground text-sm">
+                      Nenhuma métrica de leilão disponível para os termos ativos.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
               {/* Interest by Region */}
-              <Card className="md:col-span-3 rounded-2xl bg-white/50 backdrop-blur-lg border border-white/60 shadow-[0_8px_30px_rgba(100,120,255,0.02)]">
+              <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
                     <MapPin className="h-5 w-5 text-primary" /> Interesse por Região
@@ -401,130 +1000,151 @@ export default function Trends() {
                   <CardDescription>Distribuição de buscas nos principais mercados geográficos do Google.</CardDescription>
                 </CardHeader>
                 <CardContent className="pt-4">
-                  <GoogleTrendsWidget
-                    keyword={activeKeyword}
-                    geo={geo}
-                    timeRange={timeRange}
-                    type="GEO_MAP"
-                  />
+                  {viewMode === "google" ? (
+                    <GoogleTrendsWidget
+                      keyword={keyword}
+                      geo={geo}
+                      timeRange={computedTimeRange}
+                      type="GEO_MAP"
+                    />
+                  ) : loadingTrends ? (
+                    <div className="flex flex-col items-center justify-center h-[300px]">
+                      <Loader2 className="h-8 w-8 text-primary animate-spin mb-2" />
+                      <span className="text-sm text-muted-foreground">Carregando dados de região...</span>
+                    </div>
+                  ) : trendsData?.interestByRegion ? (
+                    <div className="h-[300px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={trendsData.interestByRegion}
+                          layout="vertical"
+                          margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" horizontal={false} />
+                          <XAxis type="number" className="text-xs text-muted-foreground" tickLine={false} axisLine={false} domain={[0, 100]} />
+                          <YAxis dataKey="region" type="category" className="text-xs text-muted-foreground font-semibold" tickLine={false} axisLine={false} width={130} />
+                          <RechartsTooltip
+                            content={({ active, payload }) => {
+                              if (active && payload && payload.length) {
+                                return (
+                                  <div className="bg-popover border border-border/80 p-3 rounded-xl shadow-lg">
+                                    <p className="text-xs font-semibold text-muted-foreground">{payload[0].payload.region}</p>
+                                    <p className="text-sm font-bold text-foreground mt-0.5">
+                                      Popularidade: <span className="text-primary">{payload[0].value}%</span>
+                                    </p>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
+                          />
+                          <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 8, 8, 0]} barSize={16}>
+                            {trendsData.interestByRegion.map((entry: any, index: number) => (
+                              <Cell key={`cell-${index}`} fill={`hsl(var(--primary) / ${1 - index * 0.15})`} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-[300px] border border-dashed rounded-xl text-muted-foreground text-sm">
+                      Nenhum dado geográfico disponível.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
-              {/* Related Queries */}
-              <Card className="md:col-span-7 rounded-2xl bg-white/50 backdrop-blur-lg border border-white/60 shadow-[0_8px_30px_rgba(100,120,255,0.02)]">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
-                    <Sparkles className="h-5 w-5 text-primary" /> Consultas Relacionadas
-                  </CardTitle>
-                  <CardDescription>Termos relacionados que os usuários pesquisaram junto com esta palavra-chave.</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <GoogleTrendsWidget
-                    keyword={activeKeyword}
-                    geo={geo}
-                    timeRange={timeRange}
-                    type="RELATED_QUERIES"
-                  />
-                </CardContent>
-              </Card>
-
-              {/* Demographic & Channel Audience Segmentation */}
-              <Card className="md:col-span-7 rounded-2xl bg-white/50 backdrop-blur-lg border border-white/60 shadow-[0_8px_30px_rgba(100,120,255,0.02)]">
-                <CardHeader>
-                  <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
-                    <Users className="h-5 w-5 text-primary" /> Segmentação de Público & Canais de Busca (IA)
-                  </CardTitle>
-                  <CardDescription>Perfil demográfico e de canais de busca de interesse estimado por idade, gênero e dispositivo para o termo &quot;{activeKeyword}&quot;.</CardDescription>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="grid gap-8 md:grid-cols-3">
-                    {/* Age distribution */}
-                    <div className="space-y-4">
-                      <h4 className="text-sm font-semibold text-muted-foreground text-center">Faixas Etárias</h4>
-                      <div className="h-[200px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={demographics.ages} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                            <XAxis dataKey="age" className="text-xs" tickLine={false} axisLine={false} />
-                            <YAxis className="text-xs" tickLine={false} axisLine={false} tickFormatter={(val: number) => `${val}%`} />
-                            <RechartsTooltip formatter={(val) => `${val}%`} contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }} />
-                            <Bar dataKey="percentage" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                      </div>
+              {/* Related Queries Card with Tabs */}
+              <Card className="md:col-span-7 rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)] animate-in fade-in duration-200">
+                <CardHeader className="pb-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-primary" /> Consultas Relacionadas
+                      </CardTitle>
+                      <CardDescription>Termos relacionados que os usuários pesquisaram junto com o termo selecionado.</CardDescription>
                     </div>
 
-                    {/* Gender distribution */}
-                    <div className="space-y-4 flex flex-col items-center justify-center">
-                      <h4 className="text-sm font-semibold text-muted-foreground text-center w-full">Distribuição por Gênero</h4>
-                      <div className="h-[180px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={demographics.genders}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={45}
-                              outerRadius={65}
-                              paddingAngle={5}
-                              dataKey="value"
+                    {/* Tab triggers for each active keyword */}
+                    {activeKeywords.length > 1 && (
+                      <div className="flex flex-wrap gap-1.5 p-1 bg-muted/40 border border-border/25 rounded-xl">
+                        {activeKeywords.map((kw, index) => {
+                          const color = TAG_COLORS[index % TAG_COLORS.length];
+                          const isSelected = selectedQueryTab === kw;
+                          return (
+                            <button
+                              key={kw}
+                              type="button"
+                              onClick={() => setSelectedQueryTab(kw)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                                isSelected
+                                  ? `${color.bg} shadow-sm border`
+                                  : "text-muted-foreground hover:text-foreground"
+                              }`}
                             >
-                              {demographics.genders.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={GENDER_COLORS[index % GENDER_COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <RechartsTooltip formatter={(val) => `${val}%`} contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }} />
-                          </PieChart>
-                        </ResponsiveContainer>
+                              <span className={`w-2 h-2 rounded-full ${color.indicator}`} />
+                              {kw}
+                            </button>
+                          );
+                        })}
                       </div>
-                      <div className="flex justify-center gap-3 text-xs mt-2 flex-wrap">
-                        {demographics.genders.map((entry, index) => (
-                          <div key={entry.name} className="flex items-center">
-                            <div className="w-2.5 h-2.5 rounded-full mr-1" style={{ backgroundColor: GENDER_COLORS[index % GENDER_COLORS.length] }} />
-                            <span className="text-muted-foreground text-[11px]">{entry.name} ({entry.value}%)</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Device distribution */}
-                    <div className="space-y-4 flex flex-col items-center justify-center">
-                      <h4 className="text-sm font-semibold text-muted-foreground text-center w-full">Distribuição por Dispositivo</h4>
-                      <div className="h-[180px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie
-                              data={demographics.devices}
-                              cx="50%"
-                              cy="50%"
-                              innerRadius={45}
-                              outerRadius={65}
-                              paddingAngle={5}
-                              dataKey="value"
-                            >
-                              {demographics.devices.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={DEVICE_COLORS[index % DEVICE_COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <RechartsTooltip formatter={(val) => `${val}%`} contentStyle={{ backgroundColor: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 'var(--radius)' }} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="flex justify-center gap-3 text-xs mt-2 flex-wrap">
-                        {demographics.devices.map((entry, index) => (
-                          <div key={entry.name} className="flex items-center">
-                            <div className="w-2.5 h-2.5 rounded-full mr-1" style={{ backgroundColor: DEVICE_COLORS[index % DEVICE_COLORS.length] }} />
-                            <span className="text-muted-foreground text-[11px] flex items-center gap-0.5">
-                              {entry.name === "Mobile" ? <Smartphone className="h-3 w-3 text-muted-foreground" /> : <Monitor className="h-3 w-3 text-muted-foreground" />}
-                              {entry.name} ({entry.value}%)
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    )}
                   </div>
+                </CardHeader>
+                <CardContent className="pt-2">
+                  {viewMode === "google" ? (
+                    selectedQueryTab ? (
+                      <GoogleTrendsWidget
+                        key={selectedQueryTab} // Forces remount and new load when tab changes
+                        keyword={selectedQueryTab}
+                        geo={geo}
+                        timeRange={computedTimeRange}
+                        type="RELATED_QUERIES"
+                      />
+                    ) : (
+                      <div className="p-8 text-center text-muted-foreground text-sm">
+                        Selecione ou adicione um termo para carregar consultas relacionadas.
+                      </div>
+                    )
+                  ) : loadingTrends ? (
+                    <div className="flex flex-col items-center justify-center h-[200px]">
+                      <Loader2 className="h-8 w-8 text-primary animate-spin mb-2" />
+                      <span className="text-sm text-muted-foreground">Carregando consultas relacionadas...</span>
+                    </div>
+                  ) : trendsData?.relatedQueries && trendsData.relatedQueries.length > 0 ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {trendsData.relatedQueries.map((query: string, index: number) => (
+                        <div 
+                          key={query} 
+                          className="flex items-center justify-between p-3.5 rounded-xl border border-border/40 bg-card/40 hover:border-border/80 transition-all group animate-in fade-in duration-200"
+                          style={{ animationDelay: `${index * 50}ms` }}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <span className="w-6 h-6 rounded-lg bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
+                              {index + 1}
+                            </span>
+                            <span className="text-sm font-medium text-foreground">{query}</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleAnalyzeOnTrends(query)}
+                            className="h-8 rounded-lg text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            Analisar
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center h-[200px] border border-dashed rounded-xl text-muted-foreground text-sm">
+                      Nenhuma consulta relacionada disponível.
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
+          </div>
           ) : (
             <Card className="border border-dashed rounded-2xl flex flex-col items-center justify-center p-12 text-center text-muted-foreground">
               <AlertCircle className="h-10 w-10 text-muted-foreground/60 mb-2" />
@@ -534,7 +1154,7 @@ export default function Trends() {
         </TabsContent>
 
         <TabsContent value="tema" className="space-y-6">
-          <div className="bg-white/50 backdrop-blur-md p-6 border border-border/60 rounded-2xl space-y-6 shadow-[0_8px_30px_rgba(100,120,255,0.01)]">
+          <div className="bg-card/50 backdrop-blur-md p-6 border border-border/40 rounded-2xl space-y-6 shadow-[0_8px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h3 className="text-lg font-semibold text-foreground">Termos mais buscados por Canal/Tema</h3>
@@ -573,7 +1193,7 @@ export default function Trends() {
                     className={`flex flex-col items-start p-4 text-left border rounded-xl transition-all hover:scale-[1.02] hover:shadow-md ${
                       isSelected
                         ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                        : "border-border/60 bg-white/80 hover:bg-white"
+                        : "border-border/60 bg-card/80 hover:bg-card"
                     }`}
                   >
                     <div className={`p-2 rounded-lg mb-3 ${theme.color}`}>
@@ -588,7 +1208,7 @@ export default function Trends() {
           </div>
 
           {selectedTheme && (
-            <Card className="rounded-2xl bg-white/50 backdrop-blur-lg border border-white/60 shadow-[0_8px_30px_rgba(100,120,255,0.02)] overflow-hidden">
+            <Card className="rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)] overflow-hidden">
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg font-semibold text-foreground flex items-center justify-between">
                   <span>Palavras mais buscadas em &quot;{selectedTheme}&quot;</span>
@@ -646,7 +1266,7 @@ export default function Trends() {
                           const volumePercentage = Math.round((item.searchVolume / maxVolume) * 100);
 
                           return (
-                            <tr key={item.keyword} className="group hover:bg-white/40 transition-colors">
+                            <tr key={item.keyword} className="group hover:bg-muted/40 transition-colors">
                               <td className="py-3.5 px-4">
                                 <span className="font-semibold text-foreground text-sm block">{item.keyword}</span>
                               </td>
@@ -714,7 +1334,7 @@ export default function Trends() {
         </TabsContent>
 
         <TabsContent value="drcash" className="space-y-6">
-          <Card className="rounded-2xl bg-white/50 backdrop-blur-lg border border-white/60 shadow-[0_8px_30px_rgba(100,120,255,0.02)] overflow-hidden">
+          <Card className="rounded-2xl bg-card/50 backdrop-blur-lg border border-border/40 shadow-[0_8px_30px_rgba(0,0,0,0.15)] overflow-hidden">
             <CardHeader className="pb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <CardTitle className="text-lg font-semibold text-foreground flex items-center gap-2">
@@ -789,6 +1409,7 @@ export default function Trends() {
                             MX: { name: "México", flag: "🇲🇽" },
                             BG: { name: "Bulgária", flag: "🇧🇬" },
                             CO: { name: "Colômbia", flag: "🇨🇴" },
+                            DO: { name: "República Dominicana", flag: "🇩🇴" },
                             RO: { name: "Romênia", flag: "🇷🇴" },
                             RU: { name: "Rússia", flag: "🇷🇺" },
                             PL: { name: "Polônia", flag: "🇵🇱" },
@@ -821,7 +1442,7 @@ export default function Trends() {
                         const trendColor = isPositiveTrend ? "text-green-600 bg-green-500/10 border-green-500/20" : "text-red-600 bg-red-500/10 border-red-500/20";
 
                         return (
-                          <tr key={item.id} className="group hover:bg-white/40 transition-colors">
+                          <tr key={item.id} className="group hover:bg-muted/40 transition-colors">
                             <td className="py-3.5 px-4 text-center">{rankCell}</td>
                             <td className="py-3.5 px-4">
                               <span className="font-semibold text-foreground text-sm block">{item.name}</span>
@@ -871,7 +1492,7 @@ export default function Trends() {
                             <td className="py-3.5 px-4">{compBadge}</td>
                             <td className="py-3.5 px-4">
                               <span className="font-mono text-sm text-foreground">
-                                {item.cpc ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(item.cpc) : "R$ 0,00"}
+                                {item.cpc ? new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(item.cpc) : "$0.00"}
                               </span>
                             </td>
                             <td className="py-3.5 px-4 text-right">

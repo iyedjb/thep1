@@ -12,4 +12,20 @@ export interface CampaignInput {
   status?: string;
   targetAges?: string[];
   targetGenders?: string[];
+  targetLocations?: string[];
+  targetLanguages?: string[];
+  biddingStrategy?: string;
+  adNetworks?: string[];
+  startDate?: string;
+  endDate?: string;
+  objective?: string;
+  campaignType?: string;
+  websiteUrl: string;
+  adGroupName: string;
+  keywords: string[];
+  keywordMatchType?: string;
+  headlines: string[];
+  descriptions: string[];
+  path1?: string;
+  path2?: string;
 }

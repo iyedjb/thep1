@@ -112,7 +112,23 @@ export const ListCampaignsResponseItem = zod.object({
   "conversions": zod.number(),
   "createdAt": zod.string(),
   "targetAges": zod.array(zod.string()).optional(),
-  "targetGenders": zod.array(zod.string()).optional()
+  "targetGenders": zod.array(zod.string()).optional(),
+  "targetLocations": zod.array(zod.string()).optional(),
+  "targetLanguages": zod.array(zod.string()).optional(),
+  "biddingStrategy": zod.string().optional(),
+  "adNetworks": zod.array(zod.string()).optional(),
+  "startDate": zod.string().optional(),
+  "endDate": zod.string().optional(),
+  "objective": zod.string().optional(),
+  "campaignType": zod.string().optional(),
+  "websiteUrl": zod.string().optional(),
+  "adGroupName": zod.string().optional(),
+  "keywords": zod.array(zod.string()).optional(),
+  "keywordMatchType": zod.string().optional(),
+  "headlines": zod.array(zod.string()).optional(),
+  "descriptions": zod.array(zod.string()).optional(),
+  "path1": zod.string().optional(),
+  "path2": zod.string().optional()
 })
 export const ListCampaignsResponse = zod.array(ListCampaignsResponseItem)
 
@@ -125,7 +141,23 @@ export const CreateCampaignBody = zod.object({
   "budget": zod.number(),
   "status": zod.string().optional(),
   "targetAges": zod.array(zod.string()).optional(),
-  "targetGenders": zod.array(zod.string()).optional()
+  "targetGenders": zod.array(zod.string()).optional(),
+  "targetLocations": zod.array(zod.string()).optional(),
+  "targetLanguages": zod.array(zod.string()).optional(),
+  "biddingStrategy": zod.string().optional(),
+  "adNetworks": zod.array(zod.string()).optional(),
+  "startDate": zod.string().optional(),
+  "endDate": zod.string().optional(),
+  "objective": zod.string().optional(),
+  "campaignType": zod.string().optional(),
+  "websiteUrl": zod.string(),
+  "adGroupName": zod.string(),
+  "keywords": zod.array(zod.string()),
+  "keywordMatchType": zod.string().optional(),
+  "headlines": zod.array(zod.string()),
+  "descriptions": zod.array(zod.string()),
+  "path1": zod.string().optional(),
+  "path2": zod.string().optional()
 })
 
 
@@ -147,7 +179,23 @@ export const GetCampaignResponse = zod.object({
   "conversions": zod.number(),
   "createdAt": zod.string(),
   "targetAges": zod.array(zod.string()).optional(),
-  "targetGenders": zod.array(zod.string()).optional()
+  "targetGenders": zod.array(zod.string()).optional(),
+  "targetLocations": zod.array(zod.string()).optional(),
+  "targetLanguages": zod.array(zod.string()).optional(),
+  "biddingStrategy": zod.string().optional(),
+  "adNetworks": zod.array(zod.string()).optional(),
+  "startDate": zod.string().optional(),
+  "endDate": zod.string().optional(),
+  "objective": zod.string().optional(),
+  "campaignType": zod.string().optional(),
+  "websiteUrl": zod.string().optional(),
+  "adGroupName": zod.string().optional(),
+  "keywords": zod.array(zod.string()).optional(),
+  "keywordMatchType": zod.string().optional(),
+  "headlines": zod.array(zod.string()).optional(),
+  "descriptions": zod.array(zod.string()).optional(),
+  "path1": zod.string().optional(),
+  "path2": zod.string().optional()
 })
 
 
@@ -163,7 +211,23 @@ export const UpdateCampaignBody = zod.object({
   "budget": zod.number().optional(),
   "status": zod.string().optional(),
   "targetAges": zod.array(zod.string()).optional(),
-  "targetGenders": zod.array(zod.string()).optional()
+  "targetGenders": zod.array(zod.string()).optional(),
+  "targetLocations": zod.array(zod.string()).optional(),
+  "targetLanguages": zod.array(zod.string()).optional(),
+  "biddingStrategy": zod.string().optional(),
+  "adNetworks": zod.array(zod.string()).optional(),
+  "startDate": zod.string().optional(),
+  "endDate": zod.string().optional(),
+  "objective": zod.string().optional(),
+  "campaignType": zod.string().optional(),
+  "websiteUrl": zod.string().optional(),
+  "adGroupName": zod.string().optional(),
+  "keywords": zod.array(zod.string()).optional(),
+  "keywordMatchType": zod.string().optional(),
+  "headlines": zod.array(zod.string()).optional(),
+  "descriptions": zod.array(zod.string()).optional(),
+  "path1": zod.string().optional(),
+  "path2": zod.string().optional()
 })
 
 export const UpdateCampaignResponse = zod.object({
@@ -177,7 +241,23 @@ export const UpdateCampaignResponse = zod.object({
   "conversions": zod.number(),
   "createdAt": zod.string(),
   "targetAges": zod.array(zod.string()).optional(),
-  "targetGenders": zod.array(zod.string()).optional()
+  "targetGenders": zod.array(zod.string()).optional(),
+  "targetLocations": zod.array(zod.string()).optional(),
+  "targetLanguages": zod.array(zod.string()).optional(),
+  "biddingStrategy": zod.string().optional(),
+  "adNetworks": zod.array(zod.string()).optional(),
+  "startDate": zod.string().optional(),
+  "endDate": zod.string().optional(),
+  "objective": zod.string().optional(),
+  "campaignType": zod.string().optional(),
+  "websiteUrl": zod.string().optional(),
+  "adGroupName": zod.string().optional(),
+  "keywords": zod.array(zod.string()).optional(),
+  "keywordMatchType": zod.string().optional(),
+  "headlines": zod.array(zod.string()).optional(),
+  "descriptions": zod.array(zod.string()).optional(),
+  "path1": zod.string().optional(),
+  "path2": zod.string().optional()
 })
 
 
@@ -205,6 +285,7 @@ export const ListKeywordsResponseItem = zod.object({
   "location": zod.string(),
   "period": zod.string(),
   "analysis": zod.string().nullish(),
+  "intent": zod.string().nullish(),
   "createdAt": zod.string()
 })
 export const ListKeywordsResponse = zod.array(ListKeywordsResponseItem)

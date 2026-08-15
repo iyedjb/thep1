@@ -467,10 +467,54 @@ components:
           type: array
           items:
             type: string
+        targetLocations:
+          type: array
+          items:
+            type: string
+        targetLanguages:
+          type: array
+          items:
+            type: string
+        biddingStrategy:
+          type: string
+        adNetworks:
+          type: array
+          items:
+            type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+        objective:
+          type: string
+        campaignType:
+          type: string
+        websiteUrl:
+          type: string
+        adGroupName:
+          type: string
+        keywords:
+          type: array
+          items:
+            type: string
+        keywordMatchType:
+          type: string
+        headlines:
+          type: array
+          items:
+            type: string
+        descriptions:
+          type: array
+          items:
+            type: string
+        path1:
+          type: string
+        path2:
+          type: string
 
     CampaignInput:
       type: object
-      required: [name, budget]
+      required: [name, budget, websiteUrl, adGroupName, keywords, headlines, descriptions]
       properties:
         name:
           type: string
@@ -486,6 +530,50 @@ components:
           type: array
           items:
             type: string
+        targetLocations:
+          type: array
+          items:
+            type: string
+        targetLanguages:
+          type: array
+          items:
+            type: string
+        biddingStrategy:
+          type: string
+        adNetworks:
+          type: array
+          items:
+            type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+        objective:
+          type: string
+        campaignType:
+          type: string
+        websiteUrl:
+          type: string
+        adGroupName:
+          type: string
+        keywords:
+          type: array
+          items:
+            type: string
+        keywordMatchType:
+          type: string
+        headlines:
+          type: array
+          items:
+            type: string
+        descriptions:
+          type: array
+          items:
+            type: string
+        path1:
+          type: string
+        path2:
+          type: string
 
     CampaignUpdate:
       type: object
@@ -504,6 +592,50 @@ components:
           type: array
           items:
             type: string
+        targetLocations:
+          type: array
+          items:
+            type: string
+        targetLanguages:
+          type: array
+          items:
+            type: string
+        biddingStrategy:
+          type: string
+        adNetworks:
+          type: array
+          items:
+            type: string
+        startDate:
+          type: string
+        endDate:
+          type: string
+        objective:
+          type: string
+        campaignType:
+          type: string
+        websiteUrl:
+          type: string
+        adGroupName:
+          type: string
+        keywords:
+          type: array
+          items:
+            type: string
+        keywordMatchType:
+          type: string
+        headlines:
+          type: array
+          items:
+            type: string
+        descriptions:
+          type: array
+          items:
+            type: string
+        path1:
+          type: string
+        path2:
+          type: string
 
     Keyword:
       type: object
@@ -524,6 +656,8 @@ components:
         period:
           type: string
         analysis:
+          type: ["string", "null"]
+        intent:
           type: ["string", "null"]
         createdAt:
           type: string

@@ -2,10 +2,10 @@ import bcrypt from "bcryptjs";
 import { getDb } from "./sqlite";
 import { logger } from "./logger";
 
-export function seedDb(): void {
+export async function seedDb(): Promise<void> {
   const db = getDb();
 
-  const userCount = (db.prepare("SELECT COUNT(*) as count FROM users").get() as { count: number }).count;
+  const userCount = (await db.prepare("SELECT COUNT(*) as count FROM users").get() as { count: number }).count;
   if (userCount > 0) {
     logger.info("Database already seeded, skipping.");
     return;
@@ -14,7 +14,7 @@ export function seedDb(): void {
   logger.info("Seeding database...");
 
   const passwordHash = bcrypt.hashSync("admin123", 10);
-  db.prepare(`INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)`).run(
+  await db.prepare(`INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)`).run(
     "admin@adsintelligence.com",
     "Admin Silva",
     passwordHash
@@ -27,7 +27,7 @@ export function seedDb(): void {
     { name: "Outros", status: "pausado", budget: 1200, cpc: 2.10, ctr: 2.90, roas: 2.50, conversions: 62 },
   ];
   for (const c of campaigns) {
-    db.prepare(`INSERT INTO campaigns (name, status, budget, cpc, ctr, roas, conversions) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    await db.prepare(`INSERT INTO campaigns (name, status, budget, cpc, ctr, roas, conversions) VALUES (?, ?, ?, ?, ?, ?, ?)`)
       .run(c.name, c.status, c.budget, c.cpc, c.ctr, c.roas, c.conversions);
   }
 
@@ -45,7 +45,7 @@ export function seedDb(): void {
     const clicks = Math.round(clicksData[idx] / 25 + Math.random() * 40 - 20);
     const convs = Math.round(conversionsData[idx] / 25 + Math.random() * 5 - 2);
     const cost = Math.round((costData[idx] / 25 + Math.random() * 50 - 25) * 100) / 100;
-    db.prepare(`INSERT INTO performance_data (date, clicks, conversions, cost) VALUES (?, ?, ?, ?)`)
+    await db.prepare(`INSERT INTO performance_data (date, clicks, conversions, cost) VALUES (?, ?, ?, ?)`)
       .run(dateStr, Math.max(clicks, 10), Math.max(convs, 1), Math.max(cost, 5));
   }
 
@@ -60,14 +60,14 @@ export function seedDb(): void {
   const trendBase = [22000, 24000, 28000, 26000, 30000, 45000, 38000, 32000, 35000, 33000, 31000, 36000];
 
   for (const kw of keywords) {
-    const result = db.prepare(
+    const result = await db.prepare(
       `INSERT INTO keywords (keyword, search_volume, competition, cpc, location, period) VALUES (?, ?, ?, ?, ?, ?)`
     ).run(kw.keyword, kw.search_volume, kw.competition, kw.cpc, kw.location, kw.period);
     const kwId = Number(result.lastInsertRowid);
 
     for (let m = 0; m < 12; m++) {
       const vol = Math.round(trendBase[m] * (kw.search_volume / 49500) * (0.85 + Math.random() * 0.3));
-      db.prepare(`INSERT INTO keyword_trends (keyword_id, month, volume) VALUES (?, ?, ?)`)
+      await db.prepare(`INSERT INTO keyword_trends (keyword_id, month, volume) VALUES (?, ?, ?)`)
         .run(kwId, months[m], vol);
     }
   }

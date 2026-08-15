@@ -80,11 +80,10 @@ async function testConnection() {
 
     console.log("OAuth credentials are valid!");
 
-    const realCustomerId = "1569903086";
-    console.log(`\nAttempting to query campaigns for customer ${realCustomerId}...`);
+    console.log(`\nAttempting to query campaigns for customer ${customerId}...`);
     const customer = client.Customer({
-      customer_id: realCustomerId,
-      login_customer_id: realCustomerId,
+      customer_id: customerId,
+      login_customer_id: loginCustomerId,
       refresh_token: process.env["GOOGLE_ADS_REFRESH_TOKEN"]!,
     });
 

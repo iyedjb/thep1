@@ -1,31 +1,312 @@
-import { DatabaseSync } from "node:sqlite";
+import pg from "pg";
+import Database from "better-sqlite3";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
-import { mkdirSync, existsSync } from "fs";
 import { logger } from "./logger";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_PATH = path.resolve(__dirname, "../../data/database.db");
+const { Pool } = pg;
 
-let _db: DatabaseSync | null = null;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname_here = path.dirname(__filename);
+// artifacts/api-server/src/lib -> artifacts/data/database.db
+const LOCAL_SQLITE_PATH = path.resolve(__dirname_here, "../../../data/database.db");
 
-export function initDb(): DatabaseSync {
-  const dataDir = path.resolve(__dirname, "../../data");
-  if (!existsSync(dataDir)) {
-    mkdirSync(dataDir, { recursive: true });
+type DbBridge = PostgresDbBridge | SqliteDbBridge;
+
+let _pool: pg.Pool | null = null;
+let _sqlite: Database.Database | null = null;
+let _dbInstance: DbBridge | null = null;
+
+/**
+ * Local dev uses a real SQLite file (no network dependency, no remote DB
+ * exposure needed) — set DATABASE_URL only for production/staging against
+ * the shared Postgres instance.
+ */
+export async function initDb() {
+  const connectionString = process.env.DATABASE_URL;
+  if (connectionString) {
+    return initPostgresDb();
   }
+  return initSqliteDb();
+}
 
-  const db = new DatabaseSync(DB_PATH);
-  logger.info({ path: DB_PATH }, "SQLite database opened");
+async function initPostgresDb() {
+  const connectionString = process.env.DATABASE_URL!;
+  _pool = new Pool({ connectionString });
+  const db = new PostgresDbBridge();
+  _dbInstance = db;
+  logger.info("PostgreSQL database pool initialized");
 
-  db.exec(`
+  // Initialize tables in PostgreSQL
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      drcash_token VARCHAR(255),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS campaigns (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      status VARCHAR(50) NOT NULL DEFAULT 'ativo',
+      budget REAL NOT NULL DEFAULT 0,
+      cpc REAL NOT NULL DEFAULT 0,
+      ctr REAL NOT NULL DEFAULT 0,
+      roas REAL NOT NULL DEFAULT 0,
+      conversions INTEGER NOT NULL DEFAULT 0,
+      google_campaign_id VARCHAR(255),
+      target_ages TEXT,
+      target_genders TEXT,
+      target_locations TEXT,
+      target_languages TEXT,
+      bidding_strategy VARCHAR(100),
+      ad_networks TEXT,
+      start_date VARCHAR(50),
+      end_date VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS performance_data (
+      id SERIAL PRIMARY KEY,
+      date VARCHAR(50) NOT NULL,
+      clicks INTEGER NOT NULL DEFAULT 0,
+      conversions INTEGER NOT NULL DEFAULT 0,
+      cost REAL NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS keywords (
+      id SERIAL PRIMARY KEY,
+      keyword VARCHAR(255) NOT NULL,
+      search_volume INTEGER NOT NULL DEFAULT 0,
+      competition VARCHAR(50) NOT NULL DEFAULT 'média',
+      cpc REAL NOT NULL DEFAULT 0,
+      location VARCHAR(100) NOT NULL DEFAULT 'Brasil',
+      period VARCHAR(50) NOT NULL DEFAULT '12 meses',
+      analysis TEXT,
+      intent VARCHAR(100),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS keyword_trends (
+      id SERIAL PRIMARY KEY,
+      keyword_id INTEGER NOT NULL REFERENCES keywords(id) ON DELETE CASCADE,
+      month VARCHAR(50) NOT NULL,
+      volume INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS google_ads_connections (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      refresh_token_encrypted TEXT NOT NULL,
+      customer_id VARCHAR(255),
+      login_customer_id VARCHAR(255),
+      accessible_customer_ids TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS presells (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      reference_url TEXT,
+      destination_url TEXT NOT NULL,
+      product_name VARCHAR(255),
+      product_category VARCHAR(100),
+      selected_option VARCHAR(50),
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS payments (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      mp_payment_id VARCHAR(255) UNIQUE,
+      mp_preference_id VARCHAR(255),
+      status VARCHAR(50) NOT NULL DEFAULT 'pending',
+      status_detail VARCHAR(255),
+      payment_method_id VARCHAR(100),
+      payment_type_id VARCHAR(100),
+      transaction_amount REAL NOT NULL DEFAULT 0,
+      payer_email VARCHAR(255),
+      plan_tier VARCHAR(50) NOT NULL DEFAULT 'pro',
+      billing_cycle VARCHAR(20) DEFAULT 'monthly',
+      qr_code TEXT,
+      qr_code_base64 TEXT,
+      ticket_url TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Run migrations asynchronously
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS presells (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        reference_url TEXT,
+        destination_url TEXT NOT NULL,
+        product_name VARCHAR(255),
+        product_category VARCHAR(100),
+        selected_option VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (e) {}
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        mp_payment_id VARCHAR(255) UNIQUE,
+        mp_preference_id VARCHAR(255),
+        status VARCHAR(50) NOT NULL DEFAULT 'pending',
+        status_detail VARCHAR(255),
+        payment_method_id VARCHAR(100),
+        payment_type_id VARCHAR(100),
+        transaction_amount REAL NOT NULL DEFAULT 0,
+        payer_email VARCHAR(255),
+        plan_tier VARCHAR(50) NOT NULL DEFAULT 'pro',
+        billing_cycle VARCHAR(20) DEFAULT 'monthly',
+        qr_code TEXT,
+        qr_code_base64 TEXT,
+        ticket_url TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (e) {}
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS support_chats (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        subject VARCHAR(255) DEFAULT 'Suporte ao Cliente',
+        status VARCHAR(50) NOT NULL DEFAULT 'open',
+        last_message TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (e) {}
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS support_messages (
+        id SERIAL PRIMARY KEY,
+        chat_id INTEGER REFERENCES support_chats(id) ON DELETE CASCADE,
+        sender_type VARCHAR(20) NOT NULL,
+        sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        content TEXT NOT NULL,
+        is_read BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN drcash_token VARCHAR(255);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN role VARCHAR(50) DEFAULT 'user';");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN is_temporary BOOLEAN DEFAULT false;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN subscription_tier VARCHAR(50) DEFAULT 'free';");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN subscription_status VARCHAR(50) DEFAULT 'free';");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN subscription_id VARCHAR(255);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN mercadopago_customer_id VARCHAR(255);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN subscription_expires_at TIMESTAMP;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE campaigns ADD COLUMN google_campaign_id VARCHAR(255);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE campaigns ADD COLUMN target_ages TEXT;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE campaigns ADD COLUMN target_genders TEXT;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE keywords ADD COLUMN analysis TEXT;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE keywords ADD COLUMN intent VARCHAR(100);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE keywords ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE campaigns ADD COLUMN target_locations TEXT;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE campaigns ADD COLUMN target_languages TEXT;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE campaigns ADD COLUMN bidding_strategy VARCHAR(100);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE campaigns ADD COLUMN ad_networks TEXT;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE campaigns ADD COLUMN start_date VARCHAR(50);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE campaigns ADD COLUMN end_date VARCHAR(50);");
+  } catch (e) {}
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS ai_usage_daily (
+        usage_date DATE PRIMARY KEY,
+        tokens_used INTEGER NOT NULL DEFAULT 0
+      );
+    `);
+  } catch (e) {}
+
+  return db;
+}
+
+/**
+ * Local dev database — real SQLite file, no remote/network dependency.
+ * Schema mirrors initPostgresDb() (SERIAL -> INTEGER PRIMARY KEY AUTOINCREMENT,
+ * VARCHAR(n) -> TEXT, etc). Missing columns on a pre-existing local file are
+ * added the same idempotent way as the Postgres migrations below.
+ */
+async function initSqliteDb() {
+  fs.mkdirSync(path.dirname(LOCAL_SQLITE_PATH), { recursive: true });
+  _sqlite = new Database(LOCAL_SQLITE_PATH);
+  _sqlite.pragma("journal_mode = WAL");
+  _sqlite.pragma("foreign_keys = ON");
+  const db = new SqliteDbBridge();
+  _dbInstance = db;
+  logger.info({ path: LOCAL_SQLITE_PATH }, "Local SQLite database initialized");
+
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT UNIQUE NOT NULL,
       name TEXT NOT NULL,
       password_hash TEXT NOT NULL,
       drcash_token TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      role TEXT DEFAULT 'user',
+      is_temporary BOOLEAN DEFAULT 0,
+      subscription_tier TEXT DEFAULT 'free',
+      subscription_status TEXT DEFAULT 'free',
+      subscription_id TEXT,
+      mercadopago_customer_id TEXT,
+      subscription_expires_at TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS campaigns (
@@ -40,7 +321,13 @@ export function initDb(): DatabaseSync {
       google_campaign_id TEXT,
       target_ages TEXT,
       target_genders TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      target_locations TEXT,
+      target_languages TEXT,
+      bidding_strategy TEXT,
+      ad_networks TEXT,
+      start_date TEXT,
+      end_date TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS performance_data (
@@ -61,62 +348,261 @@ export function initDb(): DatabaseSync {
       period TEXT NOT NULL DEFAULT '12 meses',
       analysis TEXT,
       intent TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS keyword_trends (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      keyword_id INTEGER NOT NULL,
+      keyword_id INTEGER NOT NULL REFERENCES keywords(id) ON DELETE CASCADE,
       month TEXT NOT NULL,
-      volume INTEGER NOT NULL DEFAULT 0,
-      FOREIGN KEY (keyword_id) REFERENCES keywords(id)
+      volume INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE TABLE IF NOT EXISTS google_ads_connections (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      refresh_token_encrypted TEXT NOT NULL,
+      customer_id TEXT,
+      login_customer_id TEXT,
+      accessible_customer_ids TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS presells (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      reference_url TEXT,
+      destination_url TEXT NOT NULL,
+      product_name TEXT,
+      product_category TEXT,
+      selected_option TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      mp_payment_id TEXT UNIQUE,
+      mp_preference_id TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      status_detail TEXT,
+      payment_method_id TEXT,
+      payment_type_id TEXT,
+      transaction_amount REAL NOT NULL DEFAULT 0,
+      payer_email TEXT,
+      plan_tier TEXT NOT NULL DEFAULT 'pro',
+      billing_cycle TEXT DEFAULT 'monthly',
+      qr_code TEXT,
+      qr_code_base64 TEXT,
+      ticket_url TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS support_chats (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      subject TEXT DEFAULT 'Suporte ao Cliente',
+      status TEXT NOT NULL DEFAULT 'open',
+      last_message TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS support_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      chat_id INTEGER REFERENCES support_chats(id) ON DELETE CASCADE,
+      sender_type TEXT NOT NULL,
+      sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      content TEXT NOT NULL,
+      is_read BOOLEAN DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS ai_usage_daily (
+      usage_date DATE PRIMARY KEY,
+      tokens_used INTEGER NOT NULL DEFAULT 0
     );
   `);
 
-  // Run migrations for existing database files that might be missing new columns
-  try {
-    db.exec("ALTER TABLE users ADD COLUMN drcash_token TEXT;");
-  } catch (e) {
-    // Column already exists, ignore
+  // Upgrade a pre-existing local file that predates one of the columns above
+  // (same idempotent pattern as initPostgresDb — SQLite throws "duplicate
+  // column name" when it already exists, which we simply swallow).
+  const alterStatements = [
+    "ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user';",
+    "ALTER TABLE users ADD COLUMN is_temporary BOOLEAN DEFAULT 0;",
+    "ALTER TABLE users ADD COLUMN subscription_tier TEXT DEFAULT 'free';",
+    "ALTER TABLE users ADD COLUMN subscription_status TEXT DEFAULT 'free';",
+    "ALTER TABLE users ADD COLUMN subscription_id TEXT;",
+    "ALTER TABLE users ADD COLUMN mercadopago_customer_id TEXT;",
+    "ALTER TABLE users ADD COLUMN subscription_expires_at TIMESTAMP;",
+    "ALTER TABLE campaigns ADD COLUMN target_locations TEXT;",
+    "ALTER TABLE campaigns ADD COLUMN target_languages TEXT;",
+    "ALTER TABLE campaigns ADD COLUMN bidding_strategy TEXT;",
+    "ALTER TABLE campaigns ADD COLUMN ad_networks TEXT;",
+    "ALTER TABLE campaigns ADD COLUMN start_date TEXT;",
+    "ALTER TABLE campaigns ADD COLUMN end_date TEXT;",
+    "ALTER TABLE keywords ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;",
+  ];
+  for (const stmt of alterStatements) {
+    try {
+      db.execSync(stmt);
+    } catch (e) {}
   }
 
-  try {
-    db.exec("ALTER TABLE campaigns ADD COLUMN google_campaign_id TEXT;");
-  } catch (e) {
-    // Column already exists, ignore
-  }
-
-  try {
-    db.exec("ALTER TABLE campaigns ADD COLUMN target_ages TEXT;");
-  } catch (e) {
-    // Column already exists, ignore
-  }
-
-  try {
-    db.exec("ALTER TABLE campaigns ADD COLUMN target_genders TEXT;");
-  } catch (e) {
-    // Column already exists, ignore
-  }
-
-  try {
-    db.exec("ALTER TABLE keywords ADD COLUMN analysis TEXT;");
-  } catch (e) {
-    // Column already exists, ignore
-  }
-
-  try {
-    db.exec("ALTER TABLE keywords ADD COLUMN intent TEXT;");
-  } catch (e) {
-    // Column already exists, ignore
-  }
-
-  _db = db;
   return db;
 }
 
-export function getDb(): DatabaseSync {
-  if (!_db) {
+class PostgresStatement {
+  private sql: string;
+
+  constructor(sql: string) {
+    this.sql = sql;
+  }
+
+  private convertQuery(args: any[]): { sql: string; values: any[] } {
+    let querySql = this.sql;
+
+    // Convert SQL functions and keywords
+    querySql = querySql.replace(/datetime\('now'\)/gi, "CURRENT_TIMESTAMP");
+    querySql = querySql.replace(/\blike\b/gi, "ILIKE");
+
+    // Convert ? placeholders to $1, $2, ...
+    let count = 1;
+    querySql = querySql.replace(/\?/g, () => `$${count++}`);
+
+    // If query starts with INSERT, append RETURNING * if not present
+    const isInsert = /^\s*insert\s+into/i.test(querySql);
+    if (isInsert && !/returning/i.test(querySql)) {
+      querySql += " RETURNING *";
+    }
+
+    return { sql: querySql, values: args };
+  }
+
+  async get(...args: any[]): Promise<any> {
+    if (!_pool) throw new Error("Database not initialized");
+    const { sql, values } = this.convertQuery(args);
+    try {
+      const res = await _pool.query(sql, values);
+      return res.rows[0] || undefined;
+    } catch (err: any) {
+      logger.error({ sql, values, err: err.message }, "Error executing get query");
+      throw err;
+    }
+  }
+
+  async all(...args: any[]): Promise<any[]> {
+    if (!_pool) throw new Error("Database not initialized");
+    const { sql, values } = this.convertQuery(args);
+    try {
+      const res = await _pool.query(sql, values);
+      return res.rows;
+    } catch (err: any) {
+      logger.error({ sql, values, err: err.message }, "Error executing all query");
+      throw err;
+    }
+  }
+
+  async run(...args: any[]): Promise<{ changes: number; lastInsertRowid: number | bigint }> {
+    if (!_pool) throw new Error("Database not initialized");
+    const { sql, values } = this.convertQuery(args);
+    try {
+      const res = await _pool.query(sql, values);
+      const changes = res.rowCount || 0;
+      let lastInsertRowid = 0;
+      if (res.rows && res.rows[0] && res.rows[0].id !== undefined) {
+        lastInsertRowid = res.rows[0].id;
+      }
+      return { changes, lastInsertRowid };
+    } catch (err: any) {
+      logger.error({ sql, values, err: err.message }, "Error executing run query");
+      throw err;
+    }
+  }
+}
+
+class PostgresDbBridge {
+  async exec(sql: string): Promise<void> {
+    if (!_pool) throw new Error("Database not initialized");
+    try {
+      await _pool.query(sql);
+    } catch (err: any) {
+      logger.error({ sql, err: err.message }, "Error executing exec script");
+      throw err;
+    }
+  }
+
+  prepare(sql: string): PostgresStatement {
+    return new PostgresStatement(sql);
+  }
+}
+
+// better-sqlite3 is synchronous end-to-end; queries in this codebase were
+// originally written in SQLite dialect (?-placeholders, case-insensitive
+// LIKE, datetime('now')), so — unlike PostgresStatement — nothing needs to
+// be rewritten here, and .run() already returns lastInsertRowid natively.
+class SqliteStatement {
+  constructor(private stmt: Database.Statement) {}
+
+  async get(...args: any[]): Promise<any> {
+    try {
+      return this.stmt.get(...args);
+    } catch (err: any) {
+      logger.error({ sql: this.stmt.source, err: err.message }, "Error executing get query");
+      throw err;
+    }
+  }
+
+  async all(...args: any[]): Promise<any[]> {
+    try {
+      return this.stmt.all(...args) as any[];
+    } catch (err: any) {
+      logger.error({ sql: this.stmt.source, err: err.message }, "Error executing all query");
+      throw err;
+    }
+  }
+
+  async run(...args: any[]): Promise<{ changes: number; lastInsertRowid: number | bigint }> {
+    try {
+      const res = this.stmt.run(...args);
+      return { changes: res.changes, lastInsertRowid: res.lastInsertRowid };
+    } catch (err: any) {
+      logger.error({ sql: this.stmt.source, err: err.message }, "Error executing run query");
+      throw err;
+    }
+  }
+}
+
+class SqliteDbBridge {
+  async exec(sql: string): Promise<void> {
+    if (!_sqlite) throw new Error("Database not initialized");
+    try {
+      _sqlite.exec(sql);
+    } catch (err: any) {
+      logger.error({ sql, err: err.message }, "Error executing exec script");
+      throw err;
+    }
+  }
+
+  // Synchronous variant used only during initSqliteDb() (schema setup runs
+  // before any request handling, so there is no need to route it through the
+  // async exec() above).
+  execSync(sql: string): void {
+    if (!_sqlite) throw new Error("Database not initialized");
+    _sqlite.exec(sql);
+  }
+
+  prepare(sql: string): SqliteStatement {
+    if (!_sqlite) throw new Error("Database not initialized");
+    return new SqliteStatement(_sqlite.prepare(sql));
+  }
+}
+
+export function getDb(): DbBridge {
+  if (!_dbInstance) {
     throw new Error("Database not initialized. Call initDb() first.");
   }
-  return _db;
+  return _dbInstance;
 }
