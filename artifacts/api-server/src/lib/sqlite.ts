@@ -19,15 +19,29 @@ let _sqlite: Database.Database | null = null;
 let _dbInstance: DbBridge | null = null;
 
 /**
- * Local dev uses a real SQLite file (no network dependency, no remote DB
- * exposure needed) — set DATABASE_URL only for production/staging against
- * the shared Postgres instance.
+ * Development defaults to the local SQLite file even when a legacy
+ * DATABASE_URL is present in .env. Production may use DATABASE_URL, and
+ * DATABASE_MODE can explicitly select either backend when needed.
  */
 export async function initDb() {
+  const databaseMode = process.env.DATABASE_MODE?.trim().toLowerCase();
   const connectionString = process.env.DATABASE_URL;
-  if (connectionString) {
+
+  if (databaseMode === "sqlite") {
+    return initSqliteDb();
+  }
+
+  if (databaseMode === "postgres") {
+    if (!connectionString) {
+      throw new Error("DATABASE_URL is required when DATABASE_MODE=postgres");
+    }
     return initPostgresDb();
   }
+
+  if (process.env.NODE_ENV === "production" && connectionString) {
+    return initPostgresDb();
+  }
+
   return initSqliteDb();
 }
 

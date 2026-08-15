@@ -31,7 +31,7 @@ const services: Service[] = [
     cwd: path.join(rootDir, "artifacts/api-server"),
     command: pnpmCmd,
     args: [...pnpmArgs, "run", "dev"],
-    env: { PORT: "3002", NODE_ENV: "development" },
+    env: { PORT: "3002", NODE_ENV: "development", DATABASE_MODE: "sqlite" },
     color: "\x1b[36m", // Cyan
   },
   {
@@ -102,7 +102,7 @@ async function start() {
       path.join(rootDir, "artifacts/api-server"),
       pnpmCmd,
       [...pnpmArgs, "run", "build"],
-      { PORT: "3002", NODE_ENV: "development" }
+      { PORT: "3002", NODE_ENV: "development", DATABASE_MODE: "sqlite" }
     );
     console.log("\x1b[1m\x1b[34m[System] API server built successfully.\x1b[0m");
   } catch (error: any) {
