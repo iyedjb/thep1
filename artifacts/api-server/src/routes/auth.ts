@@ -8,6 +8,48 @@ import { logger } from "../lib/logger";
 const router = Router();
 const JWT_SECRET = process.env["SESSION_SECRET"] ?? "ads-intelligence-secret-2026";
 
+type LoginAttempt = {
+  failures: number;
+  lockLevel: number;
+  blockedUntil: number;
+  lastAttemptAt: number;
+};
+
+const loginAttemptsByIp = new Map<string, LoginAttempt>();
+const LOGIN_FAILURES_PER_LOCK = 5;
+const LOGIN_LOCK_MINUTES = [5, 10, 15];
+const LOGIN_ATTEMPT_TTL = 24 * 60 * 60 * 1000;
+
+function getLoginIp(req: any) {
+  return String(req.ip || req.socket?.remoteAddress || "unknown");
+}
+
+function getActiveLoginBlock(ip: string) {
+  const attempt = loginAttemptsByIp.get(ip);
+  if (!attempt) return null;
+  const now = Date.now();
+  if (now - attempt.lastAttemptAt > LOGIN_ATTEMPT_TTL) {
+    loginAttemptsByIp.delete(ip);
+    return null;
+  }
+  return attempt.blockedUntil > now ? attempt : null;
+}
+
+function registerLoginFailure(ip: string) {
+  const now = Date.now();
+  const current = loginAttemptsByIp.get(ip) || { failures: 0, lockLevel: 0, blockedUntil: 0, lastAttemptAt: now };
+  current.failures += 1;
+  current.lastAttemptAt = now;
+  if (current.failures >= LOGIN_FAILURES_PER_LOCK) {
+    const minutes = LOGIN_LOCK_MINUTES[Math.min(current.lockLevel, LOGIN_LOCK_MINUTES.length - 1)];
+    current.failures = 0;
+    current.lockLevel = Math.min(current.lockLevel + 1, LOGIN_LOCK_MINUTES.length - 1);
+    current.blockedUntil = now + minutes * 60 * 1000;
+  }
+  loginAttemptsByIp.set(ip, current);
+  return current;
+}
+
 export function requireAuth(req: any, res: any, next: any) {
   const auth = req.headers["authorization"] as string | undefined;
   if (!auth?.startsWith("Bearer ")) {
@@ -75,8 +117,21 @@ router.post("/auth/register", async (req, res) => {
 });
 
 router.post("/auth/login", async (req, res) => {
+  const loginIp = getLoginIp(req);
+  const activeBlock = getActiveLoginBlock(loginIp);
+  if (activeBlock) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((activeBlock.blockedUntil - Date.now()) / 1000));
+    res.setHeader("Retry-After", retryAfterSeconds);
+    res.status(429).json({
+      error: `Muitas tentativas. Tente novamente em ${Math.ceil(retryAfterSeconds / 60)} minuto(s).`,
+      retryAfterSeconds,
+    });
+    return;
+  }
+
   const parse = LoginBody.safeParse(req.body);
   if (!parse.success) {
+    registerLoginFailure(loginIp);
     res.status(400).json({ error: "Invalid input" });
     return;
   }
@@ -85,9 +140,20 @@ router.post("/auth/login", async (req, res) => {
   try {
     const user = await db.prepare("SELECT * FROM users WHERE email = ?").get(email) as any;
     if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-      res.status(401).json({ error: "Invalid credentials" });
+      const attempt = registerLoginFailure(loginIp);
+      if (attempt.blockedUntil > Date.now()) {
+        const retryAfterSeconds = Math.max(1, Math.ceil((attempt.blockedUntil - Date.now()) / 1000));
+        res.setHeader("Retry-After", retryAfterSeconds);
+        res.status(429).json({
+          error: `Cinco tentativas incorretas. Acesso bloqueado por ${Math.ceil(retryAfterSeconds / 60)} minuto(s).`,
+          retryAfterSeconds,
+        });
+        return;
+      }
+      res.status(401).json({ error: "E-mail ou senha incorretos" });
       return;
     }
+    loginAttemptsByIp.delete(loginIp);
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
     res.json({
       user: {

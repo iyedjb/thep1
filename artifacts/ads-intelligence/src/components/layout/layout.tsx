@@ -31,7 +31,7 @@ type ConnectionStatus = {
 };
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { data: user, isError, isLoading } = useGetMe();
+  const { data: user, error: userError, isError, isLoading } = useGetMe();
   const [location, setLocation] = useLocation();
 
   const queryClient = useQueryClient();
@@ -106,10 +106,12 @@ export function Layout({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    if (isError) {
+    const status = (userError as any)?.status;
+    if (isError && (status === 401 || status === 403)) {
+      localStorage.removeItem("ads_token");
       setLocation("/login");
     }
-  }, [isError, setLocation]);
+  }, [isError, setLocation, userError]);
 
   if (isLoading) {
     return (
@@ -135,11 +137,11 @@ export function Layout({ children }: { children: ReactNode }) {
     <SidebarProvider defaultOpen={true}>
       <div className="flex min-h-screen w-full bg-background">
         <AppSidebar />
-        <main className="relative flex-1 overflow-auto bg-background flex flex-col min-w-0">
+        <main className="relative flex h-screen flex-1 flex-col overflow-y-auto overflow-x-hidden bg-background min-w-0">
           {/* Top bar */}
           <header className={isTrafficManager
             ? "pointer-events-none absolute left-0 top-0 z-40 flex items-center p-5"
-            : "h-14 flex items-center justify-between px-5 border-b border-border/50 bg-background/80 backdrop-blur-xl sticky top-0 z-30"
+            : "sticky top-0 z-50 flex h-14 shrink-0 items-center justify-between border-b border-border/60 bg-background/95 px-4 backdrop-blur-xl md:px-5"
           }>
             <div className="flex items-center gap-3">
               <SidebarTrigger className={isTrafficManager

@@ -6,6 +6,10 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// The production app sits behind one reverse proxy. This keeps req.ip tied to
+// the original client instead of rate-limiting every visitor as the proxy.
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,

@@ -187,10 +187,10 @@ export function AppSidebar() {
               side="top"
               align="start"
               sideOffset={10}
-              className="w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-primary/15 bg-popover p-2 text-popover-foreground shadow-[0_24px_70px_rgba(15,23,42,0.16)]"
+              className="w-[16.5rem] max-w-[calc(100vw-1.5rem)] rounded-2xl border border-primary/15 bg-popover p-1.5 text-popover-foreground shadow-[0_24px_70px_rgba(15,23,42,0.16)] sm:w-72"
             >
-              <div className="px-3 pb-3 pt-2">
-                <div className="mb-4 flex items-center justify-between border-b border-primary/15 pb-3">
+              <div className="px-3 pb-2.5 pt-2">
+                <div className="mb-3 flex items-center justify-between border-b border-primary/15 pb-2.5">
                   <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-primary/60">Plano atual</p>
                   <p className="text-xs font-semibold text-primary">{currentPlan}</p>
                 </div>

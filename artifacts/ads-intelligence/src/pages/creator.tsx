@@ -40,7 +40,6 @@ import {
   RotateCcw,
   Globe,
   Zap,
-  Layout,
   Layers,
   Tag,
 } from "lucide-react";
@@ -627,7 +626,7 @@ export default function Creator() {
         <div className="absolute -bottom-20 left-1/3 w-[350px] h-[350px] rounded-full bg-primary/4 blur-[80px]" />
       </div>
 
-      <div className="relative z-10 max-w-[1440px] mx-auto px-4 md:px-8 py-8 space-y-8">
+      <div className="relative z-10 mx-auto max-w-[1240px] space-y-7 px-4 py-5 md:px-8 md:py-7">
 
         {/* ── Hero Header ─────────────────────────────────────── */}
         {step !== "generating" && step !== "done" && (
@@ -718,7 +717,7 @@ export default function Creator() {
         <div className="block">
 
           {/* ── LEFT: Form / Wizard ──────────────────────────── */}
-          <div className={`mx-auto w-full max-w-4xl space-y-5 ${activeView === "create" ? "block" : "hidden"}`}>
+          <div className={`mx-auto w-full max-w-3xl space-y-5 ${activeView === "create" ? "block" : "hidden"}`}>
 
             {activeMode === "redirect" && (
               <>
@@ -728,24 +727,28 @@ export default function Creator() {
                 <Card className="border-0 bg-transparent shadow-none rounded-none overflow-visible">
                   {/* Card gradient top accent */}
                   <div className="hidden" />
-                  <CardContent className="p-0 space-y-8">
-                    <button type="button" onClick={() => setActiveView("websites")} className="text-sm text-muted-foreground hover:text-foreground">
-                      Minhas presells
-                    </button>
-                    <div className="space-y-1">
-                      <h2 className="text-3xl font-semibold tracking-tight text-foreground">
-                        <Layout className="h-4 w-4 text-primary" />
-                        Nova Presell de Redirecionamento
-                      </h2>
+                  <CardContent className="space-y-7 p-0">
+                    <div className="sticky top-14 z-30 -mx-4 flex h-16 items-center gap-3 border-b border-border/70 bg-background/95 px-4 backdrop-blur-xl md:mx-0 md:rounded-b-2xl">
+                      <button
+                        type="button"
+                        onClick={() => setActiveView("websites")}
+                        aria-label="Voltar para minhas presells"
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-primary/20 bg-background text-lg text-primary shadow-[0_6px_20px_rgba(15,23,42,0.06)] hover:bg-primary/[0.06]"
+                      >
+                        ←
+                      </button>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">Nova presell</p>
+                        <p className="truncate text-xs text-muted-foreground">Redirecionamento</p>
+                      </div>
                     </div>
 
-                    <form onSubmit={handleGenerate} className="space-y-5" autoComplete="off">
+                    <form onSubmit={handleGenerate} className="space-y-6 [&_input]:text-sm [&_textarea]:text-sm" autoComplete="off">
 
                       {/* Reference URL */}
                       <div className="space-y-2">
-                        <Label htmlFor="reference-url" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                          <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/15 text-primary text-[9px] font-black">1</span>
-                          Página de Referência (Landing Page Original)
+                        <Label htmlFor="reference-url" className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                          Página de referência
                         </Label>
                         <div className="relative">
                           <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -757,7 +760,7 @@ export default function Creator() {
                             placeholder="https://produto-original.com/landing-page"
                             value={referenceUrl}
                             onChange={(e) => setReferenceUrl(e.target.value)}
-                            className="pl-9 rounded-xl h-11 bg-muted/40 border-border focus-visible:ring-primary text-xs font-mono placeholder:text-muted-foreground/60"
+                            className="h-12 rounded-2xl border-border bg-background pl-9 text-sm shadow-none focus-visible:ring-primary placeholder:text-muted-foreground/55"
                             required
                           />
                         </div>
@@ -765,8 +768,8 @@ export default function Creator() {
 
                       {/* Product Name (Optional) */}
                       <div className="space-y-2">
-                        <Label htmlFor="product-name" className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                          Nome do Produto (Opcional)
+                        <Label htmlFor="product-name" className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                          Nome do produto <span className="font-normal text-muted-foreground">(opcional)</span>
                         </Label>
                         <div className="relative">
                           <Tag className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -776,22 +779,22 @@ export default function Creator() {
                             placeholder="Ex: Reulex (Se vazio, tenta extrair do site)"
                             value={productName}
                             onChange={(e) => setProductName(e.target.value)}
-                            className="pl-9 rounded-xl h-11 bg-muted/40 border-border focus-visible:ring-primary text-xs placeholder:text-muted-foreground/60"
+                            className="h-12 rounded-2xl border-border bg-background pl-9 text-sm shadow-none focus-visible:ring-primary placeholder:text-muted-foreground/55"
                           />
                         </div>
                       </div>
 
                       {/* Paste HTML Bypass */}
                       <div className="space-y-1.5 pt-1">
-                        <Label htmlFor="raw-html" className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-                          Código HTML da Página (Opcional - Use se o servidor estiver bloqueado)
+                        <Label htmlFor="raw-html" className="flex items-center gap-1 text-sm font-medium text-foreground">
+                          Código HTML <span className="font-normal text-muted-foreground">(opcional)</span>
                         </Label>
                         <Textarea
                           id="raw-html"
                           placeholder="Cole o código-fonte HTML completo da página se o robô do servidor for bloqueado pelo rastreador (bot protection)"
                           value={rawHtml}
                           onChange={(e) => setRawHtml(e.target.value)}
-                          className="rounded-xl border-border min-h-[90px] resize-y bg-muted/20 font-mono text-[11px] placeholder:text-muted-foreground/60"
+                          className="min-h-24 resize-y rounded-2xl border-border bg-background text-sm shadow-none placeholder:text-muted-foreground/55"
                         />
                       </div>
 

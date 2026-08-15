@@ -4,7 +4,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Eye, EyeOff } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { useLogin } from "@workspace/api-client-react";
+import { getGetMeQueryKey, useLogin } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -44,6 +45,7 @@ function GoogleIcon() {
 export default function Login() {
   const [, setLocation] = useLocation();
   const loginMutation = useLogin();
+  const queryClient = useQueryClient();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -62,16 +64,19 @@ export default function Login() {
     }
 
     fetch("/api/auth/me", { headers: { Authorization: `Bearer ${savedToken}` } })
-      .then((response) => {
+      .then(async (response) => {
         if (response.ok) {
+          const currentUser = await response.json();
+          queryClient.setQueryData(getGetMeQueryKey(), currentUser);
           setLocation("/creator");
           return;
         }
         localStorage.removeItem("ads_token");
+        queryClient.removeQueries({ queryKey: getGetMeQueryKey() });
       })
       .catch(() => {})
       .finally(() => setCheckingSession(false));
-  }, [setLocation]);
+  }, [queryClient, setLocation]);
 
   const handleGoogleCredential = async (response: { credential: string }) => {
     setGoogleLoading(true);
@@ -84,6 +89,7 @@ export default function Login() {
       const data = await result.json();
       if (!result.ok) throw new Error(data.error || "Não foi possível entrar com Google");
       localStorage.setItem("ads_token", data.token);
+      queryClient.setQueryData(getGetMeQueryKey(), data.user);
       setLocation("/creator");
     } catch (error: any) {
       toast({ title: "Erro no login com Google", description: error.message, variant: "destructive" });
@@ -131,6 +137,7 @@ export default function Login() {
     loginMutation.mutate({ data }, {
       onSuccess: (result) => {
         localStorage.setItem("ads_token", result.token);
+        queryClient.setQueryData(getGetMeQueryKey(), result.user);
         setLocation("/creator");
       },
       onError: () => toast({ title: "Não foi possível entrar", description: "Confira seu e-mail e sua senha.", variant: "destructive" }),
