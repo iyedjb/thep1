@@ -11,7 +11,8 @@ import {
   SidebarMenuButton,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel
+  SidebarGroupLabel,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ function formatCustomerId(value: string) {
 
 export function AppSidebar() {
   const [location] = useLocation();
+  const { isMobile, setOpenMobile } = useSidebar();
   const { data: user } = useGetMe() as any;
   const logout = useLogout();
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
@@ -82,7 +84,7 @@ export function AppSidebar() {
       <Sidebar className="border-r border-sidebar-border/60 bg-sidebar">
       {/* Logo + Account ID */}
       <SidebarHeader className="px-5 pt-5 pb-4 border-b border-sidebar-border/40 space-y-4">
-        <Link href="/creator" className="flex items-center gap-3 group select-none">
+        <Link href="/creator" onClick={() => isMobile && setOpenMobile(false)} className="flex items-center gap-3 group select-none">
           <Logo iconSize={32} textClass="text-sidebar-foreground" />
         </Link>
 
@@ -133,7 +135,7 @@ export function AppSidebar() {
                         }
                       `}
                     >
-                      <Link href={path} data-testid={`link-${label.toLowerCase().replace(/\s/g, "-")}`}>
+                      <Link href={path} onClick={() => isMobile && setOpenMobile(false)} data-testid={`link-${label.toLowerCase().replace(/\s/g, "-")}`}>
                         {isActive && (
                           <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-primary rounded-full opacity-80" />
                         )}
@@ -173,10 +175,10 @@ export function AppSidebar() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
-              side="right"
-              align="end"
+              side="top"
+              align="start"
               sideOffset={10}
-              className="w-60 rounded-2xl border border-primary/15 bg-popover p-2 text-popover-foreground shadow-[0_24px_70px_rgba(15,23,42,0.16)]"
+              className="w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-primary/15 bg-popover p-2 text-popover-foreground shadow-[0_24px_70px_rgba(15,23,42,0.16)]"
             >
               <div className="px-3 pb-3 pt-2">
                 <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-primary/60">Sua conta</p>
@@ -185,10 +187,10 @@ export function AppSidebar() {
               </div>
               <DropdownMenuSeparator className="bg-primary/15" />
               <DropdownMenuItem asChild className="cursor-pointer rounded-xl px-3 py-3 text-sm focus:bg-primary/10 focus:text-primary">
-                <Link href="/support">Suporte</Link>
+                <Link href="/support" onClick={() => isMobile && setOpenMobile(false)}>Suporte</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="cursor-pointer rounded-xl px-3 py-3 text-sm focus:bg-primary/10 focus:text-primary">
-                <Link href="/pricing">Planos</Link>
+                <Link href="/pricing" onClick={() => isMobile && setOpenMobile(false)}>Planos</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-primary/15" />
               <DropdownMenuItem

@@ -47,11 +47,31 @@ export default function Login() {
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(() => Boolean(localStorage.getItem("ads_token")));
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" },
   });
+
+  useEffect(() => {
+    const savedToken = localStorage.getItem("ads_token");
+    if (!savedToken) {
+      setCheckingSession(false);
+      return;
+    }
+
+    fetch("/api/auth/me", { headers: { Authorization: `Bearer ${savedToken}` } })
+      .then((response) => {
+        if (response.ok) {
+          setLocation("/creator");
+          return;
+        }
+        localStorage.removeItem("ads_token");
+      })
+      .catch(() => {})
+      .finally(() => setCheckingSession(false));
+  }, [setLocation]);
 
   const handleGoogleCredential = async (response: { credential: string }) => {
     setGoogleLoading(true);
@@ -116,6 +136,10 @@ export default function Login() {
       onError: () => toast({ title: "Não foi possível entrar", description: "Confira seu e-mail e sua senha.", variant: "destructive" }),
     });
   };
+
+  if (checkingSession) {
+    return <div className="min-h-screen bg-white" aria-label="Verificando sessão" />;
+  }
 
   return (
     <AuthShell eyebrow="Bem-vindo de volta" title="Entre na sua conta ClicLab" description="Insira seus dados para acessar o painel e gerenciar suas campanhas.">

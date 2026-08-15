@@ -85,6 +85,7 @@ export function Layout({ children }: { children: ReactNode }) {
   };
 
   const pageTitle = PAGE_TITLES[location] || "ClicLab";
+  const isTrafficManager = location === "/traffic-manager";
 
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof document !== "undefined") {
@@ -134,15 +135,21 @@ export function Layout({ children }: { children: ReactNode }) {
     <SidebarProvider defaultOpen={true}>
       <div className="flex min-h-screen w-full bg-background">
         <AppSidebar />
-        <main className="flex-1 overflow-auto bg-background flex flex-col min-w-0">
+        <main className="relative flex-1 overflow-auto bg-background flex flex-col min-w-0">
           {/* Top bar */}
-          <header className="h-14 flex items-center justify-between px-5 border-b border-border/50 bg-background/80 backdrop-blur-xl sticky top-0 z-30">
+          <header className={isTrafficManager
+            ? "pointer-events-none absolute left-0 top-0 z-40 flex items-center p-5"
+            : "h-14 flex items-center justify-between px-5 border-b border-border/50 bg-background/80 backdrop-blur-xl sticky top-0 z-30"
+          }>
             <div className="flex items-center gap-3">
-              <SidebarTrigger className="text-muted-foreground hover:text-foreground hover:bg-white/5 rounded-lg transition-colors w-8 h-8" />
-              <div className="h-4 w-px bg-border/60" />
-              <span className="text-sm font-semibold text-foreground/70">{pageTitle}</span>
+              <SidebarTrigger className={isTrafficManager
+                ? "pointer-events-auto h-10 w-10 rounded-full border border-slate-200/80 bg-white/85 text-slate-500 shadow-[0_8px_32px_rgba(15,23,42,0.06)] backdrop-blur-sm hover:bg-white hover:text-slate-900"
+                : "text-muted-foreground hover:text-foreground hover:bg-white/5 rounded-lg transition-colors w-8 h-8"
+              } />
+              {!isTrafficManager && <div className="h-4 w-px bg-border/60" />}
+              {!isTrafficManager && <span className="text-sm font-semibold text-foreground/70">{pageTitle}</span>}
             </div>
-            <div className="flex items-center gap-4">
+            {!isTrafficManager && <div className="flex items-center gap-4">
               {adsStatus?.status === "connected" && adsStatus.accounts && adsStatus.accounts.length > 0 && (
                 <>
                   <DropdownMenu>
@@ -182,7 +189,7 @@ export function Layout({ children }: { children: ReactNode }) {
               >
                 {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4 text-amber-400" />}
               </Button>
-            </div>
+            </div>}
           </header>
           <div className="flex-1">
             {children}

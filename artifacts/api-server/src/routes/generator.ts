@@ -7271,38 +7271,16 @@ router.post("/chat-traffic-manager", optionalAuth, async (req: any, res) => {
   try {
     const sanitizedHistory = sanitizeChatHistoryForPrompt(messages);
 
-    // Prefer Claude Sonnet (paid, via OpenRouter) for higher-quality advisory answers — this
-    // chat is meant to feel as capable as Claude's own chat, which the free-tier models can't
-    // reliably match. Gated by a daily token budget (SONNET_DAILY_TOKEN_LIMIT) so cost stays
-    // bounded; once the day's budget is spent, or if the call fails/there's no credit yet, this
-    // falls through to the existing free cascade (OpenRouter free model -> Groq -> Gemini) so the
-    // chat keeps working regardless.
-    let reply: string | null = null;
-    if (process.env.OPENROUTER_API_KEY) {
-      const usedToday = await getTodaySonnetTokenUsage();
-      if (usedToday < SONNET_DAILY_TOKEN_LIMIT) {
-        try {
-          const result = await openRouterRequest(
-            [{ role: "system", content: TRAFFIC_MANAGER_SYSTEM_PROMPT }, ...sanitizedHistory],
-            false,
-            2000,
-            "anthropic/claude-sonnet-4.5"
-          );
-          if (result.text && result.text.trim()) {
-            reply = result.text;
-            await addSonnetTokenUsage(result.usage?.total_tokens || 0);
-          }
-        } catch (err: any) {
-          logger.warn({ err: err.message }, "chat-traffic-manager: Sonnet via OpenRouter failed, falling back to free providers");
-        }
-      } else {
-        logger.info({ usedToday, limit: SONNET_DAILY_TOKEN_LIMIT }, "chat-traffic-manager: daily Sonnet token budget reached, using free providers");
-      }
+    if (!process.env.GROQ_API_KEY) {
+      res.status(503).json({ error: "A chave da IA do Gestor de Tráfego não está configurada." });
+      return;
     }
 
-    if (!reply || !reply.trim()) {
-      reply = await callChatProviders(TRAFFIC_MANAGER_SYSTEM_PROMPT, sanitizedHistory, 2000, false);
-    }
+    const reply = await queryGroq(
+      [{ role: "system", content: TRAFFIC_MANAGER_SYSTEM_PROMPT }, ...sanitizedHistory],
+      false,
+      2000,
+    );
 
     if (!reply || !reply.trim()) {
       res.status(502).json({ error: "Não foi possível obter resposta da IA no momento. Tente novamente em instantes." });

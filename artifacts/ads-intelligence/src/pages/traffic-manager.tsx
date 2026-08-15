@@ -77,7 +77,7 @@ export default function TrafficManager() {
   const conversationTitle = messages.find((message) => message.role === "user")?.content || "Conversa atual";
 
   return (
-    <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden bg-white font-sans">
+    <div className="relative h-screen w-full overflow-hidden bg-white font-sans">
       <svg aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 1200 900" preserveAspectRatio="none">
         <path d="M -80 700 Q 180 430 500 120" stroke="rgb(0 166 251 / 0.10)" strokeWidth="1.5" strokeDasharray="7 8" fill="none" />
         <path d="M 500 920 Q 760 500 1160 80" stroke="rgb(0 166 251 / 0.08)" strokeWidth="1.5" strokeDasharray="7 8" fill="none" />
@@ -85,11 +85,13 @@ export default function TrafficManager() {
 
       <Sheet>
         <SheetTrigger asChild>
-          <button type="button" className="absolute right-6 top-6 z-20 rounded-full border border-slate-200/80 bg-white/80 px-4 py-2 text-xs font-medium text-slate-500 shadow-[0_8px_32px_rgba(15,23,42,0.06)] backdrop-blur-sm hover:text-slate-900 sm:right-10">
-            Conversas
+          <button type="button" aria-label="Abrir histórico" className="absolute right-5 top-5 z-20 flex h-10 w-10 flex-col items-center justify-center gap-1 rounded-full border border-slate-200/80 bg-white/85 text-slate-500 shadow-[0_8px_32px_rgba(15,23,42,0.06)] backdrop-blur-sm hover:bg-white hover:text-slate-900">
+            <span className="h-px w-4 bg-current" />
+            <span className="h-px w-4 bg-current" />
+            <span className="sr-only">Histórico</span>
           </button>
         </SheetTrigger>
-        <SheetContent side="right" className="flex w-full flex-col border-slate-200 bg-white p-6 sm:max-w-md [&>button.absolute]:hidden">
+        <SheetContent side="right" className="flex w-full flex-col border-slate-200 bg-white p-6 sm:max-w-md [&>button.absolute]:right-5 [&>button.absolute]:top-5 [&>button.absolute]:h-10 [&>button.absolute]:w-10 [&>button.absolute]:rounded-full [&>button.absolute]:border [&>button.absolute]:border-slate-200/80 [&>button.absolute]:bg-white [&>button.absolute]:p-3 [&>button.absolute]:shadow-[0_8px_32px_rgba(15,23,42,0.06)]">
           <SheetTitle className="text-2xl font-semibold tracking-tight text-slate-900">Conversas</SheetTitle>
           <SheetDescription className="sr-only">Abra a conversa atual ou comece uma nova.</SheetDescription>
           <div className="mt-8 flex-1 border-t border-slate-200 pt-5">
