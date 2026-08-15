@@ -12,6 +12,7 @@ import {
 } from "../lib/mercadopago";
 
 const router = Router();
+const CHECKOUT_TEST_PRICE = 0.5;
 
 const PLANS = {
   starter: {
@@ -95,7 +96,7 @@ router.post("/mercadopago/create-preference", requireAuth, async (req: any, res)
   }
 
   const selectedPlan = PLANS[planTier as keyof typeof PLANS];
-  const amount = billingCycle === "yearly" ? selectedPlan.yearlyPrice : selectedPlan.monthlyPrice;
+  const amount = CHECKOUT_TEST_PRICE;
   const db = getDb();
 
   try {
@@ -152,7 +153,7 @@ router.post("/mercadopago/create-pix", requireAuth, async (req: any, res) => {
   }
 
   const selectedPlan = PLANS[planTier as keyof typeof PLANS];
-  const amount = billingCycle === "yearly" ? selectedPlan.yearlyPrice : selectedPlan.monthlyPrice;
+  const amount = CHECKOUT_TEST_PRICE;
   const db = getDb();
 
   try {
@@ -199,6 +200,10 @@ router.post("/mercadopago/create-pix", requireAuth, async (req: any, res) => {
         pixResult.ticket_url || null
       );
 
+    if (pixResult.status === "approved") {
+      await upgradeUserSubscription(userId, planTier, pixResult.payment_id, billingCycle);
+    }
+
     res.json({
       success: true,
       paymentId: pixResult.payment_id,
@@ -235,7 +240,7 @@ router.post("/mercadopago/create-card-payment", requireAuth, async (req: any, re
   }
 
   const selectedPlan = PLANS[planTier];
-  const amount = billingCycle === "yearly" ? selectedPlan.yearlyPrice : selectedPlan.monthlyPrice;
+  const amount = CHECKOUT_TEST_PRICE;
   const db = getDb();
 
   try {

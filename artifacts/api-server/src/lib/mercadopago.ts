@@ -249,7 +249,20 @@ export async function createPixPayment(
   if (!response.ok) {
     const errorText = await response.text();
     logger.error({ status: response.status, body: errorText }, "Error creating Mercado Pago Pix payment");
-    throw new Error(`Mercado Pago Pix error: ${response.statusText}`);
+    let providerMessage = response.statusText;
+    try {
+      const errorBody = JSON.parse(errorText);
+      providerMessage = errorBody.message
+        || errorBody.error
+        || errorBody.cause?.map((cause: any) => cause.description || cause.code).filter(Boolean).join("; ")
+        || providerMessage;
+    } catch (_) {
+      if (errorText.trim()) providerMessage = errorText.slice(0, 240);
+    }
+    if (providerMessage.toLowerCase().includes("collector user without key enabled")) {
+      providerMessage = "A conta de recebimento ainda não possui uma chave Pix ativa. Cadastre uma chave Pix na conta antes de gerar o QR Code.";
+    }
+    throw new Error(`Pagamento Pix recusado: ${providerMessage}`);
   }
 
   const data = (await response.json()) as any;

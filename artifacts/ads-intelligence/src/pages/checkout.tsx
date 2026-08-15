@@ -1,9 +1,12 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
-import { BillingCycle, PlanTier, formatBRL, getMonthlyEquivalent, getPlanPrice, getSubscriptionPlan } from "@/lib/subscription-plans";
+import { BillingCycle, PlanTier, formatBRL, getSubscriptionPlan } from "@/lib/subscription-plans";
 
 type PaymentState = "idle" | "pending" | "approved" | "failure";
+type PaymentMethod = "card" | "pix";
 interface PaymentConfiguration { configured: boolean; accessTokenConfigured: boolean; publicKeyConfigured: boolean; publicKey: string; }
+interface PixPayment { qrCode: string; qrCodeBase64: string; ticketUrl?: string; }
+const CHECKOUT_TEST_PRICE = 0.5;
 declare global { interface Window { MercadoPago?: any; } }
 
 async function safeFetchJson(url: string, init?: RequestInit) {
@@ -46,14 +49,16 @@ export default function CheckoutPage() {
   const [planTier] = useState<PlanTier>(initial.plan.id);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>(initial.cycle);
   const [paymentState, setPaymentState] = useState<PaymentState>("idle");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("pix");
   const [paymentId, setPaymentId] = useState("");
+  const [pixPayment, setPixPayment] = useState<PixPayment | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [configuration, setConfiguration] = useState<PaymentConfiguration | null>(null);
   const cardFormRef = useRef<any>(null);
   const plan = getSubscriptionPlan(planTier);
-  const total = getPlanPrice(plan, billingCycle);
-  const monthlyEquivalent = getMonthlyEquivalent(plan, billingCycle);
+  const total = CHECKOUT_TEST_PRICE;
+  const monthlyEquivalent = CHECKOUT_TEST_PRICE;
   const token = localStorage.getItem("ads_token");
 
   useEffect(() => {
@@ -62,7 +67,7 @@ export default function CheckoutPage() {
   }, []);
 
   useEffect(() => {
-    if (!token || !configuration?.configured || !configuration.publicKey) return;
+    if (paymentMethod !== "card" || !token || !configuration?.configured || !configuration.publicKey) return;
     let cancelled = false;
     let cardForm: any;
     loadPaymentSdk().then(() => {
@@ -108,7 +113,29 @@ export default function CheckoutPage() {
       cardFormRef.current = cardForm;
     }).catch((sdkError) => setError(sdkError.message));
     return () => { cancelled = true; cardForm?.unmount?.(); cardFormRef.current = null; };
-  }, [billingCycle, configuration?.configured, configuration?.publicKey, planTier, token, total]);
+  }, [billingCycle, configuration?.configured, configuration?.publicKey, paymentMethod, planTier, token, total]);
+
+  const createPix = async () => {
+    if (!token) return;
+    setIsSubmitting(true);
+    setError("");
+    setPixPayment(null);
+    try {
+      const result = await safeFetchJson("/api/mercadopago/create-pix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ planTier, billingCycle }),
+      });
+      setPaymentId(result.paymentId);
+      setPixPayment({ qrCode: result.qrCode, qrCodeBase64: result.qrCodeBase64, ticketUrl: result.ticketUrl });
+      setPaymentState(result.status === "approved" ? "approved" : "pending");
+    } catch (pixError: any) {
+      setPaymentState("failure");
+      setError(pixError.message || "Não foi possível gerar o Pix.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     if (!paymentId || paymentState !== "pending" || !token) return;
@@ -146,7 +173,7 @@ export default function CheckoutPage() {
           <p className="text-xs font-semibold text-primary">Seu plano</p>
           <div className="mt-8 flex items-start justify-between gap-8 border-b border-border pb-8">
             <div><h1 className="text-3xl font-semibold tracking-tight">{plan.name}</h1><p className="mt-2 text-sm text-muted-foreground">{billingCycle === "yearly" ? "Assinatura anual" : "Assinatura mensal"}</p></div>
-            <p className="whitespace-nowrap text-right text-2xl font-semibold">{formatBRL(monthlyEquivalent)}<span className="block pt-1 text-xs font-normal text-muted-foreground">por mês</span></p>
+            <p className="whitespace-nowrap text-right text-2xl font-semibold">{formatBRL(monthlyEquivalent)}<span className="block pt-1 text-xs font-normal text-muted-foreground">valor de teste</span></p>
           </div>
           <div className="py-8">
             <div className="grid grid-cols-2 rounded-full border border-border p-1">
@@ -163,10 +190,16 @@ export default function CheckoutPage() {
         <section className="min-w-0 px-6 py-12 lg:px-10 lg:py-16 xl:px-16">
           <div className="mx-auto max-w-xl">
             <h2 className="text-4xl font-semibold tracking-tight">Pagamento</h2>
+            <div className="mt-8 grid grid-cols-2 rounded-full border border-border p-1" aria-label="Forma de pagamento">
+              <button type="button" onClick={() => { setPaymentMethod("pix"); setError(""); }} className={`rounded-full py-2.5 text-sm transition-colors ${paymentMethod === "pix" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>Pix</button>
+              <button type="button" onClick={() => { setPaymentMethod("card"); setError(""); }} className={`rounded-full py-2.5 text-sm transition-colors ${paymentMethod === "card" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>Cartão</button>
+            </div>
             {error && <p className="mt-6 border-l-2 border-primary pl-4 text-sm leading-6">{error}</p>}
-            {paymentState === "pending" && <p className="mt-6 border-l-2 border-primary pl-4 text-sm">Pagamento em análise. Esta página atualizará automaticamente.</p>}
+            {paymentState === "pending" && <p className="mt-6 border-l-2 border-primary pl-4 text-sm">Aguardando confirmação. Esta página atualizará automaticamente e ativará o plano quando o pagamento for aprovado.</p>}
             {!token ? (
               <div className="mt-10 border-t border-border pt-8"><a href="/login" className="flex h-13 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground hover:bg-primary/90">Entrar para continuar</a></div>
+            ) : paymentMethod === "pix" ? (
+              <PixCheckout configured={Boolean(configuration?.accessTokenConfigured)} isSubmitting={isSubmitting} payment={pixPayment} total={total} onCreate={createPix} />
             ) : configuration && !configuration.configured ? (
               <UnavailableCardForm total={total} />
             ) : (
@@ -192,6 +225,38 @@ export default function CheckoutPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function PixCheckout({ configured, isSubmitting, payment, total, onCreate }: { configured: boolean; isSubmitting: boolean; payment: PixPayment | null; total: number; onCreate: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const copyCode = async () => {
+    if (!payment?.qrCode) return;
+    await navigator.clipboard.writeText(payment.qrCode);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  };
+
+  if (!configured) return (
+    <div className="mt-10 border-t border-border pt-8">
+      <p className="border-l-2 border-primary pl-4 text-sm text-muted-foreground">O Pix está temporariamente indisponível.</p>
+      <button disabled className="mt-8 h-13 w-full rounded-full bg-primary text-sm font-semibold text-primary-foreground opacity-35">Gerar Pix de {formatBRL(total)}</button>
+    </div>
+  );
+
+  if (!payment) return (
+    <div className="mt-10 border-t border-border pt-8">
+      <p className="text-sm leading-6 text-muted-foreground">Gere um Pix de teste e conclua o pagamento no aplicativo do seu banco.</p>
+      <button type="button" onClick={onCreate} disabled={isSubmitting} className="mt-8 h-13 w-full rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-40">{isSubmitting ? "Gerando…" : `Gerar Pix de ${formatBRL(total)}`}</button>
+    </div>
+  );
+
+  return (
+    <div className="mt-10 border-t border-border pt-8 text-center">
+      {payment.qrCodeBase64 && <img src={`data:image/png;base64,${payment.qrCodeBase64}`} alt="Código QR do Pix" className="mx-auto h-52 w-52" />}
+      <p className="mt-6 text-sm font-medium">Escaneie o código ou copie o Pix.</p>
+      <button type="button" onClick={copyCode} className="mt-6 h-12 w-full rounded-full border border-primary/25 text-sm font-semibold text-primary hover:bg-primary/[0.06]">{copied ? "Código copiado" : "Copiar código Pix"}</button>
+    </div>
   );
 }
 

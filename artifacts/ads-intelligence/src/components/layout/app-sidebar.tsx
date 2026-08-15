@@ -76,6 +76,15 @@ export function AppSidebar() {
   const initials = user?.name
     ? user.name.split(" ").map((n: string) => n[0]).slice(0, 2).join("").toUpperCase()
     : "U";
+  const planLabels: Record<string, string> = {
+    free: "Gratuito",
+    starter: "Essencial",
+    pro: "Profissional",
+    enterprise: "Escala",
+  };
+  const currentPlan = user?.subscriptionStatus === "active"
+    ? (planLabels[user?.subscriptionTier] || "Premium")
+    : "Gratuito";
 
   const isConnected = statusQuery.data?.status === "connected";
   const customerId = statusQuery.data?.customerId;
@@ -181,6 +190,10 @@ export function AppSidebar() {
               className="w-[min(18rem,calc(100vw-2rem))] rounded-2xl border border-primary/15 bg-popover p-2 text-popover-foreground shadow-[0_24px_70px_rgba(15,23,42,0.16)]"
             >
               <div className="px-3 pb-3 pt-2">
+                <div className="mb-4 flex items-center justify-between border-b border-primary/15 pb-3">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-primary/60">Plano atual</p>
+                  <p className="text-xs font-semibold text-primary">{currentPlan}</p>
+                </div>
                 <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-primary/60">Sua conta</p>
                 <p className="mt-2 truncate text-sm font-medium">{user?.name || "Usuário"}</p>
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">{user?.email || ""}</p>

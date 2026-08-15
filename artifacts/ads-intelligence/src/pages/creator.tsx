@@ -39,7 +39,6 @@ import {
   Plus,
   RotateCcw,
   Globe,
-  Search,
   Zap,
   Layout,
   Layers,
@@ -86,7 +85,6 @@ export default function Creator() {
   const { toast } = useToast();
 
   const [activeView, setActiveView] = useState<View>("websites");
-  const [searchTerm, setSearchTerm] = useState("");
 
   const [referenceUrl, setReferenceUrl] = useState("");
   const [rawHtml, setRawHtml] = useState("");
@@ -534,12 +532,7 @@ export default function Creator() {
   const getTagCount = () => scripts.filter(s => s.trim() !== "").length;
   const handleBackToEdit = () => { setStep("form"); setPublishedUrl(""); };
 
-  const filteredWebsites = savedWebsites.filter((site) => {
-    const term = searchTerm.toLowerCase();
-    return site.destinationUrl.toLowerCase().includes(term) ||
-      (site.referenceUrl || "").toLowerCase().includes(term) ||
-      (site.productName || "").toLowerCase().includes(term);
-  });
+  const filteredWebsites = savedWebsites;
 
   return (
     <div className="min-h-[calc(100vh-80px)] bg-background [&_svg]:hidden">
@@ -1294,41 +1287,41 @@ export default function Creator() {
               <div className="hidden" />
               <CardContent className="p-0 space-y-8">
                 {/* Table header */}
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div>
-                    <h3 className="text-3xl font-semibold tracking-tight text-foreground">
-                      <Layers className="h-4 w-4 text-primary" />
-                      Minhas Presells
-                    </h3>
+                <div className="flex flex-col gap-6">
+                  <div className="flex items-center justify-between gap-4">
+                    <h3 className="text-3xl font-semibold tracking-tight text-foreground">Presells</h3>
+                    <button
+                      type="button"
+                      onClick={() => { setActiveView("create"); setStep("form"); }}
+                      className="h-11 rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+                    >
+                      Criar presell
+                    </button>
                   </div>
-                  <div className="relative w-full sm:w-60 shrink-0">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <Input
-                      type="text"
-                      placeholder="Buscar presell ou destino..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="rounded-xl h-11 px-4 text-xs border-border bg-background focus-visible:ring-primary"
-                    />
+                  <div className="grid grid-cols-3 border-y border-border">
+                    {[
+                      ["Total", savedWebsites.length],
+                      ["Cookies", savedWebsites.filter((site) => site.selectedOption === "a").length],
+                      ["Clone", savedWebsites.filter((site) => site.selectedOption === "b").length],
+                    ].map(([label, value], index) => (
+                      <div key={String(label)} className={`py-5 ${index > 0 ? "border-l border-border pl-5" : ""}`}>
+                        <p className="text-2xl font-semibold tracking-tight text-foreground">{value}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{label}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
                 {/* Empty state */}
                 {filteredWebsites.length === 0 ? (
-                  <div className="flex min-h-[430px] flex-col items-center justify-center border-y border-border py-16 text-center">
-                    <div className="max-w-xs mx-auto">
-                      <p className="text-sm font-semibold text-foreground">
-                        {searchTerm ? "Nenhum resultado" : "Nenhuma presell criada ainda"}
-                      </p>
-                    </div>
-                    {!searchTerm && (
-                      <button
-                        onClick={() => { setActiveView("create"); setStep("form"); }}
-                        className="mt-auto h-12 min-w-64 rounded-full bg-primary px-7 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
-                      >
-                        Criar minha primeira presell
-                      </button>
-                    )}
+                  <div className="flex min-h-48 flex-col items-center justify-center border-b border-border py-12 text-center">
+                    <p className="text-sm font-semibold text-foreground">Nenhuma presell criada ainda</p>
+                    <button
+                      onClick={() => { setActiveView("create"); setStep("form"); }}
+                      className="mt-5 h-11 rounded-full border border-primary/25 px-6 text-sm font-semibold text-primary hover:bg-primary/[0.06]"
+                    >
+                      Criar a primeira
+                    </button>
                   </div>
                 ) : (
                   <div className="overflow-hidden rounded-xl border border-border/60">
