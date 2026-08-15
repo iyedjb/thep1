@@ -1,485 +1,255 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import { requireAuth } from "./auth";
 import { getDb } from "../lib/sqlite";
 import { logger } from "../lib/logger";
 
-import jwt from "jsonwebtoken";
-
 const router = Router();
 const JWT_SECRET = process.env["SESSION_SECRET"] ?? "ads-intelligence-secret-2026";
+const ADMIN_PERMISSIONS = ["dashboard.view", "clients.view", "clients.manage", "cashout.view", "access.manage"] as const;
+type AdminPermission = typeof ADMIN_PERMISSIONS[number];
 
-/**
- * Middleware to ensure the requesting user has admin privileges.
- */
-export async function requireAdmin(req: any, res: any, next: any) {
-  const auth = req.headers["authorization"] as string | undefined;
-  let token = auth?.startsWith("Bearer ") ? auth.slice(7) : undefined;
-  
-  if (!token && req.headers["x-admin-token"]) {
-    token = req.headers["x-admin-token"] as string;
-  }
-
-  if (token) {
-    try {
-      const payload = jwt.verify(token, JWT_SECRET) as any;
-      if (payload && (payload.role === "admin" || payload.isAdmin || payload.userId === 1)) {
-        req.userId = payload.userId;
-        return next();
-      }
-    } catch (_) {}
-  }
-
-  if (req.userId) {
-    const db = getDb();
-    const user = (await db.prepare("SELECT id, role FROM users WHERE id = ?").get(req.userId)) as any;
-    if (user && (user.role === "admin" || user.id === 1)) {
-      return next();
-    }
-  }
-
-  res.status(403).json({ error: "Acesso restrito a Administradores da Plataforma" });
+function parsePermissions(raw: unknown): AdminPermission[] {
+  try {
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return Array.isArray(parsed) ? parsed.filter((item): item is AdminPermission => ADMIN_PERMISSIONS.includes(item)) : [];
+  } catch { return []; }
+}
+function normalizeEmail(value: unknown) { return String(value || "").trim().toLowerCase(); }
+function adminPayload(account: any) {
+  return {
+    id: Number(account.id), email: account.email, name: account.name, roleName: account.role_name,
+    isOwner: Boolean(account.is_owner),
+    permissions: account.is_owner ? [...ADMIN_PERMISSIONS] : parsePermissions(account.permissions),
+    active: Boolean(account.active), createdAt: account.created_at,
+  };
 }
 
-/**
- * POST /api/admin/login
- * Dedicated Platform Admin Login Route
- */
+export async function requireAdmin(req: any, res: any, next: any) {
+  const auth = req.headers.authorization as string | undefined;
+  const token = auth?.startsWith("Bearer ") ? auth.slice(7) : undefined;
+  if (!token) return void res.status(401).json({ error: "Sessão administrativa necessária." });
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as any;
+    if (!payload?.adminAccountId) throw new Error("invalid token");
+    const account = await getDb().prepare("SELECT * FROM admin_accounts WHERE id = ?").get(payload.adminAccountId) as any;
+    if (!account || !account.active) return void res.status(403).json({ error: "Este acesso administrativo está desativado." });
+    req.admin = adminPayload(account);
+    req.adminId = Number(account.id);
+    next();
+  } catch { res.status(401).json({ error: "Sessão administrativa inválida ou expirada." }); }
+}
+function requirePermission(permission: AdminPermission) {
+  return (req: any, res: any, next: any) => {
+    if (req.admin?.isOwner || req.admin?.permissions?.includes(permission)) return next();
+    res.status(403).json({ error: "Seu perfil não possui permissão para esta ação." });
+  };
+}
+
+router.get("/admin/setup-status", async (_req, res) => {
+  try {
+    const row = await getDb().prepare("SELECT COUNT(*) as count FROM admin_accounts").get() as any;
+    res.json({ configured: Number(row?.count || 0) > 0 });
+  } catch (err: any) { res.status(500).json({ error: "Erro ao verificar configuração: " + err.message }); }
+});
+
+router.post("/admin/setup", async (req, res) => {
+  const name = String(req.body?.name || "").trim();
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password || "");
+  if (name.length < 2 || !email.includes("@") || password.length < 8) return void res.status(400).json({ error: "Informe nome, e-mail válido e senha com pelo menos 8 caracteres." });
+  const db = getDb();
+  try {
+    const row = await db.prepare("SELECT COUNT(*) as count FROM admin_accounts").get() as any;
+    if (Number(row?.count || 0) > 0) return void res.status(409).json({ error: "A configuração inicial já foi concluída." });
+    const result = await db.prepare(
+      "INSERT INTO admin_accounts (email, name, password_hash, role_name, permissions, is_owner, active) VALUES (?, ?, ?, 'Proprietário', ?, true, true)"
+    ).run(email, name, bcrypt.hashSync(password, 12), JSON.stringify(ADMIN_PERMISSIONS));
+    const account = await db.prepare("SELECT * FROM admin_accounts WHERE id = ?").get(result.lastInsertRowid) as any;
+    const token = jwt.sign({ adminAccountId: Number(account.id) }, JWT_SECRET, { expiresIn: "7d" });
+    logger.info({ adminId: account.id }, "Initial admin owner configured");
+    res.status(201).json({ adminToken: token, admin: adminPayload(account) });
+  } catch (err: any) { res.status(500).json({ error: "Erro ao criar o acesso proprietário: " + err.message }); }
+});
+
 router.post("/admin/login", async (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    res.status(400).json({ error: "E-mail e senha são obrigatórios" });
-    return;
-  }
-
-  const db = getDb();
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password || "");
+  if (!email || !password) return void res.status(400).json({ error: "E-mail e senha são obrigatórios." });
   try {
-    let user = (await db
-      .prepare("SELECT * FROM users WHERE email = ?")
-      .get(email.trim().toLowerCase())) as any;
-
-    // Default admin fallback if email starts with admin
-    if (!user && (email.trim().toLowerCase() === "admin@adsintelligence.com" || email.trim().toLowerCase() === "admin@cliclab.com")) {
-      const hash = bcrypt.hashSync(password, 10);
-      const resInsert = await db
-        .prepare("INSERT INTO users (email, name, password_hash, role) VALUES (?, 'Admin Platform', ?, 'admin')")
-        .run(email.trim().toLowerCase(), hash);
-      user = await db.prepare("SELECT * FROM users WHERE id = ?").get(resInsert.lastInsertRowid);
-    }
-
-    if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-      res.status(401).json({ error: "Credenciais de administrador inválidas" });
-      return;
-    }
-
-    // Auto-promote user #1 or emails containing admin to role = admin if not set
-    if (user.role !== "admin" && (user.id === 1 || user.email.includes("admin"))) {
-      await db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(user.id);
-      user.role = "admin";
-    }
-
-    if (user.role !== "admin") {
-      res.status(403).json({ error: "Sua conta não possui permissão de Administrador" });
-      return;
-    }
-
-    const adminToken = jwt.sign(
-      { userId: user.id, email: user.email, role: "admin", isAdmin: true },
-      JWT_SECRET,
-      { expiresIn: "7d" }
-    );
-
-    logger.info({ userId: user.id, email: user.email }, "Admin logged into Platform Admin Portal");
-
-    res.json({
-      success: true,
-      adminToken,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-      },
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro no login de administrador: " + err.message });
-  }
+    const account = await getDb().prepare("SELECT * FROM admin_accounts WHERE email = ?").get(email) as any;
+    if (!account || !bcrypt.compareSync(password, account.password_hash)) return void res.status(401).json({ error: "E-mail ou senha incorretos." });
+    if (!account.active) return void res.status(403).json({ error: "Este acesso administrativo foi desativado." });
+    const token = jwt.sign({ adminAccountId: Number(account.id) }, JWT_SECRET, { expiresIn: "7d" });
+    res.json({ adminToken: token, admin: adminPayload(account) });
+  } catch (err: any) { res.status(500).json({ error: "Erro ao entrar: " + err.message }); }
 });
 
-/**
- * GET /api/admin/users
- * Lists all registered users and temporary accounts
- */
-router.get("/admin/users", requireAuth, requireAdmin, async (_req, res) => {
+router.get("/admin/session", requireAdmin, (req: any, res) => res.json({ admin: req.admin }));
+
+router.get("/admin/dashboard", requireAdmin, requirePermission("dashboard.view"), async (_req, res) => {
   const db = getDb();
   try {
-    const users = await db
-      .prepare(
-        `SELECT id, email, name, role, COALESCE(is_temporary, false) as is_temporary, 
-                COALESCE(subscription_tier, 'free') as subscription_tier, 
-                COALESCE(subscription_status, 'free') as subscription_status,
-                created_at 
-         FROM users 
-         ORDER BY id DESC`
-      )
-      .all();
+    const customers = await db.prepare("SELECT COUNT(*) as count FROM users WHERE COALESCE(role, 'user') != 'admin'").get() as any;
+    const active = await db.prepare("SELECT COUNT(*) as count FROM users WHERE COALESCE(role, 'user') != 'admin' AND subscription_status = 'active' AND account_status = 'active'").get() as any;
+    const revenue = await db.prepare("SELECT COALESCE(SUM(transaction_amount), 0) as total FROM payments WHERE status = 'approved'").get() as any;
+    const monthly = await db.prepare(
+      "SELECT substr(CAST(created_at AS TEXT), 1, 7) as month, COALESCE(SUM(transaction_amount), 0) as total FROM payments WHERE status = 'approved' GROUP BY substr(CAST(created_at AS TEXT), 1, 7) ORDER BY month DESC LIMIT 8"
+    ).all() as any[];
+    res.json({ metrics: { customers: Number(customers?.count || 0), revenue: Number(revenue?.total || 0), activeSubscriptions: Number(active?.count || 0) }, revenueSeries: monthly.reverse().map((item) => ({ month: item.month, total: Number(item.total || 0) })) });
+  } catch (err: any) { res.status(500).json({ error: "Erro ao carregar o dashboard: " + err.message }); }
+});
+
+router.get("/admin/users", requireAdmin, requirePermission("clients.view"), async (_req, res) => {
+  try {
+    const users = await getDb().prepare(
+      `SELECT u.id, u.email, u.name, COALESCE(u.subscription_tier, 'free') as subscription_tier,
+              COALESCE(u.subscription_status, 'free') as subscription_status, COALESCE(u.account_status, 'active') as account_status,
+              u.subscription_expires_at, u.created_at, (SELECT COUNT(*) FROM payments p WHERE p.user_id = u.id AND p.status = 'approved') as approved_payments
+       FROM users u WHERE COALESCE(u.role, 'user') != 'admin' ORDER BY u.id DESC`
+    ).all();
     res.json({ users });
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro ao buscar usuários: " + err.message });
-  }
+  } catch (err: any) { res.status(500).json({ error: "Erro ao buscar clientes: " + err.message }); }
 });
 
-/**
- * POST /api/admin/create-temp-user
- * Creates a temporary user account for support testing or short access
- */
-router.post("/admin/create-temp-user", requireAuth, requireAdmin, async (req: any, res) => {
-  const { name, email, planTier = "pro", customPassword } = req.body;
-
-  if (!name || !email) {
-    res.status(400).json({ error: "Nome e e-mail são obrigatórios" });
-    return;
-  }
-
+router.get("/admin/users/:id", requireAdmin, requirePermission("clients.view"), async (req, res) => {
   const db = getDb();
   try {
-    const existing = await db.prepare("SELECT id FROM users WHERE email = ?").get(email);
-    if (existing) {
-      res.status(400).json({ error: "Já existe uma conta com este e-mail" });
-      return;
-    }
-
-    const rawPassword = customPassword && customPassword.trim().length >= 6
-      ? customPassword.trim()
-      : `Temp#${crypto.randomBytes(4).toString("hex")}`;
-
-    const passwordHash = bcrypt.hashSync(rawPassword, 10);
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
-    const result = await db
-      .prepare(
-        `INSERT INTO users (email, name, password_hash, role, is_temporary, subscription_tier, subscription_status, subscription_expires_at)
-         VALUES (?, ?, ?, 'user', true, ?, 'active', ?)`
-      )
-      .run(email, name, passwordHash, planTier, expiresAt);
-
-    const userId = Number(result.lastInsertRowid);
-
-    logger.info({ userId, email, planTier }, "Temporary user account created by admin");
-
-    res.json({
-      success: true,
-      user: {
-        id: userId,
-        name,
-        email,
-        password: rawPassword,
-        planTier,
-        isTemporary: true,
-        expiresAt,
-      },
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro ao criar conta temporária: " + err.message });
-  }
+    const user = await db.prepare(
+      "SELECT id, email, name, COALESCE(subscription_tier, 'free') as subscription_tier, COALESCE(subscription_status, 'free') as subscription_status, COALESCE(account_status, 'active') as account_status, subscription_expires_at, created_at FROM users WHERE id = ?"
+    ).get(req.params.id) as any;
+    if (!user) return void res.status(404).json({ error: "Cliente não encontrado." });
+    const payments = await db.prepare("SELECT * FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 20").all(req.params.id);
+    const chat = await db.prepare("SELECT * FROM support_chats WHERE user_id = ? ORDER BY id DESC LIMIT 1").get(req.params.id) as any;
+    const messages = chat ? await db.prepare("SELECT * FROM support_messages WHERE chat_id = ? ORDER BY id ASC").all(chat.id) : [];
+    res.json({ user, payments, chat: chat || null, messages });
+  } catch (err: any) { res.status(500).json({ error: "Erro ao carregar o cliente: " + err.message }); }
 });
 
-/**
- * DELETE /api/admin/users/:id
- * Deletes a user account
- */
-router.delete("/admin/users/:id", requireAuth, requireAdmin, async (req: any, res) => {
-  const { id } = req.params;
-  const db = getDb();
-
-  try {
-    if (Number(id) === req.userId) {
-      res.status(400).json({ error: "Você não pode excluir sua própria conta de administrador" });
-      return;
-    }
-
-    await db.prepare("DELETE FROM users WHERE id = ?").run(id);
-    res.json({ success: true, message: "Usuário excluído com sucesso" });
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro ao excluir usuário: " + err.message });
-  }
-});
-
-/**
- * PUT /api/admin/users/:id/tier
- * Updates user plan tier directly
- */
-router.put("/admin/users/:id/tier", requireAuth, requireAdmin, async (req: any, res) => {
-  const { id } = req.params;
-  const { planTier } = req.body;
-
-  if (planTier !== "free" && planTier !== "pro" && planTier !== "enterprise") {
-    res.status(400).json({ error: "Plano inválido" });
-    return;
-  }
-
+router.post("/admin/create-temp-user", requireAdmin, requirePermission("clients.manage"), async (req: any, res) => {
+  const name = String(req.body?.name || "").trim();
+  const email = normalizeEmail(req.body?.email);
+  const planTier = String(req.body?.planTier || "free");
+  if (!name || !email.includes("@") || !["free", "starter", "pro", "enterprise"].includes(planTier)) return void res.status(400).json({ error: "Dados do cliente inválidos." });
   const db = getDb();
   try {
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    await db
-      .prepare(
-        "UPDATE users SET subscription_tier = ?, subscription_status = 'active', subscription_expires_at = ? WHERE id = ?"
-      )
-      .run(planTier, expiresAt, id);
-
-    res.json({ success: true, planTier });
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro ao atualizar plano: " + err.message });
-  }
+    if (await db.prepare("SELECT id FROM users WHERE email = ?").get(email)) return void res.status(409).json({ error: "Este e-mail já está cadastrado." });
+    const rawPassword = String(req.body?.customPassword || "").trim() || `Temp#${crypto.randomBytes(4).toString("hex")}`;
+    if (rawPassword.length < 8) return void res.status(400).json({ error: "A senha precisa ter pelo menos 8 caracteres." });
+    const expiresAt = planTier === "free" ? null : new Date(Date.now() + 30 * 86400000).toISOString();
+    const result = await db.prepare(
+      "INSERT INTO users (email, name, password_hash, role, is_temporary, subscription_tier, subscription_status, subscription_expires_at, account_status) VALUES (?, ?, ?, 'user', true, ?, ?, ?, 'active')"
+    ).run(email, name, bcrypt.hashSync(rawPassword, 10), planTier, planTier === "free" ? "free" : "active", expiresAt);
+    res.status(201).json({ user: { id: Number(result.lastInsertRowid), email, name, password: rawPassword, planTier } });
+  } catch (err: any) { res.status(500).json({ error: "Erro ao criar cliente: " + err.message }); }
 });
 
-/**
- * PUT /api/admin/users/:id/role
- * Updates user role (admin / user)
- */
-router.put("/admin/users/:id/role", requireAuth, requireAdmin, async (req: any, res) => {
-  const { id } = req.params;
-  const { role } = req.body;
+router.put("/admin/users/:id/tier", requireAdmin, requirePermission("clients.manage"), async (req, res) => {
+  const planTier = String(req.body?.planTier || "");
+  if (!["free", "starter", "pro", "enterprise"].includes(planTier)) return void res.status(400).json({ error: "Plano inválido." });
+  const expiresAt = planTier === "free" ? null : new Date(Date.now() + 30 * 86400000).toISOString();
+  await getDb().prepare("UPDATE users SET subscription_tier = ?, subscription_status = ?, subscription_expires_at = ? WHERE id = ?").run(planTier, planTier === "free" ? "free" : "active", expiresAt, req.params.id);
+  res.json({ success: true, planTier });
+});
+router.put("/admin/users/:id/status", requireAdmin, requirePermission("clients.manage"), async (req, res) => {
+  const status = String(req.body?.status || "");
+  if (!["active", "paused", "banned"].includes(status)) return void res.status(400).json({ error: "Status inválido." });
+  await getDb().prepare("UPDATE users SET account_status = ? WHERE id = ?").run(status, req.params.id);
+  res.json({ success: true, status });
+});
+router.delete("/admin/users/:id", requireAdmin, requirePermission("clients.manage"), async (req, res) => {
+  await getDb().prepare("DELETE FROM users WHERE id = ? AND COALESCE(role, 'user') != 'admin'").run(req.params.id);
+  res.json({ success: true });
+});
 
-  if (role !== "admin" && role !== "user") {
-    res.status(400).json({ error: "Função inválida" });
-    return;
-  }
-
-  const db = getDb();
+router.get("/admin/cashout", requireAdmin, requirePermission("cashout.view"), async (_req, res) => {
   try {
-    await db.prepare("UPDATE users SET role = ? WHERE id = ?").run(role, id);
-    res.json({ success: true, role });
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro ao atualizar função: " + err.message });
-  }
+    const payments = await getDb().prepare("SELECT p.*, u.name as user_name, u.email as user_email FROM payments p LEFT JOIN users u ON u.id = p.user_id ORDER BY p.created_at DESC LIMIT 250").all() as any[];
+    const approved = payments.filter((item) => item.status === "approved");
+    res.json({ summary: { approvedRevenue: approved.reduce((sum, item) => sum + Number(item.transaction_amount || 0), 0), approvedCount: approved.length, pendingCount: payments.filter((item) => item.status === "pending").length }, payments });
+  } catch (err: any) { res.status(500).json({ error: "Erro ao carregar pagamentos: " + err.message }); }
 });
 
-// ============================================================================
-// WHATSAPP-STYLE SUPPORT CHAT ENDPOINTS (ADMIN & USER)
-// ============================================================================
-
-/**
- * GET /api/admin/chats
- * Returns all user support chat threads for the Admin Panel
- */
-router.get("/admin/chats", requireAuth, requireAdmin, async (_req, res) => {
-  const db = getDb();
+router.get("/admin/accounts", requireAdmin, requirePermission("access.manage"), async (_req, res) => {
+  const accounts = await getDb().prepare("SELECT id, email, name, role_name, permissions, is_owner, active, created_at FROM admin_accounts ORDER BY is_owner DESC, id ASC").all() as any[];
+  res.json({ accounts: accounts.map(adminPayload) });
+});
+router.post("/admin/accounts", requireAdmin, requirePermission("access.manage"), async (req: any, res) => {
+  const name = String(req.body?.name || "").trim();
+  const email = normalizeEmail(req.body?.email);
+  const password = String(req.body?.password || "");
+  const roleName = String(req.body?.roleName || "Equipe").trim();
+  const permissions = parsePermissions(req.body?.permissions).filter((item) => item !== "access.manage");
+  if (!name || !email.includes("@") || password.length < 8 || !roleName) return void res.status(400).json({ error: "Revise os dados do novo acesso." });
   try {
-    const chats = await db
-      .prepare(
-        `SELECT c.id, c.user_id, c.subject, c.status, c.last_message, c.updated_at,
-                u.name as user_name, u.email as user_email, COALESCE(u.subscription_tier, 'free') as user_tier,
-                (SELECT COUNT(*) FROM support_messages m WHERE m.chat_id = c.id AND m.sender_type = 'user' AND m.is_read = false) as unread_count
-         FROM support_chats c
-         JOIN users u ON u.id = c.user_id
-         ORDER BY c.updated_at DESC`
-      )
-      .all();
-
-    res.json({ chats });
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro ao buscar conversas: " + err.message });
-  }
+    const db = getDb();
+    const result = await db.prepare("INSERT INTO admin_accounts (email, name, password_hash, role_name, permissions, is_owner, active, created_by) VALUES (?, ?, ?, ?, ?, false, true, ?)").run(email, name, bcrypt.hashSync(password, 12), roleName, JSON.stringify(permissions), req.adminId);
+    const account = await db.prepare("SELECT * FROM admin_accounts WHERE id = ?").get(result.lastInsertRowid);
+    res.status(201).json({ account: adminPayload(account) });
+  } catch (err: any) { res.status(409).json({ error: err.message.includes("UNIQUE") ? "Este e-mail já possui acesso." : "Erro ao criar acesso." }); }
 });
-
-/**
- * GET /api/admin/chats/:chatId/messages
- * Returns message thread for a specific chat and marks user messages as read
- */
-router.get("/admin/chats/:chatId/messages", requireAuth, requireAdmin, async (req: any, res) => {
-  const { chatId } = req.params;
+router.put("/admin/accounts/:id/status", requireAdmin, requirePermission("access.manage"), async (req: any, res) => {
   const db = getDb();
-
-  try {
-    // Mark user messages as read when admin opens thread
-    await db
-      .prepare("UPDATE support_messages SET is_read = true WHERE chat_id = ? AND sender_type = 'user'")
-      .run(chatId);
-
-    const messages = await db
-      .prepare("SELECT * FROM support_messages WHERE chat_id = ? ORDER BY id ASC")
-      .all(chatId);
-
-    const chat = await db
-      .prepare(
-        `SELECT c.*, u.name as user_name, u.email as user_email, u.subscription_tier as user_tier
-         FROM support_chats c
-         JOIN users u ON u.id = c.user_id
-         WHERE c.id = ?`
-      )
-      .get(chatId);
-
-    res.json({ chat, messages });
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro ao carregar mensagens: " + err.message });
-  }
+  const target = await db.prepare("SELECT is_owner FROM admin_accounts WHERE id = ?").get(req.params.id) as any;
+  if (!target || target.is_owner || Number(req.params.id) === req.adminId) return void res.status(400).json({ error: "Este acesso não pode ser alterado." });
+  await db.prepare("UPDATE admin_accounts SET active = ? WHERE id = ?").run(Boolean(req.body?.active), req.params.id);
+  res.json({ success: true });
 });
-
-/**
- * POST /api/admin/chats/:chatId/reply
- * Admin sends a message reply in thread
- */
-router.post("/admin/chats/:chatId/reply", requireAuth, requireAdmin, async (req: any, res) => {
-  const { chatId } = req.params;
-  const { content } = req.body;
-
-  if (!content || !content.trim()) {
-    res.status(400).json({ error: "Conteúdo da mensagem não pode ser vazio" });
-    return;
-  }
-
+router.delete("/admin/accounts/:id", requireAdmin, requirePermission("access.manage"), async (req: any, res) => {
   const db = getDb();
-  try {
-    const chat = await db.prepare("SELECT id FROM support_chats WHERE id = ?").get(chatId);
-    if (!chat) {
-      res.status(404).json({ error: "Conversa não encontrada" });
-      return;
-    }
-
-    const messageResult = await db
-      .prepare(
-        `INSERT INTO support_messages (chat_id, sender_type, sender_id, content, is_read)
-         VALUES (?, 'admin', ?, ?, true)`
-      )
-      .run(chatId, req.userId, content.trim());
-
-    // Update chat last message and timestamp
-    await db
-      .prepare("UPDATE support_chats SET last_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-      .run(content.trim(), chatId);
-
-    const newMessage = await db
-      .prepare("SELECT * FROM support_messages WHERE id = ?")
-      .get(messageResult.lastInsertRowid);
-
-    res.json({ success: true, message: newMessage });
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro ao enviar resposta: " + err.message });
-  }
+  const target = await db.prepare("SELECT is_owner FROM admin_accounts WHERE id = ?").get(req.params.id) as any;
+  if (!target || target.is_owner || Number(req.params.id) === req.adminId) return void res.status(400).json({ error: "Este acesso não pode ser excluído." });
+  await db.prepare("DELETE FROM admin_accounts WHERE id = ?").run(req.params.id);
+  res.json({ success: true });
 });
 
-/**
- * PUT /api/admin/chats/:chatId/status
- * Updates chat status (open vs resolved)
- */
-router.put("/admin/chats/:chatId/status", requireAuth, requireAdmin, async (req: any, res) => {
-  const { chatId } = req.params;
-  const { status } = req.body;
-
-  if (status !== "open" && status !== "resolved" && status !== "closed") {
-    res.status(400).json({ error: "Status inválido" });
-    return;
-  }
-
+router.get("/admin/chats", requireAdmin, requirePermission("clients.view"), async (_req, res) => {
+  const chats = await getDb().prepare("SELECT c.*, u.name as user_name, u.email as user_email, COALESCE(u.subscription_tier, 'free') as user_tier, (SELECT COUNT(*) FROM support_messages m WHERE m.chat_id = c.id AND m.sender_type = 'user' AND m.is_read = false) as unread_count FROM support_chats c JOIN users u ON u.id = c.user_id ORDER BY c.updated_at DESC").all();
+  res.json({ chats });
+});
+router.get("/admin/chats/:chatId/messages", requireAdmin, requirePermission("clients.view"), async (req, res) => {
   const db = getDb();
-  try {
-    await db
-      .prepare("UPDATE support_chats SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-      .run(status, chatId);
-    res.json({ success: true, status });
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro ao atualizar status: " + err.message });
-  }
+  res.json({ chat: await db.prepare("SELECT * FROM support_chats WHERE id = ?").get(req.params.chatId), messages: await db.prepare("SELECT * FROM support_messages WHERE chat_id = ? ORDER BY id ASC").all(req.params.chatId) });
+});
+router.post("/admin/chats/:chatId/reply", requireAdmin, requirePermission("clients.manage"), async (req, res) => {
+  const content = String(req.body?.content || "").trim();
+  if (!content) return void res.status(400).json({ error: "A mensagem não pode ser vazia." });
+  const db = getDb();
+  const result = await db.prepare("INSERT INTO support_messages (chat_id, sender_type, sender_id, content, is_read) VALUES (?, 'admin', NULL, ?, true)").run(req.params.chatId, content);
+  await db.prepare("UPDATE support_chats SET last_message = ?, status = 'open', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(content, req.params.chatId);
+  res.json({ message: await db.prepare("SELECT * FROM support_messages WHERE id = ?").get(result.lastInsertRowid) });
+});
+router.put("/admin/chats/:chatId/status", requireAdmin, requirePermission("clients.manage"), async (req, res) => {
+  const status = String(req.body?.status || "");
+  if (!["open", "resolved", "closed"].includes(status)) return void res.status(400).json({ error: "Status inválido." });
+  await getDb().prepare("UPDATE support_chats SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(status, req.params.chatId);
+  res.json({ success: true });
 });
 
-// ============================================================================
-// USER-FACING SUPPORT CHAT ENDPOINTS (/support)
-// ============================================================================
-
-/**
- * GET /api/support/my-chat
- * Gets or initializes active support chat for logged in user
- */
 router.get("/support/my-chat", requireAuth, async (req: any, res) => {
-  const userId = req.userId;
   const db = getDb();
-
   try {
-    let chat = (await db
-      .prepare("SELECT * FROM support_chats WHERE user_id = ? ORDER BY id DESC LIMIT 1")
-      .get(userId)) as any;
-
+    let chat = await db.prepare("SELECT * FROM support_chats WHERE user_id = ? ORDER BY id DESC LIMIT 1").get(req.userId) as any;
     if (!chat) {
-      const result = await db
-        .prepare(
-          `INSERT INTO support_chats (user_id, subject, status, last_message)
-           VALUES (?, 'Suporte Ads Intelligence', 'open', 'Chat iniciado')`
-        )
-        .run(userId);
-
-      chat = await db
-        .prepare("SELECT * FROM support_chats WHERE id = ?")
-        .get(result.lastInsertRowid);
-
-      // Insert welcome message from admin automatically
-      await db.prepare(
-        `INSERT INTO support_messages (chat_id, sender_type, sender_id, content, is_read)
-         VALUES (?, 'admin', 1, 'Olá! Como posso ajudar você hoje com suas campanhas ou presells?', true)`
-      ).run(chat.id);
+      const result = await db.prepare("INSERT INTO support_chats (user_id, subject, status, last_message) VALUES (?, 'Suporte', 'open', 'Conversa iniciada')").run(req.userId);
+      chat = await db.prepare("SELECT * FROM support_chats WHERE id = ?").get(result.lastInsertRowid);
     }
-
-    const messages = await db
-      .prepare("SELECT * FROM support_messages WHERE chat_id = ? ORDER BY id ASC")
-      .all(chat.id);
-
-    // Mark admin messages as read when user opens chat
-    await db
-      .prepare("UPDATE support_messages SET is_read = true WHERE chat_id = ? AND sender_type = 'admin'")
-      .run(chat.id);
-
+    const messages = await db.prepare("SELECT * FROM support_messages WHERE chat_id = ? ORDER BY id ASC").all(chat.id);
+    await db.prepare("UPDATE support_messages SET is_read = true WHERE chat_id = ? AND sender_type = 'admin'").run(chat.id);
     res.json({ chat, messages });
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro ao carregar suporte: " + err.message });
-  }
+  } catch (err: any) { res.status(500).json({ error: "Erro ao carregar suporte: " + err.message }); }
 });
-
-/**
- * POST /api/support/send-message
- * User sends a message to support
- */
 router.post("/support/send-message", requireAuth, async (req: any, res) => {
-  const userId = req.userId;
-  const { content } = req.body;
-
-  if (!content || !content.trim()) {
-    res.status(400).json({ error: "Mensagem não pode ser vazia" });
-    return;
-  }
-
+  const content = String(req.body?.content || "").trim();
+  if (!content) return void res.status(400).json({ error: "Mensagem não pode ser vazia." });
   const db = getDb();
-  try {
-    let chat = (await db
-      .prepare("SELECT id FROM support_chats WHERE user_id = ? ORDER BY id DESC LIMIT 1")
-      .get(userId)) as any;
-
-    if (!chat) {
-      const result = await db
-        .prepare("INSERT INTO support_chats (user_id, subject, status) VALUES (?, 'Suporte', 'open')")
-        .run(userId);
-      chat = { id: result.lastInsertRowid };
-    }
-
-    const messageResult = await db
-      .prepare(
-        `INSERT INTO support_messages (chat_id, sender_type, sender_id, content, is_read)
-         VALUES (?, 'user', ?, ?, false)`
-      )
-      .run(chat.id, userId, content.trim());
-
-    await db
-      .prepare("UPDATE support_chats SET last_message = ?, status = 'open', updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-      .run(content.trim(), chat.id);
-
-    const newMessage = await db
-      .prepare("SELECT * FROM support_messages WHERE id = ?")
-      .get(messageResult.lastInsertRowid);
-
-    res.json({ success: true, message: newMessage });
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro ao enviar mensagem: " + err.message });
-  }
+  let chat = await db.prepare("SELECT id FROM support_chats WHERE user_id = ? ORDER BY id DESC LIMIT 1").get(req.userId) as any;
+  if (!chat) { const result = await db.prepare("INSERT INTO support_chats (user_id, subject, status) VALUES (?, 'Suporte', 'open')").run(req.userId); chat = { id: result.lastInsertRowid }; }
+  const result = await db.prepare("INSERT INTO support_messages (chat_id, sender_type, sender_id, content, is_read) VALUES (?, 'user', ?, ?, false)").run(chat.id, req.userId, content);
+  await db.prepare("UPDATE support_chats SET last_message = ?, status = 'open', updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(content, chat.id);
+  res.json({ message: await db.prepare("SELECT * FROM support_messages WHERE id = ?").get(result.lastInsertRowid) });
 });
 
 export default router;

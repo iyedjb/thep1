@@ -63,6 +63,19 @@ async function initPostgresDb() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS admin_accounts (
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      name VARCHAR(255) NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      role_name VARCHAR(100) NOT NULL DEFAULT 'Equipe',
+      permissions TEXT NOT NULL,
+      is_owner BOOLEAN NOT NULL DEFAULT false,
+      active BOOLEAN NOT NULL DEFAULT true,
+      created_by INTEGER REFERENCES admin_accounts(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS campaigns (
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
@@ -247,6 +260,9 @@ async function initPostgresDb() {
     await db.exec("ALTER TABLE users ADD COLUMN subscription_expires_at TIMESTAMP;");
   } catch (e) {}
   try {
+    await db.exec("ALTER TABLE users ADD COLUMN account_status VARCHAR(20) NOT NULL DEFAULT 'active';");
+  } catch (e) {}
+  try {
     await db.exec("ALTER TABLE campaigns ADD COLUMN google_campaign_id VARCHAR(255);");
   } catch (e) {}
   try {
@@ -332,7 +348,21 @@ async function initSqliteDb() {
       subscription_status TEXT DEFAULT 'free',
       subscription_id TEXT,
       mercadopago_customer_id TEXT,
-      subscription_expires_at TIMESTAMP
+      subscription_expires_at TIMESTAMP,
+      account_status TEXT NOT NULL DEFAULT 'active'
+    );
+
+    CREATE TABLE IF NOT EXISTS admin_accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      role_name TEXT NOT NULL DEFAULT 'Equipe',
+      permissions TEXT NOT NULL,
+      is_owner BOOLEAN NOT NULL DEFAULT 0,
+      active BOOLEAN NOT NULL DEFAULT 1,
+      created_by INTEGER REFERENCES admin_accounts(id) ON DELETE SET NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS campaigns (
@@ -466,6 +496,7 @@ async function initSqliteDb() {
     "ALTER TABLE users ADD COLUMN subscription_id TEXT;",
     "ALTER TABLE users ADD COLUMN mercadopago_customer_id TEXT;",
     "ALTER TABLE users ADD COLUMN subscription_expires_at TIMESTAMP;",
+    "ALTER TABLE users ADD COLUMN account_status TEXT NOT NULL DEFAULT 'active';",
     "ALTER TABLE campaigns ADD COLUMN target_locations TEXT;",
     "ALTER TABLE campaigns ADD COLUMN target_languages TEXT;",
     "ALTER TABLE campaigns ADD COLUMN bidding_strategy TEXT;",

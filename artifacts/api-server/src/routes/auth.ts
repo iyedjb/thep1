@@ -50,7 +50,7 @@ function registerLoginFailure(ip: string) {
   return current;
 }
 
-export function requireAuth(req: any, res: any, next: any) {
+export async function requireAuth(req: any, res: any, next: any) {
   const auth = req.headers["authorization"] as string | undefined;
   if (!auth?.startsWith("Bearer ")) {
     res.status(401).json({ error: "Unauthorized" });
@@ -59,6 +59,16 @@ export function requireAuth(req: any, res: any, next: any) {
   const token = auth.slice(7);
   try {
     const payload = jwt.verify(token, JWT_SECRET) as { userId: number };
+    if (!payload.userId) throw new Error("invalid customer token");
+    const user = await getDb().prepare("SELECT account_status FROM users WHERE id = ?").get(payload.userId) as any;
+    if (!user) {
+      res.status(401).json({ error: "Conta não encontrada." });
+      return;
+    }
+    if (user.account_status === "paused" || user.account_status === "banned") {
+      res.status(403).json({ error: user.account_status === "banned" ? "Esta conta foi bloqueada." : "Esta conta está temporariamente pausada." });
+      return;
+    }
     req.userId = payload.userId;
     next();
   } catch {
@@ -153,6 +163,10 @@ router.post("/auth/login", async (req, res) => {
       res.status(401).json({ error: "E-mail ou senha incorretos" });
       return;
     }
+    if (user.account_status === "paused" || user.account_status === "banned") {
+      res.status(403).json({ error: user.account_status === "banned" ? "Esta conta foi bloqueada." : "Esta conta está temporariamente pausada." });
+      return;
+    }
     loginAttemptsByIp.delete(loginIp);
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
     res.json({
@@ -235,6 +249,11 @@ router.post("/auth/google", async (req, res) => {
         subscription_status: "free",
       };
       logger.info({ email: payload.email }, "New user created via Google OAuth");
+    }
+
+    if (user.account_status === "paused" || user.account_status === "banned") {
+      res.status(403).json({ error: user.account_status === "banned" ? "Esta conta foi bloqueada." : "Esta conta está temporariamente pausada." });
+      return;
     }
 
     const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });

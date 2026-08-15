@@ -1,154 +1,86 @@
-import React, { useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useLocation } from "wouter";
-import { Shield, Lock, ArrowRight, Sparkles, CheckCircle2, AlertCircle, Key } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Logo } from "@/components/layout/logo";
 
 export default function AdminLoginPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleAdminLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim() || !password.trim()) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Informe o e-mail e a senha de administrador.",
-        variant: "destructive",
-      });
+  useEffect(() => {
+    const check = async () => {
+      const token = localStorage.getItem("admin_token");
+      if (token) {
+        const session = await fetch("/api/admin/session", { headers: { Authorization: `Bearer ${token}` } });
+        if (session.ok) { setLocation("/admin"); return; }
+        localStorage.removeItem("admin_token");
+      }
+      const response = await fetch("/api/admin/setup-status");
+      const data = await response.json();
+      setConfigured(Boolean(data.configured));
+    };
+    check().catch(() => setConfigured(true));
+  }, [setLocation]);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!configured && password !== confirmPassword) {
+      toast({ title: "As senhas não coincidem", variant: "destructive" });
       return;
     }
-
-    setIsLoading(true);
-
+    setLoading(true);
     try {
-      const res = await fetch("/api/admin/login", {
+      const response = await fetch(configured ? "/api/admin/login" : "/api/admin/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ name, email: email.trim(), password }),
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Credenciais de administrador inválidas");
-      }
-
-      // Store admin token & session
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Não foi possível continuar.");
       localStorage.setItem("admin_token", data.adminToken);
-      localStorage.setItem("ads_token", data.adminToken); // fallback token
-
-      toast({
-        title: "Acesso Concedido! 🛡️",
-        description: `Bem-vindo ao Portal Administrativo, ${data.user.name}`,
-      });
-
       setLocation("/admin");
-    } catch (err: any) {
-      toast({
-        title: "Falha na Autenticação",
-        description: err.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (error: any) {
+      toast({ title: configured ? "Acesso recusado" : "Não foi possível criar o acesso", description: error.message, variant: "destructive" });
+    } finally { setLoading(false); }
   };
 
+  if (configured === null) return <main className="min-h-screen bg-background" />;
+
   return (
-    <div className="min-h-screen w-full bg-background flex flex-col items-center justify-center relative overflow-hidden px-4">
-      {/* Background ambient lighting */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-tr from-emerald-500/10 via-primary/10 to-purple-500/5 blur-[120px] pointer-events-none rounded-full" />
-
-      <div className="w-full max-w-md space-y-6 relative z-10">
-        {/* Brand Header */}
-        <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 text-xs font-semibold uppercase tracking-wider mb-2">
-            <Shield className="w-3.5 h-3.5" /> Portal Administrativo da Plataforma
-          </div>
-
-          <div className="flex justify-center">
-            <Logo iconSize={36} />
-          </div>
-
-          <h1 className="text-2xl font-extrabold text-foreground tracking-tight">
-            Acesso Restrito - Admin
-          </h1>
-          <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-            Área exclusiva para administradores da plataforma para atendimento ao cliente e gestão de acessos.
-          </p>
+    <main className="grid min-h-screen bg-background px-6 text-foreground lg:grid-cols-[1fr_1fr]">
+      <section className="hidden border-r border-border lg:flex lg:flex-col lg:justify-between lg:px-16 lg:py-14">
+        <p className="text-sm font-semibold tracking-tight">Clic Lab</p>
+        <div className="max-w-md">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Administração</p>
+          <h1 className="mt-5 text-5xl font-semibold leading-[1.05] tracking-tight">Controle a operação com clareza.</h1>
+          <p className="mt-6 text-sm leading-7 text-muted-foreground">Clientes, assinaturas, pagamentos e acessos administrativos em um único ambiente.</p>
         </div>
+        <p className="text-xs text-muted-foreground">Acesso privado da plataforma</p>
+      </section>
 
-        {/* Login Card */}
-        <Card className="border-border/80 bg-card/50 backdrop-blur-xl shadow-2xl">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-lg font-bold flex items-center gap-2">
-              <Lock className="w-4 h-4 text-emerald-400" />
-              Autenticação de Segurança
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Digite seu e-mail e senha de Administrador.
-            </CardDescription>
-          </CardHeader>
+      <section className="flex items-center justify-center py-16 lg:px-16">
+        <form onSubmit={submit} className="w-full max-w-md">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">{configured ? "Acesso administrativo" : "Primeiro acesso"}</p>
+          <h2 className="mt-4 text-4xl font-semibold tracking-tight">{configured ? "Entrar" : "Criar acesso proprietário"}</h2>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">{configured ? "Use as credenciais cadastradas na configuração inicial." : "Este será o único proprietário inicial. Depois, você poderá criar acessos limitados para sua equipe."}</p>
 
-          <form onSubmit={handleAdminLogin}>
-            <CardContent className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground/90">E-mail Administrativo</label>
-                <Input
-                  type="email"
-                  placeholder="admin@adsintelligence.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="bg-background/60 border-border text-xs"
-                  required
-                />
-              </div>
+          <div className="mt-10 space-y-5">
+            {!configured && <div className="space-y-2"><label htmlFor="admin-name" className="text-sm font-medium">Seu nome</label><Input id="admin-name" value={name} onChange={(event) => setName(event.target.value)} className="h-12 rounded-2xl" required /></div>}
+            <div className="space-y-2"><label htmlFor="admin-email" className="text-sm font-medium">E-mail</label><Input id="admin-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="h-12 rounded-2xl" autoComplete="email" required /></div>
+            <div className="space-y-2"><label htmlFor="admin-password" className="text-sm font-medium">Senha</label><Input id="admin-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} className="h-12 rounded-2xl" autoComplete={configured ? "current-password" : "new-password"} minLength={8} required /></div>
+            {!configured && <div className="space-y-2"><label htmlFor="admin-confirm" className="text-sm font-medium">Confirmar senha</label><Input id="admin-confirm" type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="h-12 rounded-2xl" autoComplete="new-password" minLength={8} required /></div>}
+          </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-foreground/90">Senha de Administrador</label>
-                <Input
-                  type="password"
-                  placeholder="••••••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="bg-background/60 border-border text-xs"
-                  required
-                />
-              </div>
-            </CardContent>
-
-            <CardFooter className="pt-2 flex flex-col gap-3">
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="w-full bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs h-10 shadow-lg shadow-emerald-500/20"
-              >
-                {isLoading ? (
-                  "Autenticando..."
-                ) : (
-                  <>
-                    Entrar no Painel Admin <ArrowRight className="w-4 h-4 ml-1.5" />
-                  </>
-                )}
-              </Button>
-
-              <div className="p-3 rounded-lg border border-white/5 bg-white/[0.02] text-[11px] text-muted-foreground flex items-center justify-between">
-                <span>Dica: Use credenciais de Admin cadastradas</span>
-                <Key className="w-3.5 h-3.5 text-muted-foreground/60" />
-              </div>
-            </CardFooter>
-          </form>
-        </Card>
-      </div>
-    </div>
+          <Button type="submit" disabled={loading} className="mt-8 h-12 w-full rounded-full bg-primary text-sm font-semibold text-primary-foreground hover:bg-primary/90">{loading ? "Aguarde..." : configured ? "Entrar" : "Criar e entrar"}</Button>
+        </form>
+      </section>
+    </main>
   );
 }
