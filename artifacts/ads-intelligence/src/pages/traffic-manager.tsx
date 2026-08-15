@@ -2,17 +2,17 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 
 type Message = { role: "user" | "assistant"; content: string };
 
 const STORAGE_KEY = "traffic_manager_chat_state";
-const GREETING = "Olá. O que vamos construir hoje?";
-
 export default function TrafficManager() {
   const { toast } = useToast();
-  const [messages, setMessages] = useState<Message[]>([{ role: "assistant", content: GREETING }]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
@@ -24,17 +24,22 @@ export default function TrafficManager() {
       if (Array.isArray(parsed.trafficChatMessages) && parsed.trafficChatMessages.length) {
         const restored = parsed.trafficChatMessages as Message[];
         if (restored.length === 1 && restored[0]?.role === "assistant") {
-          setMessages([{ role: "assistant", content: GREETING }]);
+          setMessages([]);
+          localStorage.removeItem(STORAGE_KEY);
         } else {
           setMessages(restored);
         }
       }
-    } catch (_) {}
+    } catch (_) {
+    } finally {
+      setLoaded(true);
+    }
   }, []);
 
   useEffect(() => {
+    if (!loaded) return;
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ trafficChatMessages: messages }));
-  }, [messages]);
+  }, [loaded, messages]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -65,9 +70,11 @@ export default function TrafficManager() {
   };
 
   const reset = () => {
-    setMessages([{ role: "assistant", content: GREETING }]);
+    setMessages([]);
     localStorage.removeItem(STORAGE_KEY);
   };
+
+  const conversationTitle = messages.find((message) => message.role === "user")?.content || "Conversa atual";
 
   return (
     <div className="relative h-[calc(100vh-56px)] w-full overflow-hidden bg-white font-sans">
@@ -76,13 +83,34 @@ export default function TrafficManager() {
         <path d="M 500 920 Q 760 500 1160 80" stroke="rgb(0 166 251 / 0.08)" strokeWidth="1.5" strokeDasharray="7 8" fill="none" />
       </svg>
 
-      <button
-        type="button"
-        onClick={reset}
-        className="absolute right-6 top-6 z-20 rounded-full border border-slate-200/80 bg-white/80 px-4 py-2 text-xs font-medium text-slate-500 shadow-[0_8px_32px_rgba(15,23,42,0.06)] backdrop-blur-sm hover:text-slate-900 sm:right-10"
-      >
-        Nova conversa
-      </button>
+      <Sheet>
+        <SheetTrigger asChild>
+          <button type="button" className="absolute right-6 top-6 z-20 rounded-full border border-slate-200/80 bg-white/80 px-4 py-2 text-xs font-medium text-slate-500 shadow-[0_8px_32px_rgba(15,23,42,0.06)] backdrop-blur-sm hover:text-slate-900 sm:right-10">
+            Conversas
+          </button>
+        </SheetTrigger>
+        <SheetContent side="right" className="flex w-full flex-col border-slate-200 bg-white p-6 sm:max-w-md [&>button.absolute]:hidden">
+          <SheetTitle className="text-2xl font-semibold tracking-tight text-slate-900">Conversas</SheetTitle>
+          <SheetDescription className="sr-only">Abra a conversa atual ou comece uma nova.</SheetDescription>
+          <div className="mt-8 flex-1 border-t border-slate-200 pt-5">
+            {messages.length > 0 ? (
+              <SheetClose asChild>
+                <button type="button" className="w-full rounded-2xl border border-primary/20 bg-primary/[0.05] px-4 py-4 text-left">
+                  <span className="block truncate text-sm font-semibold text-slate-900">{conversationTitle}</span>
+                  <span className="mt-1 block text-xs text-slate-500">{messages.length} mensagens</span>
+                </button>
+              </SheetClose>
+            ) : (
+              <p className="pt-8 text-center text-sm text-slate-400">Nenhuma conversa ainda</p>
+            )}
+          </div>
+          <SheetClose asChild>
+            <button type="button" onClick={reset} className="h-12 w-full rounded-full bg-primary px-6 text-sm font-semibold text-white hover:bg-primary/90">
+              Nova conversa
+            </button>
+          </SheetClose>
+        </SheetContent>
+      </Sheet>
 
       <main ref={scrollRef} className="relative z-10 h-full overflow-y-auto overscroll-contain px-6 sm:px-10">
         <div className="mx-auto w-full max-w-3xl space-y-10 pb-40 pt-28">
