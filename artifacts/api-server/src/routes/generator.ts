@@ -10,6 +10,8 @@ import puppeteer from "puppeteer";
 
 const router = Router();
 
+const PAUSED_PRESELL_HTML = '<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Página pausada</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px system-ui;color:#111;background:#fff}main{text-align:center;padding:32px}p{color:#667085}</style><main><h1>Página temporariamente pausada</h1><p>Este endereço voltará a ficar disponível em breve.</p></main></html>';
+
 function resolvePublishedPagesRoot() {
   const candidates = [
     path.resolve(process.cwd(), "artifacts/ads-intelligence/public"),
@@ -6960,6 +6962,40 @@ ${richContext}`;
   }
 });
 
+// Public pages are served from the active database, not from a mutable frontend
+// build directory. This keeps publication durable and identical on SQLite and
+// PostgreSQL, while still allowing the local filesystem to act as a cache.
+router.get(/^\/p\/.+\/[^/]+$/, async (req, res) => {
+  try {
+    const parts = req.path.split("/").filter(Boolean);
+    const fileName = path.basename(parts.pop() || "");
+    const publishPath = parts.join("/");
+    if (!publishPath.startsWith("p/") || !fileName) return void res.status(404).send("Página não encontrada.");
+    const presell = await getDb().prepare(
+      "SELECT status, published_html, thank_you_html, thank_you_file_name FROM presells WHERE publish_path = ? AND published_url IS NOT NULL"
+    ).get(publishPath) as any;
+    if (!presell) return void res.status(404).send("Página não encontrada.");
+    if (presell.status === "paused") return void res.status(503).type("html").set("Cache-Control", "no-store").send(PAUSED_PRESELL_HTML);
+
+    let html = fileName === "index.html"
+      ? String(presell.published_html || "")
+      : fileName === path.basename(String(presell.thank_you_file_name || ""))
+        ? String(presell.thank_you_html || "")
+        : "";
+    // Backward compatibility for pages published before HTML was stored in DB.
+    if (!html) {
+      const publicRoot = resolvePublishedPagesRoot();
+      const filePath = path.resolve(publicRoot, publishPath, fileName);
+      if (filePath.startsWith(path.resolve(publicRoot, publishPath) + path.sep) && fs.existsSync(filePath)) html = fs.readFileSync(filePath, "utf8");
+    }
+    if (!html) return void res.status(404).send("Página não encontrada.");
+    res.type("html").set({ "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff" }).send(html);
+  } catch (err: any) {
+    logger.error({ err: err.message }, "Failed to serve published presell");
+    res.status(500).send("Não foi possível abrir esta página.");
+  }
+});
+
 router.post("/publish-bridge", requireAuth, async (req: any, res) => {
   const { htmlContent, presellId, pageName, thankYouHtml, thankYouFileName } = req.body || {};
   if (!htmlContent || !presellId) {
@@ -6990,33 +7026,28 @@ router.post("/publish-bridge", requireAuth, async (req: any, res) => {
     const pageSlug = slugify(pageName, "presell");
     const existingPath = String(presell.publish_path || "").replace(/^\/+|\/+$/g, "");
     const relativeDir = existingPath || `p/${userSlug}/${pageSlug}-${presellId}-${Math.random().toString(36).slice(2, 8)}`;
-    const publicRoot = resolvePublishedPagesRoot();
-    const targetDir = path.resolve(publicRoot, relativeDir);
-    if (!targetDir.startsWith(publicRoot + path.sep)) {
-      res.status(400).json({ error: "Caminho de publicação inválido." });
-      return;
-    }
-    fs.mkdirSync(targetDir, { recursive: true });
-
-    const filePath = path.join(targetDir, "index.html");
-    fs.writeFileSync(filePath, htmlContent, "utf8");
-    const pausedBackup = path.join(targetDir, "index.active.html");
-    if (fs.existsSync(pausedBackup)) fs.unlinkSync(pausedBackup);
-    logger.info({ filePath }, "Bridge page published successfully");
-
-    if (thankYouHtml && thankYouFileName) {
-      const safeThankYouName = path.basename(String(thankYouFileName).replace(/^\.\//, ""));
-      const tyFilePath = path.join(targetDir, safeThankYouName);
-      fs.writeFileSync(tyFilePath, thankYouHtml, "utf8");
-      logger.info({ filePath: tyFilePath }, "Thank you page published successfully");
-    }
-
-    // Vite's development server does not resolve nested directory indexes, so the
-    // explicit filename keeps the generated link functional locally and on hosting.
-    const publicUrl = `/${relativeDir.replace(/\\/g, "/")}/index.html`;
+    const safeThankYouName = thankYouHtml && thankYouFileName ? path.basename(String(thankYouFileName).replace(/^\.\//, "")) : null;
+    const publicUrl = `/api/${relativeDir.replace(/\\/g, "/")}/index.html`;
     await db.prepare(
-      "UPDATE presells SET published_url = ?, publish_path = ?, status = 'active' WHERE id = ? AND user_id = ?"
-    ).run(publicUrl, relativeDir, presellId, req.userId);
+      "UPDATE presells SET published_url = ?, publish_path = ?, published_html = ?, thank_you_html = ?, thank_you_file_name = ?, status = 'active' WHERE id = ? AND user_id = ?"
+    ).run(publicUrl, relativeDir, String(htmlContent), thankYouHtml ? String(thankYouHtml) : null, safeThankYouName, presellId, req.userId);
+
+    // Best-effort local cache for direct Vite access and older links. Publication
+    // remains successful when a production filesystem is read-only or ephemeral.
+    try {
+      const publicRoot = resolvePublishedPagesRoot();
+      const targetDir = path.resolve(publicRoot, relativeDir);
+      if (targetDir.startsWith(publicRoot + path.sep)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+        fs.writeFileSync(path.join(targetDir, "index.html"), String(htmlContent), "utf8");
+        const pausedBackup = path.join(targetDir, "index.active.html");
+        if (fs.existsSync(pausedBackup)) fs.unlinkSync(pausedBackup);
+        if (thankYouHtml && safeThankYouName) fs.writeFileSync(path.join(targetDir, safeThankYouName), String(thankYouHtml), "utf8");
+      }
+    } catch (cacheError: any) {
+      logger.warn({ err: cacheError.message, relativeDir }, "Published presell saved in database; filesystem cache unavailable");
+    }
+    logger.info({ presellId, publicUrl }, "Bridge page published successfully");
 
     res.json({
       success: true,

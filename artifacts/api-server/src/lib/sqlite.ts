@@ -170,6 +170,9 @@ async function initPostgresDb() {
       selected_option VARCHAR(50),
       published_url TEXT,
       publish_path TEXT,
+      published_html TEXT,
+      thank_you_html TEXT,
+      thank_you_file_name VARCHAR(255),
       status VARCHAR(20) NOT NULL DEFAULT 'local',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -329,6 +332,15 @@ async function initPostgresDb() {
     await db.exec("ALTER TABLE presells ADD COLUMN publish_path TEXT;");
   } catch (e) {}
   try {
+    await db.exec("ALTER TABLE presells ADD COLUMN published_html TEXT;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE presells ADD COLUMN thank_you_html TEXT;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE presells ADD COLUMN thank_you_file_name VARCHAR(255);");
+  } catch (e) {}
+  try {
     await db.exec("ALTER TABLE presells ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'local';");
   } catch (e) {}
   try {
@@ -483,6 +495,9 @@ async function initSqliteDb() {
       selected_option TEXT,
       published_url TEXT,
       publish_path TEXT,
+      published_html TEXT,
+      thank_you_html TEXT,
+      thank_you_file_name TEXT,
       status TEXT NOT NULL DEFAULT 'local',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -554,6 +569,9 @@ async function initSqliteDb() {
     "ALTER TABLE keywords ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;",
     "ALTER TABLE presells ADD COLUMN published_url TEXT;",
     "ALTER TABLE presells ADD COLUMN publish_path TEXT;",
+    "ALTER TABLE presells ADD COLUMN published_html TEXT;",
+    "ALTER TABLE presells ADD COLUMN thank_you_html TEXT;",
+    "ALTER TABLE presells ADD COLUMN thank_you_file_name TEXT;",
     "ALTER TABLE presells ADD COLUMN status TEXT NOT NULL DEFAULT 'local';",
   ];
   for (const stmt of alterStatements) {

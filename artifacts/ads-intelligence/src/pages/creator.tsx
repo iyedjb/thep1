@@ -539,7 +539,7 @@ export default function Creator() {
           thankYouFileName,
         }),
       });
-      const data = await response.json();
+      const data = await response.json().catch(() => ({ error: response.status === 413 ? "A página gerada é grande demais para publicação." : "Resposta inválida do servidor." }));
       if (!response.ok) throw new Error(data.error || "Não foi possível publicar a página.");
       const absoluteUrl = new URL(data.url, window.location.origin).href;
       setPublishedUrl(absoluteUrl);
