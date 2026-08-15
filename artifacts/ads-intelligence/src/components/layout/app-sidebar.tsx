@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { Link } from "wouter";
 import {
@@ -14,7 +15,9 @@ import {
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Target, FileText, LogOut, TrendingUp, Sparkles, Globe, CheckCircle2, CreditCard, Crown, Zap, Headphones, Shield } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { LayoutDashboard, Target, FileText, TrendingUp, Sparkles, Globe, CheckCircle2 } from "lucide-react";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { Logo } from "./logo";
@@ -35,8 +38,6 @@ const navItems = [
   { path: "/drcash", label: "Dr. Cash", icon: Globe },
   { path: "/trends", label: "Google Trends", icon: TrendingUp },
   { path: "/reports", label: "Relatórios", icon: FileText },
-  { path: "/pricing", label: "Assinatura & Planos", icon: CreditCard },
-  { path: "/support", label: "Suporte", icon: Headphones },
 ];
 
 function formatCustomerId(value: string) {
@@ -50,6 +51,7 @@ export function AppSidebar() {
   const [location] = useLocation();
   const { data: user } = useGetMe() as any;
   const logout = useLogout();
+  const [isLogoutOpen, setIsLogoutOpen] = useState(false);
 
   const statusQuery = useQuery<GoogleAdsStatus>({
     queryKey: ["google-ads-connection"],
@@ -65,10 +67,12 @@ export function AppSidebar() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const handleLogout = () => {
-    localStorage.removeItem("ads_token");
+  const confirmLogout = () => {
     logout.mutate(undefined, {
-      onSuccess: () => { window.location.href = "/login"; }
+      onSettled: () => {
+        localStorage.removeItem("ads_token");
+        window.location.href = "/login";
+      },
     });
   };
 
@@ -78,10 +82,9 @@ export function AppSidebar() {
 
   const isConnected = statusQuery.data?.status === "connected";
   const customerId = statusQuery.data?.customerId;
-  const tier = (user?.subscriptionTier || "free").toLowerCase();
-
   return (
-    <Sidebar className="border-r border-sidebar-border/60">
+    <>
+      <Sidebar className="border-r border-sidebar-border/60">
       {/* Logo + Account ID */}
       <SidebarHeader className="px-5 pt-5 pb-4 border-b border-sidebar-border/40 space-y-4">
         <Link href="/dashboard" className="flex items-center gap-3 group select-none">
@@ -151,61 +154,94 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      {/* User footer with Subscription Plan Chip */}
-      <SidebarFooter className="p-3 space-y-2">
-        <Link
-          href="/pricing"
-          className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-semibold transition-all ${
-            tier === "enterprise"
-              ? "border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/15"
-              : tier === "pro"
-              ? "border-primary/30 bg-primary/10 text-primary hover:bg-primary/15"
-              : "border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/15"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            {tier === "enterprise" ? (
-              <Crown className="w-3.5 h-3.5 text-purple-400" />
-            ) : tier === "pro" ? (
-              <Zap className="w-3.5 h-3.5 text-primary" />
-            ) : (
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            )}
-            <span className="uppercase font-bold tracking-wider">
-              Plano {tier}
-            </span>
-          </div>
-          {tier === "free" && (
-            <span className="text-[10px] underline font-medium text-amber-400">Upgrade</span>
-          )}
-        </Link>
+        <SidebarFooter className="p-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.03] p-3 text-left transition-colors hover:bg-white/[0.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+                data-testid="button-profile-menu"
+                aria-label="Abrir menu do perfil"
+              >
+                <Avatar className="h-9 w-9 border border-white/10">
+                  <AvatarFallback className="border-0 bg-white/10 text-sm font-bold text-sidebar-foreground">
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-semibold leading-tight text-sidebar-foreground">
+                    {user?.name || "Usuário"}
+                  </span>
+                  <span className="mt-1 block text-[9px] font-semibold uppercase tracking-[0.16em] text-sidebar-foreground/35">
+                    Abrir perfil
+                  </span>
+                </span>
+                <span className="text-sm text-sidebar-foreground/35">•••</span>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              side="right"
+              align="end"
+              sideOffset={10}
+              className="w-60 rounded-none border border-black/15 bg-[#f7f7f5] p-2 text-[#111111] shadow-[0_24px_70px_rgba(0,0,0,0.22)]"
+            >
+              <div className="px-3 pb-3 pt-2">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-black/35">Sua conta</p>
+                <p className="mt-2 truncate text-sm font-medium">{user?.name || "Usuário"}</p>
+                <p className="mt-0.5 truncate text-xs text-black/45">{user?.email || ""}</p>
+              </div>
+              <DropdownMenuSeparator className="bg-black/10" />
+              <DropdownMenuItem asChild className="cursor-pointer rounded-none px-3 py-3 text-sm text-black focus:bg-black focus:text-white">
+                <Link href="/support">Suporte</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild className="cursor-pointer rounded-none px-3 py-3 text-sm text-black focus:bg-black focus:text-white">
+                <Link href="/pricing">Planos</Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="bg-black/10" />
+              <DropdownMenuItem
+                onSelect={() => setIsLogoutOpen(true)}
+                className="cursor-pointer rounded-none px-3 py-3 text-sm text-black focus:bg-black focus:text-white"
+              >
+                Sair
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SidebarFooter>
+      </Sidebar>
 
-        <div className="flex items-center gap-3 p-3 rounded-xl border border-white/[0.05] bg-white/[0.03] hover:bg-white/[0.05] transition-colors">
-          <Avatar className="h-9 w-9 border border-white/10">
-            <AvatarFallback className="bg-primary/20 text-primary font-bold text-sm border-0">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex flex-col text-left min-w-0 flex-1">
-            <span className="font-semibold text-[13px] text-sidebar-foreground leading-tight truncate">
-              {user?.name || "Usuario"}
-            </span>
-            <span className="text-muted-foreground/50 text-[10px] font-medium mt-0.5 truncate">
-              {user?.email || ""}
-            </span>
+      <Dialog open={isLogoutOpen} onOpenChange={setIsLogoutOpen}>
+        <DialogContent className="max-w-[440px] overflow-hidden rounded-none border border-black/15 bg-[#f7f7f5] p-0 text-[#111111] shadow-[0_30px_100px_rgba(0,0,0,0.35)] [&>button]:hidden">
+          <DialogTitle className="sr-only">Confirmar saída</DialogTitle>
+          <DialogDescription className="sr-only">Confirme se deseja encerrar sua sessão neste dispositivo.</DialogDescription>
+          <div className="border-b border-black/10 px-7 py-5">
+            <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-black/35">Confirmar saída</p>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={handleLogout}
-            className="text-sidebar-foreground/35 hover:text-red-400 hover:bg-red-500/10 rounded-lg w-8 h-8 shrink-0 transition-colors"
-            data-testid="button-logout"
-            title="Sair"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </SidebarFooter>
-    </Sidebar>
+          <div className="px-7 py-9">
+            <h2 className="max-w-xs text-4xl font-medium leading-[0.98] tracking-[-0.05em]">Deseja sair da sua conta?</h2>
+            <p className="mt-5 max-w-sm text-sm leading-6 text-black/50">
+              Sua sessão será encerrada neste dispositivo. Você poderá entrar novamente quando quiser.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 border-t border-black/10">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setIsLogoutOpen(false)}
+              className="h-14 rounded-none border-r border-black/10 bg-transparent text-sm text-black hover:bg-black/5 hover:text-black"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmLogout}
+              disabled={logout.isPending}
+              className="h-14 rounded-none bg-black text-sm text-white hover:bg-black/80"
+            >
+              {logout.isPending ? "Saindo…" : "Sair da conta"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
