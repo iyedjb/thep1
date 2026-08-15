@@ -35,7 +35,7 @@ const navItems = [
   { path: "/drcash", label: "Dr. Cash", icon: Globe },
   { path: "/trends", label: "Google Trends", icon: TrendingUp },
   { path: "/reports", label: "Relatórios", icon: FileText },
-  { path: "/checkout", label: "Assinatura & Planos", icon: CreditCard },
+  { path: "/pricing", label: "Assinatura & Planos", icon: CreditCard },
   { path: "/support", label: "Suporte", icon: Headphones },
 ];
 
@@ -154,7 +154,7 @@ export function AppSidebar() {
       {/* User footer with Subscription Plan Chip */}
       <SidebarFooter className="p-3 space-y-2">
         <Link
-          href="/checkout"
+          href="/pricing"
           className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-semibold transition-all ${
             tier === "enterprise"
               ? "border-purple-500/30 bg-purple-500/10 text-purple-300 hover:bg-purple-500/15"

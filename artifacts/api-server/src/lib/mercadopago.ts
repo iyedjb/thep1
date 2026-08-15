@@ -5,7 +5,7 @@ export interface CreatePreferenceOptions {
   userId: number;
   userEmail: string;
   userName?: string;
-  planTier: "pro" | "enterprise";
+  planTier: "starter" | "pro" | "enterprise";
   billingCycle: "monthly" | "yearly";
   amount: number;
   description: string;
@@ -15,7 +15,7 @@ export interface CreatePixOptions {
   userId: number;
   userEmail: string;
   userName?: string;
-  planTier: "pro" | "enterprise";
+  planTier: "starter" | "pro" | "enterprise";
   billingCycle: "monthly" | "yearly";
   amount: number;
   description: string;
@@ -45,10 +45,37 @@ function getAccessToken(): string | null {
   return token && token.trim().length > 0 ? token.trim() : null;
 }
 
-function getAppUrl(): string {
+function getAppUrl(): string | null {
   const appUrl = process.env.APP_URL || process.env.PUBLIC_URL;
   if (appUrl) return appUrl.replace(/\/+$/, "");
-  return "http://localhost:3001";
+  return null;
+}
+
+function isValidReturnUrl(appUrl: string | null): appUrl is string {
+  if (!appUrl) return false;
+  try {
+    const url = new URL(appUrl);
+    return url.protocol === "https:" || (
+      url.protocol === "http:" &&
+      url.hostname !== "localhost" &&
+      url.hostname !== "127.0.0.1" &&
+      url.hostname !== "::1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function getMercadoPagoConfiguration() {
+  const appUrl = getAppUrl();
+  const accessTokenConfigured = Boolean(getAccessToken());
+  const returnUrlConfigured = isValidReturnUrl(appUrl);
+  return {
+    configured: accessTokenConfigured && returnUrlConfigured,
+    accessTokenConfigured,
+    returnUrlConfigured,
+    webhookConfigured: Boolean(process.env.MERCADOPAGO_WEBHOOK_SECRET),
+  };
 }
 
 /**
@@ -61,15 +88,11 @@ export async function createPreference(
   const appUrl = getAppUrl();
   const externalReference = `usr_${options.userId}_${options.planTier}_${options.billingCycle}_${Date.now()}`;
 
-  // If no token is configured, return sandbox/mock details so checkout can be tested
   if (!accessToken) {
-    logger.warn("MERCADOPAGO_ACCESS_TOKEN not set in environment. Returning simulated checkout preference.");
-    return {
-      id: `pref_simulated_${Date.now()}`,
-      init_point: `${appUrl}/checkout?simulated_success=true&ext_ref=${externalReference}&tier=${options.planTier}`,
-      sandbox_init_point: `${appUrl}/checkout?simulated_success=true&ext_ref=${externalReference}&tier=${options.planTier}`,
-      external_reference: externalReference,
-    };
+    throw new Error("MERCADOPAGO_ACCESS_TOKEN não está configurado no servidor");
+  }
+  if (!isValidReturnUrl(appUrl)) {
+    throw new Error("APP_URL deve usar um IP de desenvolvimento ou domínio HTTPS válido para o retorno do Mercado Pago");
   }
 
   const payload = {
@@ -88,13 +111,15 @@ export async function createPreference(
       name: options.userName || "Usuário Ads Intelligence",
     },
     back_urls: {
-      success: `${appUrl}/checkout?payment_status=success`,
-      failure: `${appUrl}/checkout?payment_status=failure`,
-      pending: `${appUrl}/checkout?payment_status=pending`,
+      success: `${appUrl}/checkout?payment_status=success&plan=${options.planTier}&cycle=${options.billingCycle}`,
+      failure: `${appUrl}/checkout?payment_status=failure&plan=${options.planTier}&cycle=${options.billingCycle}`,
+      pending: `${appUrl}/checkout?payment_status=pending&plan=${options.planTier}&cycle=${options.billingCycle}`,
     },
     auto_return: "approved",
     external_reference: externalReference,
-    notification_url: `${appUrl}/api/mercadopago/webhook`,
+    ...(appUrl.startsWith("https://") && process.env.MERCADOPAGO_WEBHOOK_SECRET
+      ? { notification_url: `${appUrl}/api/mercadopago/webhook` }
+      : {}),
     statement_descriptor: "ADS INTELLIGENCE",
   };
 
@@ -103,6 +128,7 @@ export async function createPreference(
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
+      "X-Idempotency-Key": `preference_${options.userId}_${Date.now()}`,
     },
     body: JSON.stringify(payload),
   });
@@ -133,23 +159,8 @@ export async function createPixPayment(
   const appUrl = getAppUrl();
   const externalReference = `usr_${options.userId}_${options.planTier}_${options.billingCycle}_${Date.now()}`;
 
-  // If no token is configured, return simulated Pix response for local testing
   if (!accessToken) {
-    logger.warn("MERCADOPAGO_ACCESS_TOKEN not set. Returning simulated Pix QR Code.");
-    const mockPaymentId = `pix_simulated_${Date.now()}`;
-    const mockQrCode = `00020126580014br.gov.bcb.pix0136simulated-pix-key-${mockPaymentId}5204000053039865405${options.amount.toFixed(2)}5802BR5916ADSINTELLIGENCE6009SAOPAULO62070503***6304`;
-    
-    // SVG data uri placeholder QR code
-    const mockQrCodeBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-
-    return {
-      payment_id: mockPaymentId,
-      status: "pending",
-      status_detail: "pending_waiting_transfer",
-      qr_code: mockQrCode,
-      qr_code_base64: mockQrCodeBase64,
-      external_reference: externalReference,
-    };
+    throw new Error("MERCADOPAGO_ACCESS_TOKEN não está configurado no servidor");
   }
 
   const payload = {
@@ -161,7 +172,9 @@ export async function createPixPayment(
       first_name: options.userName || "Usuário",
     },
     external_reference: externalReference,
-    notification_url: `${appUrl}/api/mercadopago/webhook`,
+    ...(appUrl?.startsWith("https://") && process.env.MERCADOPAGO_WEBHOOK_SECRET
+      ? { notification_url: `${appUrl}/api/mercadopago/webhook` }
+      : {}),
   };
 
   const response = await fetch(`${MP_BASE_URL}/v1/payments`, {
@@ -200,14 +213,8 @@ export async function createPixPayment(
 export async function getPaymentDetails(paymentId: string): Promise<any> {
   const accessToken = getAccessToken();
 
-  if (!accessToken || paymentId.startsWith("pix_simulated_") || paymentId.startsWith("pref_simulated_")) {
-    return {
-      id: paymentId,
-      status: "approved",
-      status_detail: "accredited",
-      external_reference: paymentId,
-      simulated: true,
-    };
+  if (!accessToken) {
+    throw new Error("MERCADOPAGO_ACCESS_TOKEN não está configurado no servidor");
   }
 
   const response = await fetch(`${MP_BASE_URL}/v1/payments/${paymentId}`, {
@@ -237,10 +244,9 @@ export function verifyWebhookSignature(
 ): boolean {
   const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
   
-  // If secret is not set, allow processing (logged for security audit)
   if (!secret) {
-    logger.warn("MERCADOPAGO_WEBHOOK_SECRET is not configured. Webhook signature verification bypassed.");
-    return true;
+    logger.error("MERCADOPAGO_WEBHOOK_SECRET is not configured. Webhook rejected.");
+    return false;
   }
 
   if (!xSignatureHeader || !xRequestIdHeader || !dataId) {

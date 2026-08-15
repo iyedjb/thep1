@@ -1,19 +1,33 @@
 import { Router } from "express";
-import { requireAuth, optionalAuth } from "./auth";
+import { requireAuth } from "./auth";
 import { getDb } from "../lib/sqlite";
 import { logger } from "../lib/logger";
 import {
   createPreference,
   createPixPayment,
   getPaymentDetails,
+  getMercadoPagoConfiguration,
   verifyWebhookSignature,
 } from "../lib/mercadopago";
 
 const router = Router();
 
 const PLANS = {
+  starter: {
+    name: "Essencial",
+    monthlyPrice: 49.0,
+    yearlyPrice: 470.0,
+    description: "Para validar ofertas e começar uma operação de tráfego com clareza.",
+    features: [
+      "3 campanhas ativas",
+      "20 presells com IA por mês",
+      "Pesquisa de palavras-chave",
+      "Google Trends integrado",
+      "Suporte por e-mail",
+    ],
+  },
   pro: {
-    name: "Pro",
+    name: "Profissional",
     monthlyPrice: 97.0,
     yearlyPrice: 930.0, // R$ 77.50/mês
     description: "Para afiliados profissionais e gestores de tráfego que buscam escala rápida.",
@@ -26,7 +40,7 @@ const PLANS = {
     ],
   },
   enterprise: {
-    name: "Enterprise",
+    name: "Escala",
     monthlyPrice: 197.0,
     yearlyPrice: 1890.0, // R$ 157.50/mês
     description: "Para agências, equipes e grandes operações de tráfego pago.",
@@ -41,6 +55,16 @@ const PLANS = {
   },
 };
 
+type PaidPlanTier = keyof typeof PLANS;
+
+function isPaidPlanTier(value: unknown): value is PaidPlanTier {
+  return value === "starter" || value === "pro" || value === "enterprise";
+}
+
+function isBillingCycle(value: unknown): value is "monthly" | "yearly" {
+  return value === "monthly" || value === "yearly";
+}
+
 /**
  * GET /api/subscription/plans
  * Returns available subscription plans and prices
@@ -52,6 +76,10 @@ router.get("/subscription/plans", (_req, res) => {
   });
 });
 
+router.get("/mercadopago/config", (_req, res) => {
+  res.json(getMercadoPagoConfiguration());
+});
+
 /**
  * POST /api/mercadopago/create-preference
  * Creates a Mercado Pago Checkout Pro preference for card/boleto/MP checkout
@@ -60,8 +88,8 @@ router.post("/mercadopago/create-preference", requireAuth, async (req: any, res)
   const { planTier = "pro", billingCycle = "monthly" } = req.body;
   const userId = req.userId;
 
-  if (planTier !== "pro" && planTier !== "enterprise") {
-    res.status(400).json({ error: "Plano inválido. Escolha 'pro' ou 'enterprise'." });
+  if (!isPaidPlanTier(planTier) || !isBillingCycle(billingCycle)) {
+    res.status(400).json({ error: "Plano ou período de cobrança inválido." });
     return;
   }
 
@@ -117,8 +145,8 @@ router.post("/mercadopago/create-pix", requireAuth, async (req: any, res) => {
   const { planTier = "pro", billingCycle = "monthly" } = req.body;
   const userId = req.userId;
 
-  if (planTier !== "pro" && planTier !== "enterprise") {
-    res.status(400).json({ error: "Plano inválido. Escolha 'pro' ou 'enterprise'." });
+  if (!isPaidPlanTier(planTier) || !isBillingCycle(billingCycle)) {
+    res.status(400).json({ error: "Plano ou período de cobrança inválido." });
     return;
   }
 
@@ -222,7 +250,7 @@ async function upgradeUserSubscription(
  * GET /api/mercadopago/verify-payment/:paymentId
  * Frontend polling or post-redirect auto-verification endpoint
  */
-router.get("/mercadopago/verify-payment/:paymentId", optionalAuth, async (req: any, res) => {
+router.get("/mercadopago/verify-payment/:paymentId", requireAuth, async (req: any, res) => {
   const { paymentId } = req.params;
   const db = getDb();
 
@@ -232,7 +260,12 @@ router.get("/mercadopago/verify-payment/:paymentId", optionalAuth, async (req: a
       .prepare("SELECT * FROM payments WHERE mp_payment_id = ? OR mp_preference_id = ? ORDER BY id DESC")
       .get(paymentId, paymentId)) as any;
 
-    if (!localPayment && !paymentId.startsWith("pix_simulated_") && !paymentId.startsWith("pref_simulated_")) {
+    if (localPayment && Number(localPayment.user_id) !== Number(req.userId)) {
+      res.status(403).json({ error: "Este pagamento não pertence à sua conta." });
+      return;
+    }
+
+    if (!localPayment) {
       // Fetch details from Mercado Pago API directly
       const mpDetails = await getPaymentDetails(paymentId);
       if (mpDetails && mpDetails.status) {
@@ -247,7 +280,12 @@ router.get("/mercadopago/verify-payment/:paymentId", optionalAuth, async (req: a
           if (parts[3]) billingCycle = parts[3];
         }
 
-        if (mpDetails.status === "approved" && userId) {
+        if (!userId || Number(userId) !== Number(req.userId)) {
+          res.status(403).json({ error: "Não foi possível vincular este pagamento à sua conta." });
+          return;
+        }
+
+        if (mpDetails.status === "approved") {
           await upgradeUserSubscription(userId, planTier, paymentId, billingCycle);
         }
 
@@ -262,19 +300,6 @@ router.get("/mercadopago/verify-payment/:paymentId", optionalAuth, async (req: a
     }
 
     if (!localPayment) {
-      // Handles simulation mode
-      if (paymentId.startsWith("pix_simulated_") || paymentId.startsWith("pref_simulated_")) {
-        const userId = req.userId || 1;
-        await upgradeUserSubscription(userId, "pro", paymentId, "monthly");
-        res.json({
-          status: "approved",
-          approved: true,
-          planTier: "pro",
-          simulated: true,
-        });
-        return;
-      }
-
       res.status(404).json({ error: "Pagamento não encontrado" });
       return;
     }
@@ -333,7 +358,7 @@ router.post("/mercadopago/webhook", async (req, res) => {
   logger.info({ topic, dataId, xRequestId }, "Received Mercado Pago Webhook notification");
 
   // Verify HMAC signature
-  if (xSignature && !verifyWebhookSignature(xSignature, xRequestId, String(dataId))) {
+  if (!xSignature || !verifyWebhookSignature(xSignature, xRequestId, String(dataId))) {
     logger.warn({ xSignature, xRequestId }, "Invalid Mercado Pago webhook signature");
     res.status(401).send("Invalid signature");
     return;
@@ -399,32 +424,6 @@ router.post("/mercadopago/webhook", async (req, res) => {
     }
   } catch (err: any) {
     logger.error({ error: err.message, dataId }, "Error processing Mercado Pago webhook payload");
-  }
-});
-
-/**
- * POST /api/subscription/simulate-upgrade
- * Sandbox helper route for dev testing instant tier upgrade
- */
-router.post("/subscription/simulate-upgrade", requireAuth, async (req: any, res) => {
-  const { planTier = "pro" } = req.body;
-  const userId = req.userId;
-
-  if (planTier !== "pro" && planTier !== "enterprise" && planTier !== "free") {
-    res.status(400).json({ error: "Plano inválido." });
-    return;
-  }
-
-  try {
-    const mockPaymentId = `sim_${Date.now()}`;
-    await upgradeUserSubscription(userId, planTier, mockPaymentId, "monthly");
-    res.json({
-      success: true,
-      message: `Plano atualizado com sucesso para ${planTier.toUpperCase()}`,
-      planTier,
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: "Erro ao simular upgrade: " + err.message });
   }
 });
 
