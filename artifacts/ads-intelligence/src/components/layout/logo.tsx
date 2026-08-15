@@ -54,7 +54,7 @@ export function Logo({
               cx="46"
               cy="46"
               r="30"
-              stroke="url(#logoGradientText)"
+              stroke="#00A6FB"
               strokeWidth="8"
             />
 
@@ -64,7 +64,7 @@ export function Logo({
               y1="66"
               x2="80"
               y2="80"
-              stroke="url(#logoGradientText)"
+              stroke="#00A6FB"
               strokeWidth="8"
               strokeLinecap="round"
             />
@@ -74,7 +74,7 @@ export function Logo({
               cx="46"
               cy="46"
               r="15"
-              stroke="url(#logoGradientText)"
+              stroke="#00A6FB"
               strokeWidth="2.5"
               strokeOpacity="0.8"
             />
@@ -84,7 +84,7 @@ export function Logo({
               cx="46"
               cy="46"
               r="5"
-              fill="url(#logoGradientText)"
+              fill="#00A6FB"
             />
 
             {/* Cursor Pointer - pointing directly to the center dot from the bottom right */}
@@ -117,7 +117,7 @@ export function Logo({
             cx="46"
             cy="46"
             r="30"
-            stroke="url(#logoGradientOnly)"
+            stroke="#00A6FB"
             strokeWidth="8"
           />
           <line
@@ -125,7 +125,7 @@ export function Logo({
             y1="66"
             x2="80"
             y2="80"
-            stroke="url(#logoGradientOnly)"
+            stroke="#00A6FB"
             strokeWidth="8"
             strokeLinecap="round"
           />
@@ -133,7 +133,7 @@ export function Logo({
             cx="46"
             cy="46"
             r="15"
-            stroke="url(#logoGradientOnly)"
+            stroke="#00A6FB"
             strokeWidth="2.5"
             strokeOpacity="0.8"
           />
@@ -141,7 +141,7 @@ export function Logo({
             cx="46"
             cy="46"
             r="5"
-            fill="url(#logoGradientOnly)"
+            fill="#00A6FB"
           />
           <path
             d="M 47 47 L 47 58 L 51 54 L 58 61 L 61 58 L 54 51 L 58 47 Z"

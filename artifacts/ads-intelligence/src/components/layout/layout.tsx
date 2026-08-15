@@ -16,6 +16,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/reports": "Relatórios",
   "/trends": "Google Trends",
   "/creator": "Presell com IA",
+  "/traffic-manager": "Gestor de Tráfego",
   "/drcash": "Dr. Cash",
   "/pricing": "Planos",
   "/support": "Suporte",
@@ -176,7 +177,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 variant="ghost"
                 size="icon"
                 onClick={toggleTheme}
-                className="text-muted-foreground hover:text-foreground hover:bg-white/5 rounded-lg w-8 h-8 transition-colors cursor-pointer"
+                className="hidden"
                 title={theme === "light" ? "Mudar para Modo Escuro" : "Mudar para Modo Claro"}
               >
                 {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4 text-amber-400" />}

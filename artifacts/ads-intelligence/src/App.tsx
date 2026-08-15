@@ -12,6 +12,7 @@ import Keywords from "@/pages/keywords";
 import Reports from "@/pages/reports";
 import Trends from "@/pages/trends";
 import Creator from "@/pages/creator";
+import TrafficManager from "@/pages/traffic-manager";
 import DrCash from "@/pages/drcash";
 import LandingPage from "@/pages/landing";
 import CheckoutPage from "@/pages/checkout";
@@ -71,6 +72,7 @@ function Router() {
       <ProtectedRoute path="/reports" component={Reports} requiresGoogleAds />
       <ProtectedRoute path="/trends" component={Trends} />
       <ProtectedRoute path="/creator" component={Creator} />
+      <ProtectedRoute path="/traffic-manager" component={TrafficManager} />
       <ProtectedRoute path="/drcash" component={DrCash} />
       <ProtectedRoute path="/support" component={SupportPage} />
       <ProtectedRoute path="/pricing" component={PricingPage} />
@@ -85,7 +87,8 @@ function App() {
   // Keep the product's white-and-blue visual system as the default.
   useEffect(() => {
     if (typeof document !== "undefined") {
-      const savedTheme = localStorage.getItem("app_theme") || "light";
+      const savedTheme = "light";
+      localStorage.setItem("app_theme", savedTheme);
       if (savedTheme === "light") {
         document.documentElement.classList.add("light");
       } else {

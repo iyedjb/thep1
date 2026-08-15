@@ -17,7 +17,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { TrendingUp, Sparkles, CheckCircle2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { useGetMe, useLogout } from "@workspace/api-client-react";
 import { useQuery } from "@tanstack/react-query";
 import { Logo } from "./logo";
@@ -30,8 +30,9 @@ type GoogleAdsStatus = {
 };
 
 const navItems = [
-  { path: "/creator", label: "Presell com IA", icon: Sparkles },
-  { path: "/trends", label: "Google Trends", icon: TrendingUp },
+  { path: "/creator", label: "Presell com IA" },
+  { path: "/traffic-manager", label: "Gestor de Tráfego" },
+  { path: "/trends", label: "Google Trends" },
 ];
 
 function formatCustomerId(value: string) {
@@ -78,7 +79,7 @@ export function AppSidebar() {
   const customerId = statusQuery.data?.customerId;
   return (
     <>
-      <Sidebar className="border-r border-sidebar-border/60">
+      <Sidebar className="border-r border-sidebar-border/60 bg-sidebar">
       {/* Logo + Account ID */}
       <SidebarHeader className="px-5 pt-5 pb-4 border-b border-sidebar-border/40 space-y-4">
         <Link href="/creator" className="flex items-center gap-3 group select-none">
@@ -108,14 +109,14 @@ export function AppSidebar() {
         ) : null}
       </SidebarHeader>
 
-      <SidebarContent className="px-3 py-4">
+      <SidebarContent className="px-4 py-5">
         <SidebarGroup>
           <SidebarGroupLabel className="px-3 text-[10px] font-bold uppercase tracking-[0.16em] text-sidebar-foreground/35 mb-1.5">
-            Navegacao
+            Navegação
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="gap-0.5">
-              {navItems.map(({ path, label, icon: Icon }) => {
+              {navItems.map(({ path, label }) => {
                 const isActive = location === path;
                 return (
                   <SidebarMenuItem key={path}>
@@ -124,10 +125,10 @@ export function AppSidebar() {
                       isActive={isActive}
                       size="lg"
                       className={`
-                        group relative h-11 rounded-xl px-3 gap-3 transition-all duration-200
+                        group relative h-11 rounded-full px-4 gap-3 transition-all duration-200
                         [&>svg]:w-4 [&>svg]:h-4 [&>span]:text-[13.5px] [&>span]:font-medium
                         ${isActive
-                          ? "bg-primary/15 text-primary border border-primary/20 shadow-[0_0_16px_rgba(99,179,237,0.08)]"
+                          ? "bg-primary/[0.07] text-primary border border-primary/20"
                           : "text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-white/5"
                         }
                       `}
@@ -136,7 +137,6 @@ export function AppSidebar() {
                         {isActive && (
                           <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-primary rounded-full opacity-80" />
                         )}
-                        <Icon className={isActive ? "text-primary" : "text-sidebar-foreground/45 group-hover:text-sidebar-foreground/70 transition-colors"} />
                         <span>{label}</span>
                       </Link>
                     </SidebarMenuButton>

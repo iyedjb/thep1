@@ -1,60 +1,43 @@
-import { useEffect, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
-import {
-  BillingCycle,
-  PlanTier,
-  formatBRL,
-  getMonthlyEquivalent,
-  getPlanPrice,
-  getSubscriptionPlan,
-} from "@/lib/subscription-plans";
+import { BillingCycle, PlanTier, formatBRL, getMonthlyEquivalent, getPlanPrice, getSubscriptionPlan } from "@/lib/subscription-plans";
 
-type PaymentMethod = "mercadopago" | "pix";
 type PaymentState = "idle" | "pending" | "approved" | "failure";
-
-interface PixPayment {
-  paymentId: string;
-  qrCode: string;
-  qrCodeBase64: string;
-  ticketUrl?: string;
-  amount: number;
-}
-
-interface MercadoPagoConfiguration {
-  configured: boolean;
-  accessTokenConfigured: boolean;
-  returnUrlConfigured: boolean;
-  webhookConfigured: boolean;
-}
+interface PaymentConfiguration { configured: boolean; accessTokenConfigured: boolean; publicKeyConfigured: boolean; publicKey: string; }
+declare global { interface Window { MercadoPago?: any; } }
 
 async function safeFetchJson(url: string, init?: RequestInit) {
   const response = await fetch(url, init);
   const body = await response.text();
   let data: any = {};
-
-  if (body) {
-    try {
-      data = JSON.parse(body);
-    } catch {
-      data = { error: body.slice(0, 180) };
-    }
-  }
-
-  if (!response.ok) {
-    throw new Error(data.error || `Não foi possível concluir a solicitação (${response.status}).`);
-  }
-
+  if (body) try { data = JSON.parse(body); } catch { data = { error: body.slice(0, 180) }; }
+  if (!response.ok) throw new Error(data.error || `Não foi possível concluir a solicitação (${response.status}).`);
   return data;
+}
+
+function loadPaymentSdk() {
+  if (window.MercadoPago) return Promise.resolve();
+  return new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector<HTMLScriptElement>('script[src="https://sdk.mercadopago.com/js/v2"]');
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Não foi possível carregar o formulário seguro.")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://sdk.mercadopago.com/js/v2";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Não foi possível carregar o formulário seguro."));
+    document.head.appendChild(script);
+  });
 }
 
 function readCheckoutParams() {
   const params = new URLSearchParams(window.location.search);
-  const requestedCycle = params.get("cycle");
   return {
     plan: getSubscriptionPlan(params.get("plan")),
-    cycle: requestedCycle === "yearly" ? "yearly" as BillingCycle : "monthly" as BillingCycle,
-    paymentId: params.get("payment_id") || params.get("collection_id"),
-    returnedStatus: params.get("payment_status") || params.get("status") || params.get("collection_status"),
+    cycle: params.get("cycle") === "yearly" ? "yearly" as BillingCycle : "monthly" as BillingCycle,
   };
 }
 
@@ -62,296 +45,178 @@ export default function CheckoutPage() {
   const initial = useMemo(readCheckoutParams, []);
   const [planTier] = useState<PlanTier>(initial.plan.id);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>(initial.cycle);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("mercadopago");
-  const [paymentState, setPaymentState] = useState<PaymentState>(initial.returnedStatus === "failure" ? "failure" : "idle");
-  const [pixPayment, setPixPayment] = useState<PixPayment | null>(null);
+  const [paymentState, setPaymentState] = useState<PaymentState>("idle");
+  const [paymentId, setPaymentId] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isChecking, setIsChecking] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
-  const [mercadoPagoConfig, setMercadoPagoConfig] = useState<MercadoPagoConfiguration | null>(null);
-
+  const [configuration, setConfiguration] = useState<PaymentConfiguration | null>(null);
+  const cardFormRef = useRef<any>(null);
   const plan = getSubscriptionPlan(planTier);
   const total = getPlanPrice(plan, billingCycle);
   const monthlyEquivalent = getMonthlyEquivalent(plan, billingCycle);
   const token = localStorage.getItem("ads_token");
 
   useEffect(() => {
-    safeFetchJson("/api/mercadopago/config")
-      .then((data) => setMercadoPagoConfig(data))
-      .catch(() => setMercadoPagoConfig({ configured: false, accessTokenConfigured: false, returnUrlConfigured: false, webhookConfigured: false }));
+    safeFetchJson("/api/mercadopago/config").then(setConfiguration)
+      .catch(() => setConfiguration({ configured: false, accessTokenConfigured: false, publicKeyConfigured: false, publicKey: "" }));
   }, []);
 
-  const verifyPayment = async (paymentId: string) => {
-    if (!token) return;
-    setIsChecking(true);
-    try {
-      const data = await safeFetchJson(`/api/mercadopago/verify-payment/${encodeURIComponent(paymentId)}`, {
-        headers: { Authorization: `Bearer ${token}` },
+  useEffect(() => {
+    if (!token || !configuration?.configured || !configuration.publicKey) return;
+    let cancelled = false;
+    let cardForm: any;
+    loadPaymentSdk().then(() => {
+      if (cancelled || !window.MercadoPago) return;
+      const sdk = new window.MercadoPago(configuration.publicKey, { locale: "pt-BR" });
+      cardForm = sdk.cardForm({
+        amount: total.toFixed(2), iframe: true,
+        form: {
+          id: "form-checkout",
+          cardNumber: { id: "form-checkout__cardNumber", placeholder: "0000 0000 0000 0000" },
+          expirationDate: { id: "form-checkout__expirationDate", placeholder: "MM/AA" },
+          securityCode: { id: "form-checkout__securityCode", placeholder: "CVV" },
+          cardholderName: { id: "form-checkout__cardholderName", placeholder: "Nome completo" },
+          issuer: { id: "form-checkout__issuer", placeholder: "Banco emissor" },
+          installments: { id: "form-checkout__installments", placeholder: "Parcelas" },
+          identificationType: { id: "form-checkout__identificationType", placeholder: "Documento" },
+          identificationNumber: { id: "form-checkout__identificationNumber", placeholder: "000.000.000-00" },
+          cardholderEmail: { id: "form-checkout__cardholderEmail", placeholder: "voce@email.com" },
+        },
+        callbacks: {
+          onFormMounted: (mountError: any) => { if (mountError) setError("Não foi possível iniciar o formulário de pagamento."); },
+          onSubmit: async (event: Event) => {
+            event.preventDefault();
+            setIsSubmitting(true); setError("");
+            try {
+              const data = cardForm.getCardFormData();
+              const result = await safeFetchJson("/api/mercadopago/create-card-payment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ planTier, billingCycle, token: data.token, paymentMethodId: data.paymentMethodId, issuerId: data.issuerId, installments: Number(data.installments), identificationType: data.identificationType, identificationNumber: data.identificationNumber }),
+              });
+              setPaymentId(result.paymentId);
+              if (result.approved) setPaymentState("approved");
+              else if (result.status === "pending" || result.status === "in_process") setPaymentState("pending");
+              else { setPaymentState("failure"); setError("O cartão não foi aprovado. Confira os dados ou tente outro cartão."); }
+            } catch (submitError: any) {
+              setPaymentState("failure");
+              setError(submitError.message || "Não foi possível processar o pagamento.");
+            } finally { setIsSubmitting(false); }
+          },
+        },
       });
-      if (data.approved) {
-        setPaymentState("approved");
-        setError("");
-      } else if (data.status === "rejected" || data.status === "cancelled") {
-        setPaymentState("failure");
-        setError("O pagamento não foi aprovado. Você pode tentar novamente com outro meio de pagamento.");
-      } else {
-        setPaymentState("pending");
-      }
-    } catch (verificationError: any) {
-      setError(verificationError.message || "Não foi possível verificar o pagamento.");
-    } finally {
-      setIsChecking(false);
-    }
-  };
+      cardFormRef.current = cardForm;
+    }).catch((sdkError) => setError(sdkError.message));
+    return () => { cancelled = true; cardForm?.unmount?.(); cardFormRef.current = null; };
+  }, [billingCycle, configuration?.configured, configuration?.publicKey, planTier, token, total]);
 
   useEffect(() => {
-    if (initial.paymentId && token) {
-      verifyPayment(initial.paymentId);
-    } else if (initial.returnedStatus === "success" && !initial.paymentId) {
-      setError("O Mercado Pago não retornou o identificador necessário para confirmar este pagamento.");
-    }
-  }, [initial.paymentId, initial.returnedStatus, token]);
-
-  useEffect(() => {
-    if (!pixPayment?.paymentId || paymentState === "approved") return;
-    const interval = window.setInterval(() => verifyPayment(pixPayment.paymentId), 5000);
+    if (!paymentId || paymentState !== "pending" || !token) return;
+    const interval = window.setInterval(async () => {
+      try {
+        const result = await safeFetchJson(`/api/mercadopago/verify-payment/${encodeURIComponent(paymentId)}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (result.approved) setPaymentState("approved");
+        else if (result.status === "rejected" || result.status === "cancelled") setPaymentState("failure");
+      } catch (_) {}
+    }, 5000);
     return () => window.clearInterval(interval);
-  }, [pixPayment?.paymentId, paymentState]);
+  }, [paymentId, paymentState, token]);
 
-  const authenticatedRequest = (body: Record<string, unknown>) => ({
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  const beginMercadoPagoCheckout = async () => {
-    if (!token) {
-      window.location.href = "/login";
-      return;
-    }
-
-    setIsSubmitting(true);
-    setError("");
-    try {
-      const data = await safeFetchJson(
-        "/api/mercadopago/create-preference",
-        authenticatedRequest({ planTier, billingCycle }),
-      );
-      if (!data.initPoint) throw new Error("O Mercado Pago não retornou uma URL de pagamento.");
-      window.location.href = data.initPoint;
-    } catch (checkoutError: any) {
-      setError(checkoutError.message || "Não foi possível abrir o Mercado Pago.");
-      setIsSubmitting(false);
-    }
-  };
-
-  const createPixPayment = async () => {
-    if (!token) {
-      window.location.href = "/login";
-      return;
-    }
-
-    setIsSubmitting(true);
-    setError("");
-    try {
-      const data = await safeFetchJson(
-        "/api/mercadopago/create-pix",
-        authenticatedRequest({ planTier, billingCycle }),
-      );
-      setPixPayment({
-        paymentId: data.paymentId,
-        qrCode: data.qrCode,
-        qrCodeBase64: data.qrCodeBase64,
-        ticketUrl: data.ticketUrl,
-        amount: data.amount,
-      });
-      setPaymentState("pending");
-    } catch (pixError: any) {
-      setError(pixError.message || "Não foi possível gerar o Pix.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const copyPixCode = async () => {
-    if (!pixPayment?.qrCode) return;
-    await navigator.clipboard.writeText(pixPayment.qrCode);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 2400);
-  };
-
-  if (paymentState === "approved") {
-    return (
-      <main className="grid min-h-screen place-items-center bg-[#f8fbff] px-6 text-[#111827]">
-        <section className="w-full max-w-xl rounded-3xl border border-blue-100 bg-white p-8 shadow-[0_24px_70px_rgba(37,99,235,0.12)] sm:p-12">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-600/65">Pagamento confirmado</p>
-          <h1 className="mt-7 text-5xl font-medium leading-none tracking-[-0.05em]">Sua assinatura está ativa.</h1>
-          <p className="mt-6 max-w-md text-sm leading-6 text-slate-500">
-            O Mercado Pago confirmou o pagamento e o plano {plan.name} já foi aplicado à sua conta.
-          </p>
-          <a href="/creator" className="mt-10 flex h-13 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
-            Continuar para a plataforma
-          </a>
-        </section>
-      </main>
-    );
-  }
+  if (paymentState === "approved") return (
+    <main className="grid min-h-screen place-items-center bg-background px-6 text-foreground">
+      <section className="w-full max-w-xl text-center">
+        <p className="text-xs font-semibold text-primary">Pagamento confirmado</p>
+        <h1 className="mt-6 text-5xl font-semibold leading-none tracking-tight">Sua assinatura está ativa.</h1>
+        <a href="/creator" className="mt-10 flex h-13 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground hover:bg-primary/90">Continuar</a>
+      </section>
+    </main>
+  );
 
   return (
-    <main className="min-h-screen bg-[#f8fbff] text-[#111827] selection:bg-blue-600 selection:text-white">
-      <header className="border-b border-blue-100 bg-white/90 backdrop-blur-xl">
-        <div className="mx-auto grid h-20 max-w-[1320px] grid-cols-3 items-center px-6 lg:px-10">
-          <Link href="/pricing" className="justify-self-start text-sm text-slate-500 hover:text-blue-700">Voltar aos planos</Link>
-          <Link href="/" className="justify-self-center text-[15px] font-semibold tracking-[-0.02em]">ClicLab</Link>
-          <span className="justify-self-end text-xs uppercase tracking-[0.18em] text-blue-600/50">Checkout</span>
+    <main className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
+      <header className="border-b border-border bg-background">
+        <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between px-6 lg:px-10">
+          <Link href="/pricing" className="text-sm text-muted-foreground hover:text-foreground">Voltar aos planos</Link>
+          <span className="text-sm font-semibold">Finalizar assinatura</span>
         </div>
       </header>
 
-      <div className="mx-auto grid max-w-[1360px] gap-6 p-5 sm:p-7 lg:min-h-[calc(100vh-80px)] lg:grid-cols-[0.92fr_1.08fr]">
-        <section className="min-w-0 rounded-3xl border border-blue-100 bg-white px-6 py-12 shadow-[0_18px_55px_rgba(37,99,235,0.06)] lg:px-10 lg:py-16 xl:px-16">
-          <div className="mx-auto max-w-xl lg:ml-auto lg:mr-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-600/60">Resumo da assinatura</p>
-            <div className="mt-8 rounded-2xl border border-blue-100 bg-blue-50/60 p-6">
-              <div className="flex items-start justify-between gap-8">
-                <div>
-                  <p className="text-3xl font-medium tracking-[-0.04em]">{plan.name}</p>
-                  <p className="mt-2 max-w-xs text-sm leading-6 text-slate-500">{plan.description}</p>
-                </div>
-                <p className="whitespace-nowrap text-right text-2xl font-medium tracking-[-0.04em]">
-                  {formatBRL(monthlyEquivalent)}
-                  <span className="block pt-1 text-[11px] font-normal tracking-normal text-slate-400">por mês</span>
-                </p>
-              </div>
-            </div>
-
-            <div className="py-8">
-              <p className="mb-4 text-xs font-medium">Período da assinatura</p>
-              <div className="grid grid-cols-2 rounded-full border border-blue-100 bg-blue-50/50 p-1">
-                <button type="button" onClick={() => setBillingCycle("monthly")} className={`rounded-full py-2.5 text-sm ${billingCycle === "monthly" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Mensal</button>
-                <button type="button" onClick={() => setBillingCycle("yearly")} className={`rounded-full py-2.5 text-sm ${billingCycle === "yearly" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Anual · −20%</button>
-              </div>
-
-              <div className="mt-6 grid grid-cols-2 overflow-hidden rounded-2xl border border-blue-100 bg-white">
-                <div className="border-r border-blue-100 p-5">
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-blue-600/50">Cobrança</p>
-                  <p className="mt-2 text-sm">{billingCycle === "yearly" ? "A cada 12 meses" : "A cada mês"}</p>
-                </div>
-                <div className="p-5">
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-blue-600/50">Total de hoje</p>
-                  <p className="mt-2 text-sm font-semibold">{formatBRL(total)}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-blue-100 py-8">
-              <p className="mb-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-blue-600/50">O que você recebe</p>
-              <ol className="space-y-4">
-                {plan.features.map((feature, index) => (
-                  <li key={feature} className="grid grid-cols-[28px_1fr] text-sm">
-                    <span className="font-mono text-[10px] text-blue-500/40">{String(index + 1).padStart(2, "0")}</span>
-                    <span className="text-slate-600">{feature}</span>
-                  </li>
-                ))}
-              </ol>
+      <div className="mx-auto grid max-w-[1240px] lg:min-h-[calc(100vh-64px)] lg:grid-cols-[0.82fr_1.18fr]">
+        <section className="min-w-0 border-b border-border px-6 py-12 lg:border-b-0 lg:border-r lg:px-10 lg:py-16 xl:px-16">
+          <p className="text-xs font-semibold text-primary">Seu plano</p>
+          <div className="mt-8 flex items-start justify-between gap-8 border-b border-border pb-8">
+            <div><h1 className="text-3xl font-semibold tracking-tight">{plan.name}</h1><p className="mt-2 text-sm text-muted-foreground">{billingCycle === "yearly" ? "Assinatura anual" : "Assinatura mensal"}</p></div>
+            <p className="whitespace-nowrap text-right text-2xl font-semibold">{formatBRL(monthlyEquivalent)}<span className="block pt-1 text-xs font-normal text-muted-foreground">por mês</span></p>
+          </div>
+          <div className="py-8">
+            <div className="grid grid-cols-2 rounded-full border border-border p-1">
+              <button type="button" onClick={() => setBillingCycle("monthly")} className={`rounded-full py-2.5 text-sm ${billingCycle === "monthly" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Mensal</button>
+              <button type="button" onClick={() => setBillingCycle("yearly")} className={`rounded-full py-2.5 text-sm ${billingCycle === "yearly" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Anual · −20%</button>
             </div>
           </div>
+          <div className="flex items-center justify-between border-y border-border py-5 text-sm"><span className="text-muted-foreground">Total de hoje</span><strong>{formatBRL(total)}</strong></div>
+          <ol className="space-y-4 py-8">
+            {plan.features.map((feature, index) => <li key={feature} className="grid grid-cols-[28px_1fr] text-sm"><span className="font-mono text-[10px] text-primary/60">{String(index + 1).padStart(2, "0")}</span><span className="text-muted-foreground">{feature}</span></li>)}
+          </ol>
         </section>
 
-        <section className="min-w-0 rounded-3xl border border-blue-100 bg-white px-6 py-12 shadow-[0_18px_55px_rgba(37,99,235,0.08)] lg:px-10 lg:py-16 xl:px-16">
-          <div className="mx-auto max-w-xl lg:ml-0 lg:mr-auto">
-            <div className="flex items-end justify-between border-b border-blue-100 pb-7">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-600/60">Etapa final</p>
-                <h1 className="mt-4 text-4xl font-medium tracking-[-0.045em]">Pagamento</h1>
-              </div>
-              <p className="text-xs text-blue-600/45">Mercado Pago</p>
-            </div>
-
-            <div className="py-8">
-              <p className="mb-4 text-xs font-medium">Como deseja pagar?</p>
-              <div className="grid grid-cols-2 overflow-hidden rounded-2xl border border-blue-100 bg-blue-50/40 p-1">
-                <button type="button" onClick={() => setPaymentMethod("mercadopago")} className={`rounded-xl px-5 py-4 text-left text-sm ${paymentMethod === "mercadopago" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Cartão ou boleto</button>
-                <button type="button" onClick={() => setPaymentMethod("pix")} className={`rounded-xl px-5 py-4 text-left text-sm ${paymentMethod === "pix" ? "bg-blue-600 text-white" : "text-slate-500"}`}>Pix</button>
-              </div>
-            </div>
-
-            {error && <div className="mb-6 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-slate-700">{error}</div>}
-
-            {mercadoPagoConfig && !mercadoPagoConfig.configured && (
-              <div className="mb-6 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm leading-6 text-slate-600">
-                {!mercadoPagoConfig.accessTokenConfigured
-                  ? "O checkout está aguardando o Access Token do Mercado Pago. Nenhuma cobrança simulada será criada."
-                  : "Defina APP_URL com o IP desta máquina ou um domínio HTTPS para o Mercado Pago retornar ao checkout."}
-              </div>
-            )}
-
+        <section className="min-w-0 px-6 py-12 lg:px-10 lg:py-16 xl:px-16">
+          <div className="mx-auto max-w-xl">
+            <h2 className="text-4xl font-semibold tracking-tight">Pagamento</h2>
+            {error && <p className="mt-6 border-l-2 border-primary pl-4 text-sm leading-6">{error}</p>}
+            {paymentState === "pending" && <p className="mt-6 border-l-2 border-primary pl-4 text-sm">Pagamento em análise. Esta página atualizará automaticamente.</p>}
             {!token ? (
-              <div className="border-t border-blue-100 pt-8">
-                <h2 className="text-xl font-medium tracking-[-0.025em]">Entre para continuar</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-500">Sua conta é necessária para vincular e verificar o pagamento com segurança.</p>
-                <a href="/login" className="mt-8 flex h-13 items-center justify-center rounded-full bg-blue-600 px-6 text-sm font-semibold text-white hover:bg-blue-700">Entrar na minha conta</a>
-              </div>
-            ) : paymentMethod === "mercadopago" ? (
-              <div className="border-t border-blue-100 pt-8">
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-5">
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-blue-600/50">Ambiente de pagamento</p>
-                    <p className="mt-3 text-sm leading-6 text-slate-600">Os dados do cartão são preenchidos diretamente no Mercado Pago.</p>
-                  </div>
-                  <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-5">
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-blue-600/50">Confirmação</p>
-                    <p className="mt-3 text-sm leading-6 text-slate-600">Seu plano só é ativado após a aprovação real da cobrança.</p>
-                  </div>
-                </div>
-                <button type="button" onClick={beginMercadoPagoCheckout} disabled={isSubmitting || mercadoPagoConfig?.configured !== true} className="mt-8 flex h-13 w-full items-center justify-center rounded-full bg-blue-600 px-6 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-35">
-                  {isSubmitting ? "Abrindo checkout…" : `Continuar e pagar ${formatBRL(total)}`}
-                </button>
-              </div>
+              <div className="mt-10 border-t border-border pt-8"><a href="/login" className="flex h-13 items-center justify-center rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground hover:bg-primary/90">Entrar para continuar</a></div>
+            ) : configuration && !configuration.configured ? (
+              <UnavailableCardForm total={total} />
             ) : (
-              <div className="border-t border-blue-100 pt-8">
-                {pixPayment ? (
-                  <div>
-                    <div className="grid gap-7 sm:grid-cols-[190px_1fr] sm:items-center">
-                      <div className="overflow-hidden rounded-2xl border border-blue-100 bg-white p-3">
-                        {pixPayment.qrCodeBase64 ? (
-                          <img src={`data:image/png;base64,${pixPayment.qrCodeBase64}`} alt="Código QR Pix" className="aspect-square w-full object-contain" />
-                        ) : (
-                          <div className="grid aspect-square place-items-center rounded-xl bg-blue-50 px-4 text-center text-xs text-slate-500">Código QR indisponível. Use o código copia e cola.</div>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-[10px] uppercase tracking-[0.16em] text-blue-600/50">Aguardando confirmação</p>
-                        <p className="mt-3 text-2xl font-medium tracking-[-0.035em]">{formatBRL(pixPayment.amount)}</p>
-                        <p className="mt-3 text-sm leading-6 text-slate-500">A página verifica o pagamento automaticamente a cada cinco segundos.</p>
-                      </div>
-                    </div>
-                    <div className="mt-7 rounded-2xl border border-blue-100 bg-blue-50/40 p-4">
-                      <p className="break-all font-mono text-[11px] leading-5 text-slate-500">{pixPayment.qrCode}</p>
-                    </div>
-                    <button type="button" onClick={copyPixCode} className="mt-3 h-12 w-full rounded-full border border-blue-200 text-sm font-semibold text-blue-700 hover:bg-blue-50">{copied ? "Código copiado" : "Copiar código Pix"}</button>
-                    <p className="mt-4 text-center text-xs text-slate-400">{isChecking ? "Verificando pagamento…" : "Aguardando pagamento"}</p>
-                  </div>
-                ) : (
-                  <div>
-                    <p className="text-sm leading-6 text-slate-500">O código Pix é emitido pelo Mercado Pago e vinculado à sua assinatura. A ativação acontece somente depois da confirmação.</p>
-                    <button type="button" onClick={createPixPayment} disabled={isSubmitting || mercadoPagoConfig?.accessTokenConfigured !== true} className="mt-8 flex h-13 w-full items-center justify-center rounded-full bg-blue-600 px-6 text-sm font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-35">
-                      {isSubmitting ? "Gerando Pix…" : `Gerar Pix de ${formatBRL(total)}`}
-                    </button>
-                  </div>
-                )}
-              </div>
+              <form id="form-checkout" className="mt-10 space-y-6">
+                <Field label="Número do cartão"><div id="form-checkout__cardNumber" className="mp-secure-field h-12 rounded-xl border border-input bg-background px-4" /></Field>
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Validade"><div id="form-checkout__expirationDate" className="mp-secure-field h-12 rounded-xl border border-input bg-background px-4" /></Field>
+                  <Field label="CVV"><div id="form-checkout__securityCode" className="mp-secure-field h-12 rounded-xl border border-input bg-background px-4" /></Field>
+                </div>
+                <Field label="Nome no cartão" htmlFor="form-checkout__cardholderName"><input id="form-checkout__cardholderName" className="checkout-input" /></Field>
+                <Field label="E-mail" htmlFor="form-checkout__cardholderEmail"><input id="form-checkout__cardholderEmail" type="email" className="checkout-input" /></Field>
+                <div className="grid grid-cols-[0.42fr_1fr] gap-4">
+                  <Field label="Documento" htmlFor="form-checkout__identificationType"><select id="form-checkout__identificationType" className="checkout-input" /></Field>
+                  <Field label="Número" htmlFor="form-checkout__identificationNumber"><input id="form-checkout__identificationNumber" className="checkout-input" /></Field>
+                </div>
+                <select id="form-checkout__issuer" className="hidden" />
+                <Field label="Parcelamento" htmlFor="form-checkout__installments"><select id="form-checkout__installments" className="checkout-input" /></Field>
+                <button id="form-checkout__submit" type="submit" disabled={isSubmitting || paymentState === "pending"} className="mt-2 h-13 w-full rounded-full bg-primary px-6 text-sm font-semibold text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-40">{isSubmitting ? "Processando…" : `Pagar ${formatBRL(total)}`}</button>
+                <p className="text-center text-[11px] leading-5 text-muted-foreground">Os dados do cartão são criptografados e não ficam armazenados.</p>
+              </form>
             )}
-
-            <div className="mt-10 border-t border-blue-100 pt-5 text-center text-[11px] leading-5 text-slate-400">
-              Ao continuar, você concorda com os termos da assinatura. A ClicLab não recebe nem armazena os dados do seu cartão.
-            </div>
           </div>
         </section>
       </div>
     </main>
+  );
+}
+
+function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
+  return <div className="space-y-2"><label htmlFor={htmlFor} className="text-sm font-medium">{label}</label>{children}</div>;
+}
+
+function UnavailableCardForm({ total }: { total: number }) {
+  const disabledClass = "checkout-input text-muted-foreground opacity-70";
+  return (
+    <div className="mt-10 space-y-6">
+      <Field label="Número do cartão"><input disabled placeholder="0000 0000 0000 0000" className={disabledClass} /></Field>
+      <div className="grid grid-cols-2 gap-4">
+        <Field label="Validade"><input disabled placeholder="MM/AA" className={disabledClass} /></Field>
+        <Field label="CVV"><input disabled placeholder="CVV" className={disabledClass} /></Field>
+      </div>
+      <Field label="Nome no cartão"><input disabled placeholder="Nome completo" className={disabledClass} /></Field>
+      <Field label="E-mail"><input disabled placeholder="voce@email.com" className={disabledClass} /></Field>
+      <div className="grid grid-cols-[0.42fr_1fr] gap-4">
+        <Field label="Documento"><input disabled placeholder="CPF" className={disabledClass} /></Field>
+        <Field label="Número"><input disabled placeholder="000.000.000-00" className={disabledClass} /></Field>
+      </div>
+      <Field label="Parcelamento"><input disabled placeholder="Selecione" className={disabledClass} /></Field>
+      <p className="border-l-2 border-primary pl-4 text-sm text-muted-foreground">Os pagamentos estão temporariamente indisponíveis.</p>
+      <button disabled className="h-13 w-full rounded-full bg-primary text-sm font-semibold text-primary-foreground opacity-35">Pagar {formatBRL(total)}</button>
+    </div>
   );
 }

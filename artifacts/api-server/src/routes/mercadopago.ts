@@ -4,6 +4,7 @@ import { getDb } from "../lib/sqlite";
 import { logger } from "../lib/logger";
 import {
   createPreference,
+  createCardPayment,
   createPixPayment,
   getPaymentDetails,
   getMercadoPagoConfiguration,
@@ -211,6 +212,88 @@ router.post("/mercadopago/create-pix", requireAuth, async (req: any, res) => {
   } catch (err: any) {
     logger.error({ userId, error: err.message }, "Failed to create Pix payment");
     res.status(500).json({ error: "Erro ao gerar código Pix: " + err.message });
+  }
+});
+
+router.post("/mercadopago/create-card-payment", requireAuth, async (req: any, res) => {
+  const { planTier = "pro", billingCycle = "monthly", token, paymentMethodId, issuerId, installments, identificationType, identificationNumber } = req.body;
+  const userId = req.userId;
+
+  if (!isPaidPlanTier(planTier) || !isBillingCycle(billingCycle)) {
+    res.status(400).json({ error: "Plano ou período de cobrança inválido." });
+    return;
+  }
+  if (!token || !paymentMethodId || !identificationType || !identificationNumber) {
+    res.status(400).json({ error: "Confira os dados do cartão e do titular." });
+    return;
+  }
+
+  const installmentCount = Number(installments);
+  if (!Number.isInteger(installmentCount) || installmentCount < 1 || installmentCount > 12) {
+    res.status(400).json({ error: "Parcelamento inválido." });
+    return;
+  }
+
+  const selectedPlan = PLANS[planTier];
+  const amount = billingCycle === "yearly" ? selectedPlan.yearlyPrice : selectedPlan.monthlyPrice;
+  const db = getDb();
+
+  try {
+    const user = (await db.prepare("SELECT email, name FROM users WHERE id = ?").get(userId)) as any;
+    if (!user) {
+      res.status(404).json({ error: "Usuário não encontrado" });
+      return;
+    }
+
+    const payment = await createCardPayment({
+      userId,
+      userEmail: user.email,
+      userName: user.name,
+      planTier,
+      billingCycle,
+      amount,
+      token: String(token),
+      paymentMethodId: String(paymentMethodId),
+      issuerId: issuerId ? String(issuerId) : undefined,
+      installments: installmentCount,
+      identificationType: String(identificationType),
+      identificationNumber: String(identificationNumber).replace(/\D/g, ""),
+    });
+
+    await db.prepare(
+      `INSERT INTO payments
+       (user_id, mp_payment_id, status, status_detail, payment_method_id, payment_type_id, transaction_amount, payer_email, plan_tier, billing_cycle)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (mp_payment_id) DO UPDATE SET
+         status = EXCLUDED.status,
+         status_detail = EXCLUDED.status_detail,
+         updated_at = CURRENT_TIMESTAMP`
+    ).run(
+      userId,
+      String(payment.id),
+      payment.status,
+      payment.status_detail || null,
+      payment.payment_method_id || paymentMethodId,
+      payment.payment_type_id || "credit_card",
+      amount,
+      user.email,
+      planTier,
+      billingCycle,
+    );
+
+    if (payment.status === "approved") {
+      await upgradeUserSubscription(userId, planTier, String(payment.id), billingCycle);
+    }
+
+    res.json({
+      paymentId: String(payment.id),
+      status: payment.status,
+      statusDetail: payment.status_detail,
+      approved: payment.status === "approved",
+    });
+  } catch (err: any) {
+    logger.error({ userId, error: err.message }, "Failed to create card payment");
+    res.status(500).json({ error: err.message || "Não foi possível processar o pagamento." });
   }
 });
 

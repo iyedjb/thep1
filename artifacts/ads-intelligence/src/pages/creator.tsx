@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
   Table,
@@ -83,7 +85,7 @@ const TRAFFIC_CHAT_GREETING = "Olá! Sou seu gestor de tráfego especializado em
 export default function Creator() {
   const { toast } = useToast();
 
-  const [activeView, setActiveView] = useState<View>("create");
+  const [activeView, setActiveView] = useState<View>("websites");
   const [searchTerm, setSearchTerm] = useState("");
 
   const [referenceUrl, setReferenceUrl] = useState("");
@@ -100,12 +102,14 @@ export default function Creator() {
   const [apiToken, setApiToken] = useState("");
   const [streamCode, setStreamCode] = useState("");
   const [leadNetwork, setLeadNetwork] = useState<"none" | "drcash" | "lemonad">("none");
+  const [pendingLeadNetwork, setPendingLeadNetwork] = useState<"none" | "drcash" | "lemonad">("none");
   const [lemonOfferId, setLemonOfferId] = useState("");
   const [lemonWebmasterToken, setLemonWebmasterToken] = useState("");
   const [lemonCost, setLemonCost] = useState("");
   const [thankYouUrl, setThankYouUrl] = useState("./Obrigado.html");
   const [designSummary, setDesignSummary] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [advancedStep, setAdvancedStep] = useState<1 | 2>(1);
   const [selectedOption, setSelectedOption] = useState<"a" | "b">("a");
   const [keepOriginalStructure, setKeepOriginalStructure] = useState(false);
 
@@ -538,9 +542,93 @@ export default function Creator() {
   });
 
   return (
-    <div className="min-h-[calc(100vh-80px)] bg-background">
+    <div className="min-h-[calc(100vh-80px)] bg-background [&_svg]:hidden">
+      <Dialog open={showAdvanced} onOpenChange={(open) => { setShowAdvanced(open); if (!open) setAdvancedStep(1); }}>
+        <DialogContent className="max-w-lg rounded-3xl border border-border bg-background p-0 shadow-2xl [&>button]:hidden">
+          <DialogTitle className="sr-only">Configurar integração</DialogTitle>
+          <DialogDescription className="sr-only">Selecione uma integração e informe suas credenciais.</DialogDescription>
+          <div className="border-b border-border px-7 py-5">
+            <p className="text-xs font-semibold text-primary">Etapa {advancedStep} de 2</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+              {advancedStep === 1 ? "Escolha a integração" : pendingLeadNetwork === "drcash" ? "Configurar Dr. Cash" : "Configurar Lemon Ads"}
+            </h2>
+          </div>
+
+          {advancedStep === 1 ? (
+            <div className="space-y-3 px-7 py-8">
+              {(["drcash", "lemonad"] as const).map((network) => (
+                <button
+                  key={network}
+                  type="button"
+                  onClick={() => setPendingLeadNetwork(network)}
+                  className={`flex h-14 w-full items-center rounded-2xl border px-5 text-left text-sm font-semibold transition-colors ${pendingLeadNetwork === network ? "border-primary bg-primary/[0.06] text-primary" : "border-border bg-background text-foreground hover:border-primary/35"}`}
+                >
+                  {network === "drcash" ? "Dr. Cash" : "Lemon Ads"}
+                </button>
+              ))}
+              {pendingLeadNetwork !== "none" && (
+                <button type="button" onClick={() => { setPendingLeadNetwork("none"); setLeadNetwork("none"); setShowAdvanced(false); }} className="px-1 pt-2 text-xs text-muted-foreground hover:text-foreground">
+                  Remover integração
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-5 px-7 py-8">
+              {pendingLeadNetwork === "drcash" ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="modal-api-token">API Token</Label>
+                    <Input id="modal-api-token" value={apiToken} onChange={(e) => setApiToken(e.target.value)} className="h-12 rounded-xl bg-background" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="modal-stream-code">Stream code</Label>
+                    <Input id="modal-stream-code" value={streamCode} onChange={(e) => setStreamCode(e.target.value)} className="h-12 rounded-xl bg-background" />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="modal-offer-id">Offer ID</Label>
+                    <Input id="modal-offer-id" value={lemonOfferId} onChange={(e) => setLemonOfferId(e.target.value)} className="h-12 rounded-xl bg-background" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="modal-cost">Cost</Label>
+                    <Input id="modal-cost" value={lemonCost} onChange={(e) => setLemonCost(e.target.value)} className="h-12 rounded-xl bg-background" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="modal-webmaster-token">Webmaster Token</Label>
+                    <Input id="modal-webmaster-token" value={lemonWebmasterToken} onChange={(e) => setLemonWebmasterToken(e.target.value)} className="h-12 rounded-xl bg-background" />
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3 border-t border-border p-4">
+            <Button type="button" variant="ghost" className="h-12 rounded-full border border-border" onClick={() => advancedStep === 1 ? setShowAdvanced(false) : setAdvancedStep(1)}>
+              {advancedStep === 1 ? "Cancelar" : "Voltar"}
+            </Button>
+            <Button
+              type="button"
+              className="h-12 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+              disabled={advancedStep === 1 && pendingLeadNetwork === "none"}
+              onClick={() => {
+                if (advancedStep === 1) setAdvancedStep(2);
+                else {
+                  setLeadNetwork(pendingLeadNetwork);
+                  setShowAdvanced(false);
+                  setAdvancedStep(1);
+                  toast({ title: "Integração adicionada" });
+                }
+              }}
+            >
+              {advancedStep === 1 ? "Próximo" : "Salvar"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       {/* Ambient background glows */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+      <div className="hidden">
         <div className="absolute -top-40 -left-20 w-[500px] h-[500px] rounded-full bg-primary/5 blur-[120px]" />
         <div className="absolute top-1/2 -right-20 w-[400px] h-[400px] rounded-full bg-primary/[0.025] blur-[100px]" />
         <div className="absolute -bottom-20 left-1/3 w-[350px] h-[350px] rounded-full bg-primary/4 blur-[80px]" />
@@ -550,7 +638,7 @@ export default function Creator() {
 
         {/* ── Hero Header ─────────────────────────────────────── */}
         {step !== "generating" && step !== "done" && (
-          <div className="animate-slide-up">
+          <div className="hidden">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
               <div className="space-y-2">
                 <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 mb-1">
@@ -634,26 +722,28 @@ export default function Creator() {
         )}
 
         {/* ── Main 2-col Layout ───────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        <div className="block">
 
           {/* ── LEFT: Form / Wizard ──────────────────────────── */}
-          <div className={`w-full lg:col-span-5 space-y-5 ${activeView === "create" ? "block" : "hidden lg:block"}`}>
+          <div className={`mx-auto w-full max-w-4xl space-y-5 ${activeView === "create" ? "block" : "hidden"}`}>
 
             {activeMode === "redirect" && (
               <>
                 {/* STEP: Form */}
                 {step === "form" && (
               <div className="animate-slide-up">
-                <Card className="border border-border bg-card shadow-md rounded-2xl overflow-hidden">
+                <Card className="border-0 bg-transparent shadow-none rounded-none overflow-visible">
                   {/* Card gradient top accent */}
-                  <div className="h-1 w-full bg-primary" />
-                  <CardContent className="p-6 space-y-6">
+                  <div className="hidden" />
+                  <CardContent className="p-0 space-y-8">
+                    <button type="button" onClick={() => setActiveView("websites")} className="text-sm text-muted-foreground hover:text-foreground">
+                      Minhas presells
+                    </button>
                     <div className="space-y-1">
-                      <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                      <h2 className="text-3xl font-semibold tracking-tight text-foreground">
                         <Layout className="h-4 w-4 text-primary" />
                         Nova Presell de Redirecionamento
                       </h2>
-                      <p className="text-xs text-muted-foreground">A IA pesquisa a página original e gera a estrutura otimizada automaticamente.</p>
                     </div>
 
                     <form onSubmit={handleGenerate} className="space-y-5" autoComplete="off">
@@ -744,14 +834,14 @@ export default function Creator() {
                             <div
                               key={key}
                               onClick={() => setSelectedOption(key)}
-                              className={`group relative rounded-xl border-2 p-4 cursor-pointer transition-all duration-200 ${
+                              className={`group relative rounded-2xl border p-5 cursor-pointer transition-colors ${
                                 selectedOption === key
-                                  ? "border-primary bg-primary/5 shadow-md shadow-primary/10"
-                                  : "border-border bg-muted/20 hover:border-border/80 hover:bg-muted/40"
+                                  ? "border-primary bg-primary/[0.05]"
+                                  : "border-border bg-background hover:border-primary/35"
                               }`}
                             >
                               <div className="flex items-start justify-between gap-2 mb-3">
-                                <div className={`flex h-8 w-8 items-center justify-center rounded-lg border ${iconBg}`}>
+                                <div className="hidden">
                                   <Icon className="h-3.5 w-3.5" />
                                 </div>
                                 <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center transition-all shrink-0 ${
@@ -762,9 +852,9 @@ export default function Creator() {
                               </div>
                               <div>
                                 <p className="text-[11px] font-bold text-foreground">{title}</p>
-                                <p className={`text-[9px] font-bold uppercase tracking-wider ${badgeColor} mb-2`}>{badge}</p>
-                                <p className="text-[10px] text-muted-foreground leading-relaxed">{desc}</p>
-                                <div className="mt-3 space-y-1 pt-2.5 border-t border-border/50">
+                                <p className="hidden">{badge}</p>
+                                <p className="hidden">{desc}</p>
+                                <div className="hidden">
                                   {features.map(f => (
                                     <div key={f} className="flex items-center gap-1 text-[9px] font-semibold text-muted-foreground">
                                       <Check className="h-2.5 w-2.5 text-emerald-500 shrink-0" />
@@ -789,11 +879,7 @@ export default function Creator() {
                               onChange={(e) => setKeepOriginalStructure(e.target.checked)}
                               className="mt-0.5 h-4 w-4 shrink-0 rounded border-border accent-primary cursor-pointer"
                             />
-                            <span className="text-[10px] leading-relaxed text-muted-foreground">
-                              <span className="font-bold text-foreground">Manter estrutura original da página</span>
-                              <br />
-                              Sem marcar: gera um layout novo com IA (3 colunas). Marcando: mantém o design original da referência, ajustando apenas os textos que violam as políticas do Google Ads.
-                            </span>
+                            <span className="text-xs font-medium text-foreground">Manter estrutura original da página</span>
                           </label>
                         )}
                       </div>
@@ -804,32 +890,32 @@ export default function Creator() {
                           <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/15 text-primary text-[9px] font-black">3</span>
                           Idioma do Pop-up de Cookies
                         </Label>
-                        <select
-                          id="popup-language"
-                          value={popupLanguage}
-                          onChange={(e) => setPopupLanguage(e.target.value)}
-                          className="w-full rounded-xl h-11 border border-border bg-card text-xs text-foreground px-3 focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer shadow-2xs"
-                        >
-                          <option value="auto">Detectar do idioma do site (Recomendado)</option>
-                          <option value="pt-BR">Português - Brasil (pt-BR)</option>
-                          <option value="pt-PT">Português - Portugal (pt-PT)</option>
-                          <option value="es">Espanhol (es)</option>
-                          <option value="en">Inglês (en)</option>
-                          <option value="it">Italiano (it)</option>
-                          <option value="fr">Francês (fr)</option>
-                          <option value="de">Alemão (de)</option>
-                          <option value="nl">Holandês (nl)</option>
-                          <option value="sv">Sueco (sv)</option>
-                          <option value="da">Dinamarquês (da)</option>
-                          <option value="fi">Finlandês (fi)</option>
-                          <option value="no">Norueguês (no)</option>
-                          <option value="ro">Romeno (ro)</option>
-                          <option value="pl">Polonês (pl)</option>
-                          <option value="ar">Árabe (ar)</option>
-                          <option value="he">Hebraico (he)</option>
-                          <option value="th">Tailandês (th)</option>
-                          <option value="ja">Japonês (ja)</option>
-                        </select>
+                        <Select value={popupLanguage} onValueChange={setPopupLanguage}>
+                          <SelectTrigger id="popup-language" className="h-11 rounded-xl border-border bg-background text-xs shadow-none">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-xl border-border bg-popover">
+                            <SelectItem value="auto">Detectar automaticamente</SelectItem>
+                            <SelectItem value="pt-BR">Português — Brasil</SelectItem>
+                            <SelectItem value="pt-PT">Português — Portugal</SelectItem>
+                            <SelectItem value="es">Espanhol</SelectItem>
+                            <SelectItem value="en">Inglês</SelectItem>
+                            <SelectItem value="it">Italiano</SelectItem>
+                            <SelectItem value="fr">Francês</SelectItem>
+                            <SelectItem value="de">Alemão</SelectItem>
+                            <SelectItem value="nl">Holandês</SelectItem>
+                            <SelectItem value="sv">Sueco</SelectItem>
+                            <SelectItem value="da">Dinamarquês</SelectItem>
+                            <SelectItem value="fi">Finlandês</SelectItem>
+                            <SelectItem value="no">Norueguês</SelectItem>
+                            <SelectItem value="ro">Romeno</SelectItem>
+                            <SelectItem value="pl">Polonês</SelectItem>
+                            <SelectItem value="ar">Árabe</SelectItem>
+                            <SelectItem value="he">Hebraico</SelectItem>
+                            <SelectItem value="th">Tailandês</SelectItem>
+                            <SelectItem value="ja">Japonês</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
 
                       {/* Destination URL */}
@@ -864,20 +950,20 @@ export default function Creator() {
                       {/* Advanced settings toggle */}
                       <button
                         type="button"
-                        onClick={() => setShowAdvanced(!showAdvanced)}
-                        className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-4 py-3 text-left transition-colors hover:bg-muted/40"
+                        onClick={() => { setPendingLeadNetwork(leadNetwork); setAdvancedStep(1); setShowAdvanced(true); }}
+                        className="flex w-full items-center justify-between rounded-xl border border-border bg-background px-4 py-3 text-left transition-colors hover:border-primary/35"
                       >
                         <span className="text-xs font-semibold text-foreground flex items-center gap-2">
                           <Code className="h-3.5 w-3.5 text-primary" />
                           Opções Avançadas
                         </span>
                         <span className={`text-[10px] font-bold transition-colors ${showAdvanced ? "text-primary" : "text-muted-foreground"}`}>
-                          {showAdvanced ? "▲ Ocultar" : "▼ Dr.Cash & Tags"}
+                          {leadNetwork === "none" ? "Configurar" : leadNetwork === "drcash" ? "Dr. Cash" : "Lemon Ads"}
                         </span>
                       </button>
 
                       {/* Advanced fields */}
-                      {showAdvanced && (
+                      {false && (
                         <div className="rounded-xl border border-border/60 bg-muted/10 p-4 space-y-4 animate-slide-up">
                           <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">Rede de Geração de Lead (Opção B)</p>
 
@@ -1029,8 +1115,8 @@ export default function Creator() {
             {/* STEP: Generating */}
             {step === "generating" && (
               <div className="animate-slide-up">
-                <Card className="border border-border bg-card rounded-2xl overflow-hidden">
-                  <div className="h-1 w-full bg-primary animate-pulse" />
+                <Card className="border-0 bg-transparent shadow-none rounded-none overflow-visible">
+                  <div className="hidden" />
                   <CardContent className="p-10 text-center space-y-6">
                     <div className="relative mx-auto w-20 h-20 flex items-center justify-center">
                       <div className="absolute inset-0 rounded-full bg-primary/10 animate-ping" />
@@ -1056,7 +1142,7 @@ export default function Creator() {
             {/* STEP: Done */}
             {step === "done" && (
               <div className="animate-slide-up">
-                <Card className="border border-emerald-500/30 bg-emerald-500/5 rounded-2xl overflow-hidden">
+                <Card className="border-0 bg-transparent shadow-none rounded-none overflow-visible">
                   <CardContent className="p-10 text-center space-y-4">
                     <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/15 border-2 border-emerald-500/30 flex items-center justify-center">
                       <Check className="h-8 w-8 text-emerald-500" strokeWidth={3} />
@@ -1073,8 +1159,8 @@ export default function Creator() {
             {/* STEP: Actions */}
             {step === "actions" && (
               <div className="space-y-4 animate-slide-up">
-                <Card className="border border-border bg-card rounded-2xl overflow-hidden">
-                  <div className="h-1 w-full bg-primary" />
+                <Card className="border-0 bg-transparent shadow-none rounded-none overflow-visible">
+                  <div className="hidden" />
                   <CardContent className="p-6 space-y-5">
                     <div className="text-center space-y-2">
                       <div className="mx-auto w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
@@ -1203,18 +1289,17 @@ export default function Creator() {
           </div>
 
           {/* ── RIGHT: Bridge History Table ──────────────────── */}
-          <div className={`w-full lg:col-span-7 ${activeView === "websites" ? "block" : "hidden lg:block"}`}>
-            <Card className="border border-border bg-card shadow-md rounded-2xl overflow-hidden h-full">
-              <div className="h-1 w-full bg-primary" />
-              <CardContent className="p-6 space-y-5">
+          <div className={`mx-auto w-full max-w-6xl ${activeView === "websites" ? "block" : "hidden"}`}>
+            <Card className="border-0 bg-transparent shadow-none rounded-none overflow-visible h-full">
+              <div className="hidden" />
+              <CardContent className="p-0 space-y-8">
                 {/* Table header */}
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                   <div>
-                    <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+                    <h3 className="text-3xl font-semibold tracking-tight text-foreground">
                       <Layers className="h-4 w-4 text-primary" />
                       Minhas Presells
                     </h3>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{savedWebsites.length} links configurados no sistema</p>
                   </div>
                   <div className="relative w-full sm:w-60 shrink-0">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -1223,31 +1308,25 @@ export default function Creator() {
                       placeholder="Buscar presell ou destino..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-9 rounded-xl h-9 text-xs border-border bg-muted/30 focus-visible:ring-primary"
+                      className="rounded-xl h-11 px-4 text-xs border-border bg-background focus-visible:ring-primary"
                     />
                   </div>
                 </div>
 
                 {/* Empty state */}
                 {filteredWebsites.length === 0 ? (
-                  <div className="text-center py-16 space-y-4 border border-dashed border-border/60 rounded-xl bg-muted/10">
-                    <div className="mx-auto w-14 h-14 rounded-xl bg-muted/40 border border-border/60 flex items-center justify-center">
-                      <Globe className="h-6 w-6 text-muted-foreground/50" />
-                    </div>
-                    <div className="space-y-1 max-w-xs mx-auto">
+                  <div className="flex min-h-[430px] flex-col items-center justify-center border-y border-border py-16 text-center">
+                    <div className="max-w-xs mx-auto">
                       <p className="text-sm font-semibold text-foreground">
                         {searchTerm ? "Nenhum resultado" : "Nenhuma presell criada ainda"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {searchTerm ? "Tente alterar os termos da busca." : "Preencha o formulário ao lado e clique em Gerar."}
                       </p>
                     </div>
                     {!searchTerm && (
                       <button
                         onClick={() => { setActiveView("create"); setStep("form"); }}
-                        className="text-xs text-primary font-semibold hover:underline lg:hidden"
+                        className="mt-auto h-12 min-w-64 rounded-full bg-primary px-7 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
                       >
-                        Criar primeira presell →
+                        Criar minha primeira presell
                       </button>
                     )}
                   </div>
@@ -1343,6 +1422,13 @@ export default function Creator() {
                         </TableBody>
                       </Table>
                     </div>
+                  </div>
+                )}
+                {filteredWebsites.length > 0 && (
+                  <div className="flex justify-end border-t border-border pt-6">
+                    <Button onClick={() => { setActiveView("create"); setStep("form"); }} className="h-12 rounded-full bg-primary px-7 text-primary-foreground hover:bg-primary/90">
+                      Nova presell
+                    </Button>
                   </div>
                 )}
               </CardContent>

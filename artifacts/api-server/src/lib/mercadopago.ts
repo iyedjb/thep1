@@ -45,6 +45,21 @@ function getAccessToken(): string | null {
   return token && token.trim().length > 0 ? token.trim() : null;
 }
 
+export interface CreateCardPaymentOptions {
+  userId: number;
+  userEmail: string;
+  userName?: string;
+  planTier: "starter" | "pro" | "enterprise";
+  billingCycle: "monthly" | "yearly";
+  amount: number;
+  token: string;
+  paymentMethodId: string;
+  issuerId?: string;
+  installments: number;
+  identificationType: string;
+  identificationNumber: string;
+}
+
 function getAppUrl(): string | null {
   const appUrl = process.env.APP_URL || process.env.PUBLIC_URL;
   if (appUrl) return appUrl.replace(/\/+$/, "");
@@ -70,12 +85,56 @@ export function getMercadoPagoConfiguration() {
   const appUrl = getAppUrl();
   const accessTokenConfigured = Boolean(getAccessToken());
   const returnUrlConfigured = isValidReturnUrl(appUrl);
+  const publicKey = process.env.MERCADOPAGO_PUBLIC_KEY?.trim() || "";
   return {
-    configured: accessTokenConfigured && returnUrlConfigured,
+    configured: accessTokenConfigured && Boolean(publicKey),
     accessTokenConfigured,
+    publicKeyConfigured: Boolean(publicKey),
+    publicKey,
     returnUrlConfigured,
     webhookConfigured: Boolean(process.env.MERCADOPAGO_WEBHOOK_SECRET),
   };
+}
+
+export async function createCardPayment(options: CreateCardPaymentOptions): Promise<any> {
+  const accessToken = getAccessToken();
+  if (!accessToken) throw new Error("MERCADOPAGO_ACCESS_TOKEN não está configurado no servidor");
+
+  const externalReference = `usr_${options.userId}_${options.planTier}_${options.billingCycle}_${Date.now()}`;
+  const payload = {
+    transaction_amount: Number(options.amount.toFixed(2)),
+    token: options.token,
+    description: `Assinatura ${options.planTier.toUpperCase()} (${options.billingCycle === "yearly" ? "Anual" : "Mensal"})`,
+    installments: options.installments,
+    payment_method_id: options.paymentMethodId,
+    ...(options.issuerId ? { issuer_id: options.issuerId } : {}),
+    payer: {
+      email: options.userEmail,
+      first_name: options.userName || "Usuário",
+      identification: {
+        type: options.identificationType,
+        number: options.identificationNumber,
+      },
+    },
+    external_reference: externalReference,
+  };
+
+  const response = await fetch(`${MP_BASE_URL}/v1/payments`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+      "X-Idempotency-Key": crypto.randomUUID(),
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data: any = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    logger.error({ status: response.status, cause: data?.cause }, "Error creating card payment");
+    throw new Error(data?.message || "Não foi possível processar o cartão");
+  }
+  return data;
 }
 
 /**
