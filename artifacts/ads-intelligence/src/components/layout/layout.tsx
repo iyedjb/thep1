@@ -16,7 +16,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/campaigns": "Campanhas",
   "/keywords": "Palavras-chave",
   "/reports": "Relatórios",
-  "/trends": "Google Trends",
+  "/trends": "Search Keyword",
   "/creator": "Presell com IA",
   "/traffic-manager": "Gestor de Tráfego",
   "/tracking": "Rastreamento",

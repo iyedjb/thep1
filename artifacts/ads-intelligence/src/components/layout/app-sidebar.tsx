@@ -35,7 +35,7 @@ const navItems = [
   { path: "/tracking", label: "Rastreamento" },
   { path: "/domains", label: "Meus domínios" },
   { path: "/traffic-manager", label: "Gestor de Tráfego" },
-  { path: "/trends", label: "Google Trends" },
+  { path: "/trends", label: "Search Keyword" },
 ];
 
 function formatCustomerId(value: string) {
