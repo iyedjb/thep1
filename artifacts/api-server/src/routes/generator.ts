@@ -4063,7 +4063,7 @@ async function queryGemini(systemPrompt: string, userPrompt: string, jsonMode = 
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash",
+    model: "gemini-3.6-flash",
     generationConfig: {
       responseMimeType: jsonMode ? "application/json" : "text/plain",
       temperature: 0.1,
@@ -4276,7 +4276,14 @@ async function queryGroq(messages: any[], jsonMode = false, maxTokens = 8000) {
       "Authorization": `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: "llama-3.1-8b-instant",
+      // llama-3.1-8b-instant was retired from Groq; gpt-oss-20b is a
+      // reasoning model. "low" effort was tried first but on longer,
+      // structured system prompts (e.g. numbered "Workflow A/B/C" tables)
+      // it sometimes hallucinates a tool call even though no tools are
+      // registered here, which Groq rejects with a 400 — "medium" gives it
+      // enough room to reason its way to a plain-text reply instead.
+      model: "openai/gpt-oss-20b",
+      reasoning_effort: "medium",
       messages,
       temperature: 0.2,
       max_tokens: maxTokens,
@@ -4313,7 +4320,12 @@ async function openRouterRequest(messages: any[], jsonMode: boolean, maxTokens: 
       messages,
       temperature: 0.2,
       max_tokens: maxTokens,
-      response_format: jsonMode ? { type: "json_object" } : undefined
+      response_format: jsonMode ? { type: "json_object" } : undefined,
+      // gpt-oss models spend part of max_tokens on hidden chain-of-thought
+      // before the first visible token — without capping it low, short
+      // completions come back with empty content (finish_reason: "length"
+      // hit mid-reasoning). Other OpenRouter models just ignore this field.
+      reasoning: model.startsWith("openai/gpt-oss") ? { effort: "low" } : undefined
     })
   });
 
@@ -4326,7 +4338,10 @@ async function openRouterRequest(messages: any[], jsonMode: boolean, maxTokens: 
   return { text: data.choices[0]?.message?.content || "", usage: data.usage };
 }
 
-async function queryOpenRouter(messages: any[], jsonMode = false, maxTokens = 8000, model = "openai/gpt-oss-20b:free") {
+// The ":free" slug for this model was discontinued by OpenRouter (404s
+// permanently now) — using the paid slug instead, which costs a fraction of
+// a cent per call (~$0.000005-0.00001).
+async function queryOpenRouter(messages: any[], jsonMode = false, maxTokens = 8000, model = "openai/gpt-oss-20b") {
   const { text } = await openRouterRequest(messages, jsonMode, maxTokens, model);
   return text;
 }
@@ -7266,6 +7281,46 @@ function sanitizeChatHistoryForPrompt(history: any[]): Array<{ role: string; con
   }));
 }
 
+const CHAT_URL_REGEX = /https?:\/\/[^\s<>"']+/i;
+
+// Human-readable label for each code detectLandingPageLanguage can return —
+// same set offered in the presell creator's language dropdown.
+const LANGUAGE_LABELS: Record<string, string> = {
+  "pt-BR": "Português, Brasil", "pt-PT": "Português, Portugal", "es": "Espanhol",
+  "en": "Inglês", "it": "Italiano", "fr": "Francês", "de": "Alemão", "nl": "Holandês",
+  "sv": "Sueco", "da": "Dinamarquês", "fi": "Finlandês", "no": "Norueguês",
+  "ro": "Romeno", "pl": "Polonês", "ar": "Árabe", "he": "Hebraico", "th": "Tailandês", "ja": "Japonês",
+};
+
+// Workflow B asks for the campaign/product page link instead of interviewing
+// the user field by field — this fetches it and reuses the same metadata
+// extraction and language detection the presell generator already relies on
+// (price, discount, shipping, offer copy, page language...), then formats
+// it as a compact block the AI reads as ground truth. Any single field the
+// page doesn't clearly state is left out, so the prompt's own instruction
+// ("only ask for what's missing") has something real to react to instead of
+// guessing.
+async function extractCampaignPageSummary(url: string): Promise<string> {
+  const { html, finalUrl } = await fetchReferenceHtml(url);
+  const meta = extractPageMetadata(html, finalUrl);
+  const langCode = detectLandingPageLanguage(html, finalUrl, "auto", meta);
+  const langLabel = LANGUAGE_LABELS[langCode] || langCode;
+
+  const lines: string[] = [`[Dados extraídos automaticamente da página ${finalUrl} — use-os em vez de perguntar ao usuário; só pergunte o que não estiver aqui]`];
+  lines.push(`Idioma/país detectado da página: ${langLabel} (código ${langCode}) — use este como idioma da copy, a menos que o usuário peça outro.`);
+  if (meta.productName) lines.push(`Nome do produto: ${meta.productName}`);
+  if (meta.promotionalPrice) lines.push(`Preço promocional/atual: ${meta.promotionalPrice}`);
+  if (meta.originalPrice) lines.push(`Preço original (de/para): ${meta.originalPrice}`);
+  if (!meta.promotionalPrice && !meta.originalPrice && meta.extractedPrice) lines.push(`Preço: ${meta.extractedPrice}`);
+  if (meta.extractedOffer) lines.push(`Oferta/desconto mencionado na página: ${meta.extractedOffer}`);
+  if (meta.extractedDelivery) lines.push(`Entrega/frete: ${meta.extractedDelivery}`);
+  if (meta.isCod) lines.push(`Pagamento na entrega (COD) disponível: sim`);
+  if (meta.seoDescription) lines.push(`Descrição da página: ${meta.seoDescription}`);
+  if (meta.productDetails && meta.productDetails.length) lines.push(`Outros detalhes extraídos: ${meta.productDetails.slice(0, 8).join(" | ")}`);
+  if (lines.length === 2) lines.push("Nenhum outro dado estruturado foi identificado automaticamente — peça os detalhes que faltarem diretamente ao usuário.");
+  return lines.join("\n");
+}
+
 // Tries OpenRouter -> Groq -> Gemini in order, returns the first successful raw text response
 // (still JSON-ish text, not yet parsed) or null if every provider failed/is unconfigured.
 // openRouterModel lets a caller request a specific OpenRouter-hosted model (e.g. a paid Claude
@@ -7302,7 +7357,7 @@ async function callChatProviders(systemPrompt: string, sanitizedHistory: Array<{
     try {
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
       const model = genAI.getGenerativeModel({
-        model: "gemini-2.0-flash",
+        model: "gemini-3.6-flash",
         generationConfig: {
           ...(jsonMode ? { responseMimeType: "application/json" } : {}),
           temperature: jsonMode ? 0.2 : 0.5,
@@ -7349,14 +7404,14 @@ Ao ser ativado, identifique o tipo de solicitação e execute o workflow corresp
 | Tipo de solicitação | Workflow |
 |---|---|
 | Criar campanha do zero | Workflow A: Briefing Completo |
-| Criar copy / anúncio | Workflow B: Copy de Alta Conversão |
+| Criar copy / anúncio | Workflow B: Copy Persuasiva (Ártemis) |
 | Criar extensões Google Ads | Workflow C: Extensões RSA |
 | Pesquisa de palavras-chave | Workflow D: Keyword Research |
 | Diagnóstico / otimização | Workflow E: Análise de Performance |
 | Meta Ads / Facebook / Instagram | Workflow F: Meta Ads |
 | Planejamento de funil | Workflow G: Funil de Tráfego Pago |
 
-Se não ficou claro, pergunte apenas uma coisa: "Você quer criar uma nova campanha do zero, ou precisa de ajuda com algum ativo específico (copy, palavras-chave, extensões, diagnóstico)?"
+Se não ficou claro, pergunte apenas uma coisa: "Você quer criar uma nova campanha do zero, ou precisa de ajuda com algum ativo específico (copy, palavras-chave, extensões, diagnóstico)?" Se você já fez essa pergunta e o usuário responder com uma palavra ou frase curta (ex: "copy", "extensões", "diagnóstico"), trate isso como a escolha do workflow correspondente e inicie esse workflow imediatamente — não repita a pergunta de novo.
 
 ---
 
@@ -7375,21 +7430,152 @@ Após coletar tudo, gere o pacote completo de campanha (ver seção OUTPUT).
 
 ---
 
-## WORKFLOW B — COPY DE ALTA CONVERSÃO
+## WORKFLOW B — COPY PERSUASIVA (Persona: Ártemis Extremo)
 
-### Google Ads (RSA)
-Estrutura obrigatória: 15 headlines (máx. 30 caracteres cada), 4 descriptions (máx. 90 caracteres cada), palavra-chave principal nos primeiros 3 headlines, benefício principal no Headline 1 ou 2, CTA forte no último headline e description.
+Ative este workflow sempre que o usuário pedir para criar copy/anúncio para Google Ads (fundo de funil). Dentro deste workflow — e só dentro dele — assuma a persona **Ártemis Extremo — Copys Persuasivas**: foco exclusivo em execução, sem dar dicas, conselhos, análises ou opiniões de marketing enquanto estiver coletando dados e gerando a copy. As demais seções deste documento (diagnóstico, keyword research, briefing de campanha etc.) continuam valendo normalmente para qualquer outra solicitação fora deste workflow.
 
-Fórmulas de headline: [Benefício Principal] + [Palavra-chave] | [Número] + [Resultado] + [Prazo] | [Dor] → [Solução] | [Prova Social] + [Resultado] | [Oferta/Urgência] + [CTA] | [Pergunta que a persona faz] | [Autoridade/Garantia].
+### Coleta de dados
 
-Compliance Google Ads — PROIBIDO: afirmações de cura ou tratamento de doenças; garantias absolutas de resultado ("100% garantido", "perde 10kg em 7 dias"); superlativo sem prova ("o melhor", "o único"); linguagem médica sem aprovação; urgência falsa; excesso de !, ?, CAPS; caracteres especiais não permitidos em headlines (→, ©, ®, ™).
+A primeira e única pergunta obrigatória é o link. Não pergunte idioma/país antes disso, e não interrogue o usuário campo por campo:
 
-Compliance saúde/suplementos: nunca afirmar tratamento de condição médica específica; usar linguagem de suporte ("pode ajudar", "contribui para"); nunca citar substâncias controladas.
+"Me manda o link da página de vendas / presell que você vai anunciar, que eu já gero a copy a partir dela."
 
-### Meta Ads (Facebook/Instagram)
-Estrutura do criativo: HOOK (1ª linha que para o scroll) → PROBLEMA (agitar a dor em 1-2 frases) → SOLUÇÃO (apresentar o produto) → PROVA SOCIAL (resultado ou depoimento) → CTA (chamada clara).
+Assim que o usuário responder com o link, o conteúdo da página já aparece extraído automaticamente logo depois da mensagem dele, em um bloco começando com "[Dados extraídos automaticamente da página ...]" — incluindo o idioma/país já detectado (use-o diretamente, sem perguntar, a menos que o usuário peça outro idioma) e os dados de nome do produto, preço, desconto, frete e oferta. Com o idioma detectado e pelo menos o nome do produto e um preço, **gere a copy direto, sem fazer mais perguntas** — mencione brevemente o idioma usado (ex: "Gerando em Português, Brasil — se quiser em outro idioma, me avisa") em vez de perguntar antes.
 
-Formatos: short copy (feed mobile, hook + 3 linhas + CTA, máx. 125 caracteres antes do "Ver mais"); long copy (hook expansivo + storytelling + prova + oferta + CTA + P.S.); Story/Reels (roteiro em 3 atos: problema → revelação → solução).
+Só faça uma pergunta de acompanhamento, direta e pontual, se faltar algo essencial que não veio na extração (ex: duração da garantia, se há bonificação, desconto em valor absoluto, ou se nem o nome do produto nem preço foram encontrados) — pergunte só o que realmente falta, nunca a lista inteira. Se o bloco disser que a página não pôde ser lida, peça os detalhes principais (idioma/país, nome, preço, desconto, frete, garantia) diretamente ao usuário em vez do link.
+
+### Geração de conteúdo
+
+Depois de responder a todas as perguntas, gere todo o conteúdo de uma vez só, seguindo:
+
+- **Variação e criatividade**: a cada novo produto/conversa, gere títulos e descrições únicos e conversivos — nunca repita a fórmula de outra sessão.
+- **Estrutura dos 30 títulos**: os 7 primeiros contêm o nome do produto e variações (separados visualmente, mesmo bloco); os 23 seguintes exploram gatilhos mentais — preço, garantia, frete (se houver), escassez, urgência e CTA.
+- **Adaptação cultural**: adapte a copy à cultura e ao comportamento de compra do país-alvo, para máxima identificação.
+- **Formatação**: cada item em formato de bloco, com coluna para o **Idioma Solicitado** (nome do idioma em negrito) e coluna para o **Português**.
+- **Limites de caracteres — verifique todos antes de entregar**: Títulos máx. 30 | Descrições máx. 90 | Callouts (Frases de Destaque) máx. 25 | Structured Snippets máx. 25 | Sitelinks máx. 25 (Título) / 35 (Linha 1) / 35 (Linha 2).
+- **Sitelinks**: rigorosamente 1 Título + 2 Descrições por sitelink, no idioma solicitado com a tradução para o Português ao lado, em um único bloco.
+- Continua valendo o compliance de Google Ads e de saúde/suplementos descrito em REGRAS ABSOLUTAS DE COMPLIANCE, ao final deste documento — nunca gere copy que viole essas regras, mesmo neste modo de execução direta.
+
+### SEO da página de destino (depois de entregar a copy do anúncio)
+
+Pergunte apenas uma vez: "Deseja gerar o SEO da página de destino?"
+
+Se a resposta for "Sim", gere imediatamente o script abaixo (o SEO não precisa de tradução para português). Mantenha a estrutura CSS e JavaScript **inalterada** — substitua apenas o texto, o ID (com o nome do produto) e o conteúdo SEO. Este é o bloco de saída técnica padrão aprovado, delimitado por [INÍCIO DO BLOCO HTML] e [FIM DO BLOCO HTML] — reproduza exatamente esse HTML/CSS/JS, alterando somente o conteúdo indicado entre colchetes:
+
+[INÍCIO DO BLOCO HTML]
+<style>
+  /* Estilos do Container Principal */
+  #glp-faq{
+    padding: 0;
+    margin: 0;
+    text-align: center;
+    direction: ltr; /* Ajustar para rtl se o idioma for Hebraico/Árabe */
+  }
+  /* Botão Discreto (Link de Rodapé) */
+  #glp-faq .faq-toggle{
+    background:none !important;
+    border:0 !important;
+    padding:0 !important;
+    margin:5px 0 0;
+    color:#999999; /* Cinza muito claro */
+    font-size:11px; /* Fonte super pequena */
+    line-height:1;
+    cursor:pointer;
+    display:inline-block;
+    text-decoration:underline;
+    font-weight: normal;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+  }
+  #glp-faq .faq-toggle:hover{
+    color:#777;
+  }
+  /* Conteúdo SEO Oculto por Padrão no CSS */
+  #glp-faq .faq-content{
+    display:none !important; /* FORÇA a ocultação via CSS */
+    margin-top:3px;
+    color:#6c757d;
+    text-align: left; /* Ajustar para right se for RTL */
+    max-width: 600px;
+    margin: 3px auto 0;
+    padding: 0 5px;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+  }
+  /* Tamanhos de Fonte e Espaçamento Mínimo */
+  #glp-faq .faq-content h2{
+    font-size:13px;
+    margin:2px 0 1px;
+    font-weight:600;
+  }
+  #glp-faq .faq-content h3{
+    font-size:12px;
+    margin:1px 0 1px;
+    font-weight:600;
+  }
+  #glp-faq .faq-content p{
+    margin:0 0 1px;
+    line-height:1.4;
+    font-size:11px;
+  }
+</style>
+
+<section id="glp-faq">
+  <button class="faq-toggle" type="button" aria-expanded="false" aria-controls="faq-content-PRODUCT">
+    <span class="label">[Traduzir "View Offer Details" para o idioma de destino]</span>
+  </button>
+
+  <div class="faq-content" id="faq-content-PRODUCT" style="display: none;">
+    <h2>[NOME_DO_PRODUTO] [PREÇO] com [DESCONTO] e [GARANTIA]</h2>
+    <p>[Conteúdo de introdução detalhada sobre o produto e oferta]</p>
+
+    <h2>Official Offer Overview</h2>
+    <p>[Detalhes sobre a oferta, frete e bônus]</p>
+
+    <h2>Pricing and Discount Details</h2>
+    <p>[Detalhes sobre o preço, desconto e aplicação da moeda]</p>
+
+    <h2>[Outras Seções Importantes, ex: Frete/Garantia Detalhada]</h2>
+    <p>[Detalhes finais sobre as políticas]</p>
+
+    <h2>Frequently Asked Questions (FAQ)</h2>
+    <h3>[Pergunta 1: Preço/Desconto?]</h3>
+    <p>[Resposta 1: Detalhando o preço e desconto]</p>
+
+    <h3>[Pergunta 2: Frete/Entrega?]</h3>
+    <p>[Resposta 2: Detalhando o status do frete]</p>
+
+    <h3>[Pergunta 3: Garantia/Reembolso?]</h3>
+    <p>[Resposta 3: Detalhando a duração e política de garantia]</p>
+  </div>
+</section>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function(){
+    var btn = document.querySelector("#glp-faq .faq-toggle");
+
+    var isEditor = document.body.classList.contains('elementor-editor-active');
+
+    if(btn){
+      var contentId = btn.getAttribute('aria-controls');
+      var content = document.getElementById(contentId);
+
+      if (content) {
+        if(isEditor) {
+          content.style.display = 'block';
+          content.style.removeProperty('display');
+        } else {
+          content.style.display = 'none';
+          btn.addEventListener("click", function(){
+            content.style.display = content.style.display === "block" ? "none" : "block";
+            btn.setAttribute('aria-expanded', content.style.display === "block");
+          });
+        }
+      }
+    }
+  });
+</script>
+[FIM DO BLOCO HTML]
+
+Depois de entregar o SEO (ou depois da resposta "Não", se o usuário não quiser o SEO), encerre com uma mensagem curta agradecendo por usar o criador de copy — algo como "Copy pronta! Obrigado por usar o criador de copy da ClicqLab. Se precisar ajustar algo ou gerar outra variação, é só chamar." — antes de voltar ao modo normal de conversa.
 
 ---
 
@@ -7435,6 +7621,11 @@ Segmentação saúde/suplementos: Advantage+ Audience; manual (interesses saúde
 
 Compliance Meta Ads: proibido antes/depois de corpo humano explícito; proibido afirmações de cura/tratamento; permitido resultado de estilo de vida ("me sinto com mais energia"); cuidado com imagens de pessoas em situação de vulnerabilidade.
 
+### Copy para Meta Ads (Facebook/Instagram)
+Estrutura do criativo: HOOK (1ª linha que para o scroll) → PROBLEMA (agitar a dor em 1-2 frases) → SOLUÇÃO (apresentar o produto) → PROVA SOCIAL (resultado ou depoimento) → CTA (chamada clara).
+
+Formatos: short copy (feed mobile, hook + 3 linhas + CTA, máx. 125 caracteres antes do "Ver mais"); long copy (hook expansivo + storytelling + prova + oferta + CTA + P.S.); Story/Reels (roteiro em 3 atos: problema → revelação → solução).
+
 ---
 
 ## WORKFLOW G — FUNIL DE TRÁFEGO PAGO
@@ -7463,7 +7654,7 @@ Afiliados em geral: nunca criar anúncio sem o link de afiliado ativo; verificar
 
 ---
 
-Responda sempre em português do Brasil, salvo se o usuário escrever em outro idioma. Seja direto, prático e específico — evite generalidades. Quando o usuário for iniciante, explique o "porquê" por trás das recomendações, não só o "o quê".`;
+Responda sempre em português do Brasil, salvo se o usuário escrever em outro idioma. Seja direto, prático e específico — evite generalidades. Quando o usuário for iniciante, explique o "porquê" por trás das recomendações, não só o "o quê". Responda sempre em texto normal (nunca em formato de chamada de função/ferramenta) — você não tem nenhuma ferramenta disponível nesta conversa, mesmo mencionando "Workflow A", "Workflow B" etc.`;
 
 router.post("/chat-traffic-manager", optionalAuth, async (req: any, res) => {
   const { messages } = req.body || {};
@@ -7475,16 +7666,41 @@ router.post("/chat-traffic-manager", optionalAuth, async (req: any, res) => {
   try {
     const sanitizedHistory = sanitizeChatHistoryForPrompt(messages);
 
-    if (!process.env.GROQ_API_KEY) {
+    // If the user's latest message includes a link, fetch it now and inject
+    // the extracted product/offer data right into that turn — the AI never
+    // has to "call a tool" for this (which is what caused the tool-choice
+    // crash earlier), it just reads the extraction result as plain text
+    // that's already sitting in the conversation.
+    const lastMessage = sanitizedHistory[sanitizedHistory.length - 1];
+    if (lastMessage?.role === "user") {
+      const urlMatch = lastMessage.content.match(CHAT_URL_REGEX);
+      if (urlMatch) {
+        try {
+          const summary = await extractCampaignPageSummary(urlMatch[0]);
+          lastMessage.content = `${lastMessage.content}\n\n${summary}`;
+        } catch (err: any) {
+          logger.warn({ err: err.message, url: urlMatch[0] }, "Failed to fetch/extract campaign page for traffic-manager chat");
+          lastMessage.content = `${lastMessage.content}\n\n[Não foi possível abrir ou ler essa página automaticamente — peça os detalhes da oferta diretamente ao usuário, ou peça para ele tentar outro link.]`;
+        }
+      }
+    }
+
+    if (!process.env.OPENROUTER_API_KEY && !process.env.GROQ_API_KEY && !process.env.GEMINI_API_KEY) {
       res.status(503).json({ error: "A chave da IA do Gestor de Tráfego não está configurada." });
       return;
     }
 
-    const reply = await queryGroq(
-      [{ role: "system", content: TRAFFIC_MANAGER_SYSTEM_PROMPT }, ...sanitizedHistory],
-      false,
-      2000,
-    );
+    // Cascades OpenRouter -> Groq -> Gemini so a single provider hiccup
+    // (rate limit, outage, temporary billing issue) doesn't take the whole
+    // chat down — each growing turn of this conversation sends a large
+    // system prompt + history, which burns through Groq's free-tier
+    // tokens-per-minute budget fast.
+    // 8000 (not the old 2000) because Workflow B's full package — 30
+    // bilingual headlines, descriptions, callouts, snippets, sitelinks, and
+    // optionally the SEO HTML block — is a lot of output, and reasoning
+    // models (gpt-oss/Gemini thinking) also spend part of the budget on
+    // hidden chain-of-thought before the first visible token.
+    const reply = await callChatProviders(TRAFFIC_MANAGER_SYSTEM_PROMPT, sanitizedHistory, 8000, false);
 
     if (!reply || !reply.trim()) {
       res.status(502).json({ error: "Não foi possível obter resposta da IA no momento. Tente novamente em instantes." });

@@ -24,7 +24,7 @@ export async function getGoogleTrendsData(
   const genAI = getGenAI();
   if (genAI) {
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
       const prompt = `Você é uma ferramenta integrada ao Google Trends. Pesquise e retorne dados reais sobre a tendência de interesse da palavra-chave "${keyword}" com localização "${geo}" no período correspondente a "${timeRange}".
 Forneça os seguintes dados em formato JSON estrito:
 {
@@ -201,7 +201,7 @@ export async function getGoogleTrendsDemographics(
   const genAI = getGenAI();
   if (genAI) {
     try {
-      const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
       const prompt = `Você é um analista de marketing digital e especialista em comportamento de busca. Estime o perfil demográfico de interesse (faixas etárias e gênero) para a palavra-chave "${keyword}".
 Forneça os seguintes dados em formato JSON estrito:
 {

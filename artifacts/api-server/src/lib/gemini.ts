@@ -33,7 +33,7 @@ export async function analyzeKeywordWithAI(
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
 
     const prompt = `Você é um especialista em Google Ads e marketing digital. Analise a seguinte palavra-chave e forneça uma análise estratégica completa.
 
@@ -102,7 +102,7 @@ export async function generateKeywordSuggestionsWithAI(
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
     const prompt = `Você é uma ferramenta de pesquisa de palavras-chave do Google Ads.
 Gere 8 ideias de palavras-chave altamente relevantes relacionadas à palavra-chave semente: "${seedKeyword}" para a localização "${location}".
 Para cada palavra-chave sugerida, estime:
@@ -183,7 +183,7 @@ export async function getTopKeywordsByTheme(theme: string): Promise<any[]> {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
     const prompt = `Você é um especialista em SEO e Google Ads.
 Gere uma lista das 8 palavras-chave ou títulos mais buscados e altamente relevantes relacionados ao tema ou nicho: "${theme}".
 Para cada palavra-chave/título sugerido, estime:
@@ -308,7 +308,7 @@ export async function getRealProductRankingsWithAI(
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
     
     // Select a subset of offers to keep the request size reasonable, including country code
     const productList = offers.map(o => ({ id: o.id, name: o.name, category: o.category, geo: o.geo }));
@@ -399,7 +399,7 @@ export async function getKeywordMetricsWithAI(
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
     const prompt = `Você é um planejador de palavras-chave do Google Ads.
 Gere métricas realistas para a palavra-chave "${keyword}" na localização "${location}".
 Retorne estimativas realistas para:
