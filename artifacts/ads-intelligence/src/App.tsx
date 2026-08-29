@@ -19,6 +19,7 @@ import CheckoutPage from "@/pages/checkout";
 import PricingPage from "@/pages/pricing";
 import AdminPage from "@/pages/admin";
 import AdminLoginPage from "@/pages/admin-login";
+import AdminAcceptInvitePage from "@/pages/admin-accept-invite";
 import SupportPage from "@/pages/support";
 import TrackingPage from "@/pages/tracking";
 import DomainsPage from "@/pages/domains";
@@ -70,6 +71,7 @@ function Router() {
       <Route path="/" component={LandingPage} />
       <Route path="/checkout" component={CheckoutPage} />
       <Route path="/admin/login" component={AdminLoginPage} />
+      <Route path="/admin/accept-invite" component={AdminAcceptInvitePage} />
       <Route path="/admin" component={AdminPage} />
       <ProtectedRoute path="/dashboard" component={Dashboard} requiresGoogleAds />
       <ProtectedRoute path="/campaigns" component={Campaigns} requiresGoogleAds />

@@ -89,6 +89,20 @@ async function initPostgresDb() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS admin_invitations (
+      id SERIAL PRIMARY KEY,
+      email VARCHAR(255) NOT NULL,
+      token_hash VARCHAR(64) UNIQUE NOT NULL,
+      role_key VARCHAR(40) NOT NULL,
+      role_name VARCHAR(100) NOT NULL,
+      permissions TEXT NOT NULL,
+      invited_by INTEGER REFERENCES admin_accounts(id) ON DELETE SET NULL,
+      expires_at TIMESTAMP NOT NULL,
+      accepted_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_admin_invitation_email ON admin_invitations(email, created_at);
+
     CREATE TABLE IF NOT EXISTS cash_ledger (
       id SERIAL PRIMARY KEY,
       movement_type VARCHAR(20) NOT NULL,
@@ -621,6 +635,20 @@ async function initSqliteDb() {
       created_by INTEGER REFERENCES admin_accounts(id) ON DELETE SET NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS admin_invitations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL,
+      token_hash TEXT UNIQUE NOT NULL,
+      role_key TEXT NOT NULL,
+      role_name TEXT NOT NULL,
+      permissions TEXT NOT NULL,
+      invited_by INTEGER REFERENCES admin_accounts(id) ON DELETE SET NULL,
+      expires_at TIMESTAMP NOT NULL,
+      accepted_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_admin_invitation_email ON admin_invitations(email, created_at);
 
     CREATE TABLE IF NOT EXISTS cash_ledger (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
