@@ -582,6 +582,9 @@ export default function Creator() {
           thankYouHtml,
           thankYouFileName,
           trackingSiteId: Number(selectedTrackingSiteId),
+          lemonOfferId: leadNetwork === "lemonad" ? lemonOfferId : "",
+          lemonWebmasterToken: leadNetwork === "lemonad" ? lemonWebmasterToken : "",
+          lemonCost: leadNetwork === "lemonad" ? lemonCost : "",
         }),
       });
       const data = await response.json().catch(() => ({ error: response.status === 413 ? "A página gerada é grande demais para publicação." : "Resposta inválida do servidor." }));

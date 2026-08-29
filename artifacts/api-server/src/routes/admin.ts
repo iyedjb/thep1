@@ -10,6 +10,12 @@ const router = Router();
 const JWT_SECRET = process.env["SESSION_SECRET"] ?? "ads-intelligence-secret-2026";
 const ADMIN_PERMISSIONS = ["dashboard.view", "clients.view", "clients.manage", "cashbox.view", "cashbox.manage", "payments.view", "audit.view", "access.manage"] as const;
 type AdminPermission = typeof ADMIN_PERMISSIONS[number];
+const ADMIN_ROLES: Record<string, { name: string; description: string; permissions: AdminPermission[] }> = {
+  support: { name: "Atendimento", description: "Clientes, conversas e suporte.", permissions: ["dashboard.view", "clients.view", "clients.manage"] },
+  finance: { name: "Financeiro", description: "Caixa, movimentações e pagamentos.", permissions: ["dashboard.view", "cashbox.view", "cashbox.manage", "payments.view"] },
+  analyst: { name: "Analista", description: "Visão de clientes, finanças, pagamentos e auditoria.", permissions: ["dashboard.view", "clients.view", "cashbox.view", "payments.view", "audit.view"] },
+  manager: { name: "Gestor", description: "Operação completa, sem gerenciar outros administradores.", permissions: ["dashboard.view", "clients.view", "clients.manage", "cashbox.view", "cashbox.manage", "payments.view", "audit.view"] },
+};
 
 function parsePermissions(raw: unknown): AdminPermission[] {
   try {
@@ -18,6 +24,29 @@ function parsePermissions(raw: unknown): AdminPermission[] {
   } catch { return []; }
 }
 function normalizeEmail(value: unknown) { return String(value || "").trim().toLowerCase(); }
+function invitationHash(token: string) { return crypto.createHash("sha256").update(token).digest("hex"); }
+function appBaseUrl(req: any) {
+  const forwardedHost = String(req.headers["x-forwarded-host"] || "").split(",")[0].trim();
+  const forwardedProtocol = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
+  return String(process.env.PUBLIC_APP_URL || process.env.APP_URL || `${forwardedProtocol || req.protocol}://${forwardedHost || req.get("host")}`).replace(/\/$/, "");
+}
+async function sendAdminInvitation(email: string, roleName: string, inviteUrl: string) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error("RESEND_API_KEY is not configured");
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: process.env.RESEND_FROM_EMAIL || "ClicLab <onboarding@resend.dev>",
+      to: [email],
+      subject: "Você foi convidado para administrar o ClicLab",
+      text: `Você recebeu um convite para o papel ${roleName}. Crie seu acesso: ${inviteUrl}. O convite expira em 48 horas.`,
+      html: `<!doctype html><html><body style="margin:0;background:#f5f8fc;font-family:Inter,Arial,sans-serif;color:#0f172a"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding:40px 16px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:540px;background:#fff;border:1px solid #e6edf5;border-radius:24px"><tr><td style="padding:34px 38px"><div style="font-size:20px;font-weight:800">Clic<span style="color:#09a7ee">Lab</span></div><div style="height:1px;background:#edf2f7;margin:26px 0"></div><p style="margin:0 0 8px;font-size:13px;color:#0284c7;font-weight:700;text-transform:uppercase;letter-spacing:1.4px">Convite administrativo</p><h1 style="margin:0;font-size:26px;line-height:1.25">Crie seu acesso</h1><p style="margin:14px 0 10px;font-size:14px;line-height:1.65;color:#64748b">Você foi convidado para participar da equipe administrativa como <strong style="color:#0f172a">${roleName}</strong>.</p><p style="margin:0 0 26px;font-size:13px;line-height:1.6;color:#64748b">Defina seu nome e sua senha. O endereço de e-mail deste convite não pode ser alterado.</p><a href="${inviteUrl}" style="display:block;padding:14px 20px;border-radius:999px;background:#0ea5e9;color:#fff;text-decoration:none;text-align:center;font-size:14px;font-weight:700">Criar meu acesso</a><p style="margin:24px 0 0;font-size:12px;line-height:1.6;color:#94a3b8">Este link expira em 48 horas. Se você não reconhece este convite, ignore esta mensagem.</p></td></tr></table></td></tr></table></body></html>`,
+    }),
+    signal: AbortSignal.timeout(12_000),
+  });
+  if (!response.ok) throw new Error(`Resend returned HTTP ${response.status}`);
+}
 async function audit(adminId: number, action: string, targetType?: string, targetId?: string | number | bigint, details?: unknown) {
   try {
     const actor = await getDb().prepare("SELECT name, email FROM admin_accounts WHERE id = ?").get(adminId) as any;
@@ -272,23 +301,77 @@ router.delete("/admin/cashbox/movements/:id", requireAdmin, requirePermission("c
 });
 
 router.get("/admin/accounts", requireAdmin, requirePermission("access.manage"), async (_req, res) => {
+  const db = getDb();
   const accounts = await getDb().prepare("SELECT id, email, name, role_name, permissions, is_owner, active, created_at FROM admin_accounts ORDER BY is_owner DESC, id ASC").all() as any[];
-  res.json({ accounts: accounts.map(adminPayload) });
+  const invitations = (await db.prepare(
+    "SELECT id, email, role_key, role_name, permissions, expires_at, created_at FROM admin_invitations WHERE accepted_at IS NULL ORDER BY created_at DESC"
+  ).all() as any[]).filter((item) => parseDatabaseDate(item.expires_at).getTime() > Date.now());
+  res.json({
+    accounts: accounts.map(adminPayload),
+    invitations: invitations.map((item) => ({ id: Number(item.id), email: item.email, roleKey: item.role_key, roleName: item.role_name, permissions: parsePermissions(item.permissions), expiresAt: item.expires_at, createdAt: item.created_at })),
+  });
+});
+router.get("/admin/roles", requireAdmin, requirePermission("access.manage"), (_req, res) => {
+  res.json({ roles: Object.entries(ADMIN_ROLES).map(([key, role]) => ({ key, ...role })) });
 });
 router.post("/admin/accounts", requireAdmin, requirePermission("access.manage"), async (req: any, res) => {
-  const name = String(req.body?.name || "").trim();
   const email = normalizeEmail(req.body?.email);
-  const password = String(req.body?.password || "");
-  const roleName = String(req.body?.roleName || "Equipe").trim();
-  const permissions = parsePermissions(req.body?.permissions).filter((item) => item !== "access.manage");
-  if (!name || !email.includes("@") || password.length < 8 || !roleName) return void res.status(400).json({ error: "Revise os dados do novo acesso." });
+  const roleKey = String(req.body?.roleKey || "");
+  const role = ADMIN_ROLES[roleKey];
+  if (!email.includes("@") || !role) return void res.status(400).json({ error: "Informe um e-mail e selecione um papel válido." });
   try {
     const db = getDb();
-    const result = await db.prepare("INSERT INTO admin_accounts (email, name, password_hash, role_name, permissions, is_owner, active, created_by) VALUES (?, ?, ?, ?, ?, false, true, ?)").run(email, name, bcrypt.hashSync(password, 12), roleName, JSON.stringify(permissions), req.adminId);
-    const account = await db.prepare("SELECT * FROM admin_accounts WHERE id = ?").get(result.lastInsertRowid);
-    await audit(req.adminId, "admin.access.created", "admin_account", result.lastInsertRowid, { permissions, roleName, targetName: name, targetEmail: email });
-    res.status(201).json({ account: adminPayload(account) });
-  } catch (err: any) { res.status(409).json({ error: err.message.includes("UNIQUE") ? "Este e-mail já possui acesso." : "Erro ao criar acesso." }); }
+    if (await db.prepare("SELECT id FROM admin_accounts WHERE email = ?").get(email)) return void res.status(409).json({ error: "Este e-mail já possui acesso." });
+    await db.prepare("DELETE FROM admin_invitations WHERE email = ? AND accepted_at IS NULL").run(email);
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
+    const result = await db.prepare(
+      "INSERT INTO admin_invitations (email, token_hash, role_key, role_name, permissions, invited_by, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(email, invitationHash(rawToken), roleKey, role.name, JSON.stringify(role.permissions), req.adminId, expiresAt);
+    const inviteUrl = `${appBaseUrl(req)}/admin/accept-invite?token=${rawToken}`;
+    try {
+      await sendAdminInvitation(email, role.name, inviteUrl);
+    } catch (emailError: any) {
+      await db.prepare("DELETE FROM admin_invitations WHERE id = ?").run(result.lastInsertRowid);
+      logger.error({ err: emailError.message }, "Unable to send admin invitation");
+      return void res.status(503).json({ error: "O convite não foi criado porque o e-mail não pôde ser enviado. Verifique o Resend no ambiente de produção." });
+    }
+    await audit(req.adminId, "admin.access.invited", "admin_invitation", result.lastInsertRowid, { permissions: role.permissions, roleName: role.name, targetEmail: email });
+    res.status(201).json({ invitation: { id: Number(result.lastInsertRowid), email, roleKey, roleName: role.name, permissions: role.permissions, expiresAt } });
+  } catch (err: any) { res.status(500).json({ error: "Erro ao enviar o convite administrativo." }); }
+});
+
+router.get("/admin/invitations/:token", async (req, res) => {
+  try {
+    const invitation = await getDb().prepare(
+      "SELECT email, role_key, role_name, expires_at, accepted_at FROM admin_invitations WHERE token_hash = ?"
+    ).get(invitationHash(String(req.params.token || ""))) as any;
+    if (!invitation || invitation.accepted_at || parseDatabaseDate(invitation.expires_at).getTime() <= Date.now()) return void res.status(410).json({ error: "Este convite expirou ou já foi utilizado." });
+    res.json({ email: invitation.email, roleKey: invitation.role_key, roleName: invitation.role_name, expiresAt: invitation.expires_at });
+  } catch { res.status(500).json({ error: "Não foi possível validar o convite." }); }
+});
+
+router.post("/admin/invitations/:token/accept", async (req, res) => {
+  const name = String(req.body?.name || "").trim().replace(/\s+/g, " ").slice(0, 120);
+  const password = String(req.body?.password || "");
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+  if (name.length < 2 || !passwordRegex.test(password)) return void res.status(400).json({ error: "Informe seu nome e uma senha com 8 caracteres, maiúscula, número e símbolo." });
+  const db = getDb();
+  try {
+    const tokenHash = invitationHash(String(req.params.token || ""));
+    const invitation = await db.prepare("SELECT * FROM admin_invitations WHERE token_hash = ? AND accepted_at IS NULL").get(tokenHash) as any;
+    if (!invitation || parseDatabaseDate(invitation.expires_at).getTime() <= Date.now()) return void res.status(410).json({ error: "Este convite expirou ou já foi utilizado." });
+    if (await db.prepare("SELECT id FROM admin_accounts WHERE email = ?").get(invitation.email)) return void res.status(409).json({ error: "Este e-mail já possui acesso administrativo." });
+    const result = await db.prepare(
+      "INSERT INTO admin_accounts (email, name, password_hash, role_name, permissions, is_owner, active, created_by) VALUES (?, ?, ?, ?, ?, false, true, ?)"
+    ).run(invitation.email, name, bcrypt.hashSync(password, 12), invitation.role_name, invitation.permissions, invitation.invited_by || null);
+    await db.prepare("UPDATE admin_invitations SET accepted_at = CURRENT_TIMESTAMP WHERE id = ?").run(invitation.id);
+    await audit(invitation.invited_by || Number(result.lastInsertRowid), "admin.access.accepted", "admin_account", result.lastInsertRowid, { roleName: invitation.role_name, targetName: name, targetEmail: invitation.email });
+    res.status(201).json({ success: true });
+  } catch (error: any) {
+    logger.error({ err: error.message }, "Unable to accept admin invitation");
+    res.status(500).json({ error: "Não foi possível criar o acesso administrativo." });
+  }
 });
 router.put("/admin/accounts/:id/status", requireAdmin, requirePermission("access.manage"), async (req: any, res) => {
   const db = getDb();

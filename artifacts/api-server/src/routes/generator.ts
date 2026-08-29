@@ -2,9 +2,10 @@ import { Router } from "express";
 import { requireAuth, optionalAuth } from "./auth";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { logger } from "../lib/logger";
 import { getDb } from "../lib/sqlite";
-import { injectClickTracker, recordPublishedVisit, recordTrackingVisit, type TrackingSite } from "../lib/tracking";
+import { injectClickTracker, injectTagIntoHead, recordPublishedVisit, recordTrackingVisit, type TrackingSite } from "../lib/tracking";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import puppeteer from "puppeteer";
 
@@ -12,6 +13,28 @@ import puppeteer from "puppeteer";
 const router = Router();
 
 const PAUSED_PRESELL_HTML = '<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Página pausada</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;font:16px system-ui;color:#111;background:#fff}main{text-align:center;padding:32px}p{color:#667085}</style><main><h1>Página temporariamente pausada</h1><p>Este endereço voltará a ficar disponível em breve.</p></main></html>';
+
+function encryptCredential(value: string) {
+  const key = crypto.createHash("sha256").update(process.env.SESSION_SECRET || "ads-intelligence-secret-2026").digest();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const encrypted = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  return `v1:${iv.toString("hex")}:${cipher.getAuthTag().toString("hex")}:${encrypted.toString("hex")}`;
+}
+
+function decryptCredential(value: string) {
+  if (!value.startsWith("v1:")) return value;
+  const [, ivHex, tagHex, encryptedHex] = value.split(":");
+  const key = crypto.createHash("sha256").update(process.env.SESSION_SECRET || "ads-intelligence-secret-2026").digest();
+  const decipher = crypto.createDecipheriv("aes-256-gcm", key, Buffer.from(ivHex, "hex"));
+  decipher.setAuthTag(Buffer.from(tagHex, "hex"));
+  return Buffer.concat([decipher.update(Buffer.from(encryptedHex, "hex")), decipher.final()]).toString("utf8");
+}
+
+function requestIp(req: any) {
+  return String(req.headers["cf-connecting-ip"] || req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "")
+    .split(",")[0].trim().slice(0, 80);
+}
 
 function resolvePublishedPagesRoot() {
   const candidates = [
@@ -29,6 +52,17 @@ function publicAppBaseUrl(req: any) {
   return String(process.env.PUBLIC_APP_URL || `${forwardedProtocol || req.protocol}://${forwardedHost || req.get("host")}`).replace(/\/$/, "");
 }
 
+function injectLemonAttribution(html: string) {
+  const script = `<script data-cliclab-lemon-attribution>(function(){
+function q(n){return new URLSearchParams(location.search).get(n)||'';}
+function stamp(f){var t=document.querySelector('script[data-visit-token]'),v={utm_source:q('utm_source'),utm_medium:q('utm_medium'),utm_campaign:q('utm_campaign'),utm_content:q('utm_content'),utm_term:q('utm_term'),clickid:(t&&t.getAttribute('data-visit-token'))||q('clickid')||q('click_id'),fbpxl:q('fbpxl')||q('fbclid')};Object.keys(v).forEach(function(k){var i=f.querySelector('input[name="'+k+'"]');if(!i){i=document.createElement('input');i.type='hidden';i.name=k;f.appendChild(i);}i.value=v[k];});}
+function all(){document.querySelectorAll('form').forEach(stamp);}
+document.addEventListener('submit',function(e){if(e.target&&e.target.tagName==='FORM')stamp(e.target);},true);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',all,{once:true});else all();
+})();</script>`;
+  return injectTagIntoHead(html, script);
+}
+
 async function serveDomainPresell(req: any, res: any, presell: any, fileName: string, slug: string) {
   if (!presell) return void res.status(404).send("Página não encontrada.");
   if (presell.status === "paused") return void res.status(503).type("html").set("Cache-Control", "no-store").send(PAUSED_PRESELL_HTML);
@@ -44,7 +78,8 @@ async function serveDomainPresell(req: any, res: any, presell: any, fileName: st
       if (site) {
         const query = req.originalUrl.includes("?") ? req.originalUrl.slice(req.originalUrl.indexOf("?")) : "";
         const visitToken = await recordTrackingVisit(req, site, `/${slug}${query}`, String(req.headers.referer || ""));
-        html = html.replace(/<script\b([^>]*data-site=["'][a-f0-9]{48}["'][^>]*)>/i, `<script$1 data-visit-token="${visitToken}">`);
+        html = injectClickTracker(html, visitToken);
+        if (presell.lemon_submit_token) html = injectLemonAttribution(html);
       }
     } catch (trackingError: any) {
       logger.warn({ err: trackingError.message, presellId: presell.id }, "Domain presell served without analytics");
@@ -2470,10 +2505,12 @@ async function injectAffiliateIntoHtml(
     return new URLSearchParams(window.location.search).get(name) || "";
   }
   function initLemonAd() {
+    var tracker = document.querySelector('script[data-visit-token]');
+    var trackerClickId = tracker ? (tracker.getAttribute('data-visit-token') || '') : '';
     var trackValues = {
       utm_source: qs("utm_source"), utm_medium: qs("utm_medium"), utm_campaign: qs("utm_campaign"),
       utm_content: qs("utm_content"), utm_term: qs("utm_term"),
-      clickid: qs("clickid") || qs("click_id"), fbpxl: qs("fbpxl") || qs("fbclid")
+      clickid: trackerClickId || qs("clickid") || qs("click_id"), fbpxl: qs("fbpxl") || qs("fbclid")
     };
     document.querySelectorAll('form').forEach(function(form) {
       var inputs = form.querySelectorAll('input, select, textarea');
@@ -2490,12 +2527,14 @@ async function injectAffiliateIntoHtml(
         }
       });
       Object.keys(trackValues).forEach(function(key) {
-        var hidden = document.createElement('input');
-        hidden.type = 'hidden';
-        hidden.name = key;
-        hidden.className = 'lemon-track-field';
+        var hidden = form.querySelector('input[name="' + key + '"]') || document.createElement('input');
+        if (!hidden.parentNode) {
+          hidden.type = 'hidden';
+          hidden.name = key;
+          hidden.className = 'lemon-track-field';
+          form.appendChild(hidden);
+        }
         hidden.value = trackValues[key];
-        form.appendChild(hidden);
       });
       form.setAttribute('action', 'lemon.php');
       form.setAttribute('method', 'POST');
@@ -6789,13 +6828,15 @@ ${richContext}`;
     return new URLSearchParams(window.location.search).get(name) || "";
   }
   function stampForms() {
+    var tracker = document.querySelector('script[data-visit-token]');
+    var trackerClickId = tracker ? (tracker.getAttribute('data-visit-token') || '') : '';
     var values = {
       utm_source: qs("utm_source"),
       utm_medium: qs("utm_medium"),
       utm_campaign: qs("utm_campaign"),
       utm_content: qs("utm_content"),
       utm_term: qs("utm_term"),
-      clickid: qs("clickid") || qs("click_id"),
+      clickid: trackerClickId || qs("clickid") || qs("click_id"),
       fbpxl: qs("fbpxl") || qs("fbclid")
     };
     document.querySelectorAll(".lemon-track-field").forEach(function(input) {
@@ -7010,6 +7051,74 @@ ${richContext}`;
   }
 });
 
+router.post("/leads/lemonad/:token", async (req, res) => {
+  const token = String(req.params.token || "");
+  if (!/^[a-f0-9]{48}$/.test(token)) {
+    res.status(404).send("Página não encontrada.");
+    return;
+  }
+
+  try {
+    const presell = await getDb().prepare(
+      `SELECT id, status, published_url, lemon_offer_id, lemon_webmaster_token, lemon_cost, lemon_success_file
+       FROM presells WHERE lemon_submit_token = ? AND published_url IS NOT NULL`
+    ).get(token) as any;
+    if (!presell || presell.status === "paused" || !presell.lemon_offer_id || !presell.lemon_webmaster_token) {
+      res.status(404).send("Página não encontrada.");
+      return;
+    }
+
+    const name = String(req.body?.name || "").trim().slice(0, 200);
+    const phone = String(req.body?.phone || "").trim().slice(0, 80);
+    const returnUrl = String(presell.published_url);
+    if (!name || !phone) {
+      res.redirect(303, `${returnUrl}?lead_error=missing_fields`);
+      return;
+    }
+
+    const rawCost = Number(String(presell.lemon_cost || "0").replace(",", "."));
+    const payload = {
+      name,
+      phone,
+      offerId: String(presell.lemon_offer_id),
+      domain: String(req.headers.referer || returnUrl).slice(0, 2048),
+      ip: requestIp(req),
+      utm_campaign: String(req.body?.utm_campaign || "").slice(0, 500) || null,
+      utm_content: String(req.body?.utm_content || "").slice(0, 500) || null,
+      utm_medium: String(req.body?.utm_medium || "").slice(0, 500) || null,
+      utm_source: String(req.body?.utm_source || "").slice(0, 500) || null,
+      utm_term: String(req.body?.utm_term || "").slice(0, 500) || null,
+      clickid: String(req.body?.clickid || "").slice(0, 255) || null,
+      fbpxl: String(req.body?.fbpxl || "").slice(0, 255) || null,
+      cost: Number.isFinite(rawCost) ? rawCost : 0,
+    };
+    const response = await fetch("https://sendmelead.com/api/v3/lead/add", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Token": decryptCredential(String(presell.lemon_webmaster_token)),
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(12_000),
+    });
+    const responseText = await response.text();
+    let decoded: any = null;
+    try { decoded = JSON.parse(responseText); } catch {}
+    if (!response.ok || decoded === null) {
+      logger.warn({ presellId: presell.id, status: response.status }, "LemonAD rejected lead submission");
+      res.redirect(303, `${returnUrl}?lead_error=provider`);
+      return;
+    }
+
+    const successFile = path.basename(String(presell.lemon_success_file || "Obrigado.html"));
+    const params = new URLSearchParams({ fbpxl: payload.fbpxl || "", fio: name, name, phone });
+    res.redirect(303, `${returnUrl.replace(/\/$/, "")}/${encodeURIComponent(successFile)}?${params}`);
+  } catch (error: any) {
+    logger.error({ err: error.message }, "Unable to submit LemonAD lead");
+    res.status(502).send("Não foi possível enviar o pedido. Tente novamente.");
+  }
+});
+
 // Public pages are served from the active database, not from a mutable frontend
 // build directory. This keeps publication durable and identical on SQLite and
 // PostgreSQL, while still allowing the local filesystem to act as a cache.
@@ -7019,7 +7128,7 @@ router.get(/^\/public\/[^/]+(?:\/[^/]+)?$/, async (req, res) => {
     const slug = String(parts[1] || "").toLowerCase();
     const fileName = path.basename(parts[2] || "index.html");
     const presell = await getDb().prepare(
-      `SELECT p.id, p.user_id, p.product_name, p.status, p.published_html, p.thank_you_html, p.thank_you_file_name
+      `SELECT p.id, p.user_id, p.product_name, p.status, p.published_html, p.thank_you_html, p.thank_you_file_name, p.lemon_submit_token
        FROM tracking_sites t JOIN presells p ON p.id = t.presell_id
        WHERE t.slug = ? AND t.status = 'active' AND p.published_url IS NOT NULL`
     ).get(slug) as any;
@@ -7037,7 +7146,7 @@ router.get(/^\/p\/.+\/[^/]+$/, async (req, res) => {
     const publishPath = parts.join("/");
     if (!publishPath.startsWith("p/") || !fileName) return void res.status(404).send("Página não encontrada.");
     const presell = await getDb().prepare(
-      "SELECT id, user_id, product_name, status, published_html, thank_you_html, thank_you_file_name FROM presells WHERE publish_path = ? AND published_url IS NOT NULL"
+      "SELECT id, user_id, product_name, status, published_html, thank_you_html, thank_you_file_name, lemon_submit_token FROM presells WHERE publish_path = ? AND published_url IS NOT NULL"
     ).get(publishPath) as any;
     if (!presell) return void res.status(404).send("Página não encontrada.");
     if (presell.status === "paused") return void res.status(503).type("html").set("Cache-Control", "no-store").send(PAUSED_PRESELL_HTML);
@@ -7066,10 +7175,12 @@ router.get(/^\/p\/.+\/[^/]+$/, async (req, res) => {
             selectedSite.presell_id = presell.id;
           }
           const visitToken = await recordTrackingVisit(req, selectedSite);
-          html = html.replace(/<script\b([^>]*data-site=["'][a-f0-9]{48}["'][^>]*)>/i, `<script$1 data-visit-token="${visitToken}">`);
+          html = injectClickTracker(html, visitToken);
+          if (presell.lemon_submit_token) html = injectLemonAttribution(html);
         } else {
           const visitToken = await recordPublishedVisit(req, presell);
           html = injectClickTracker(html, visitToken);
+          if (presell.lemon_submit_token) html = injectLemonAttribution(html);
         }
       } catch (trackingError: any) {
         logger.warn({ err: trackingError.message, presellId: presell.id }, "Presell served without analytics");
@@ -7083,7 +7194,10 @@ router.get(/^\/p\/.+\/[^/]+$/, async (req, res) => {
 });
 
 router.post("/publish-bridge", requireAuth, async (req: any, res) => {
-  const { htmlContent, presellId, pageName, thankYouHtml, thankYouFileName, trackingSiteId } = req.body || {};
+  const {
+    htmlContent, presellId, pageName, thankYouHtml, thankYouFileName, trackingSiteId,
+    lemonOfferId, lemonWebmasterToken, lemonCost,
+  } = req.body || {};
   if (!htmlContent || !presellId || !trackingSiteId) {
     res.status(400).json({ error: "Página, presell e domínio são obrigatórios para publicar." });
     return;
@@ -7091,7 +7205,9 @@ router.post("/publish-bridge", requireAuth, async (req: any, res) => {
 
   try {
     const db = getDb();
-    const presell = await db.prepare("SELECT id, publish_path FROM presells WHERE id = ? AND user_id = ?").get(presellId, req.userId);
+    const presell = await db.prepare(
+      "SELECT id, publish_path, lemon_submit_token FROM presells WHERE id = ? AND user_id = ?"
+    ).get(presellId, req.userId);
     if (!presell) {
       res.status(404).json({ error: "Presell não encontrada." });
       return;
@@ -7127,12 +7243,28 @@ router.post("/publish-bridge", requireAuth, async (req: any, res) => {
     const internalUrl = `/api/${relativeDir.replace(/\\/g, "/")}/index.html`;
     const publicUrl = `${publicAppBaseUrl(req)}/${trackingSite.slug}`;
     const trackerTag = `<script async src="/api/tracker.js" data-site="${trackingSite.site_key}"></script>`;
-    const publishedHtml = /<\/head\s*>/i.test(String(htmlContent))
-      ? String(htmlContent).replace(/<\/head\s*>/i, `  ${trackerTag}\n</head>`)
-      : `${trackerTag}\n${String(htmlContent)}`;
+    const hasLemonAd = Boolean(String(lemonOfferId || "").trim() && String(lemonWebmasterToken || "").trim());
+    const lemonSubmitToken = hasLemonAd
+      ? String(presell.lemon_submit_token || crypto.randomBytes(24).toString("hex"))
+      : null;
+    const lemonSubmitPath = lemonSubmitToken ? `/api/leads/lemonad/${lemonSubmitToken}` : "";
+    const hostedHtml = hasLemonAd
+      ? String(htmlContent).replace(/lemon\.php/gi, lemonSubmitPath)
+      : String(htmlContent);
+    const publishedHtml = injectTagIntoHead(hostedHtml, trackerTag);
     await db.prepare(
-      "UPDATE presells SET published_url = ?, publish_path = ?, published_html = ?, thank_you_html = ?, thank_you_file_name = ?, status = 'active' WHERE id = ? AND user_id = ?"
-    ).run(publicUrl, relativeDir, publishedHtml, thankYouHtml ? String(thankYouHtml) : null, safeThankYouName, presellId, req.userId);
+      `UPDATE presells SET published_url = ?, publish_path = ?, published_html = ?, thank_you_html = ?, thank_you_file_name = ?,
+        lemon_offer_id = ?, lemon_webmaster_token = ?, lemon_cost = ?, lemon_success_file = ?, lemon_submit_token = ?, status = 'active'
+       WHERE id = ? AND user_id = ?`
+    ).run(
+      publicUrl, relativeDir, publishedHtml, thankYouHtml ? String(thankYouHtml) : null, safeThankYouName,
+      hasLemonAd ? String(lemonOfferId).trim().slice(0, 255) : null,
+      hasLemonAd ? encryptCredential(String(lemonWebmasterToken).trim()) : null,
+      hasLemonAd ? String(lemonCost || "0").trim().slice(0, 40) : null,
+      hasLemonAd ? safeThankYouName || "Obrigado.html" : null,
+      lemonSubmitToken,
+      presellId, req.userId,
+    );
     await db.prepare("UPDATE tracking_sites SET presell_id = ? WHERE id = ? AND user_id = ?").run(presellId, trackingSite.id, req.userId);
 
     // Best-effort local cache for direct Vite access and older links. Publication

@@ -14,7 +14,7 @@ const workspaceEnv = loadEnv(
   "",
 );
 
-const appRoutes = new Set(["api", "login", "signup", "admin", "creator", "tracking", "domains", "pricing", "checkout", "support", "traffic-manager", "trends", "google-trends", "dashboard", "campaigns", "keywords", "reports", "drcash", "src", "assets", "node_modules"]);
+const appRoutes = new Set(["api", "login", "signup", "admin", "creator", "tracking", "activity", "domains", "postbacks", "pricing", "checkout", "support", "traffic-manager", "trends", "google-trends", "dashboard", "campaigns", "keywords", "reports", "drcash", "src", "assets", "node_modules"]);
 
 function campaignPageProxy(): Plugin {
   const handler = async (req: any, res: any, next: () => void) => {

@@ -33,6 +33,7 @@ type GoogleAdsStatus = {
 const navItems = [
   { path: "/creator", label: "Presell com IA" },
   { path: "/tracking", label: "Rastreamento" },
+  { path: "/activity", label: "Atividade" },
   { path: "/domains", label: "Meus domínios" },
   { path: "/traffic-manager", label: "Gestor de Tráfego" },
   { path: "/trends", label: "Search Keyword" },
@@ -206,6 +207,9 @@ export function AppSidebar() {
               </DropdownMenuItem>
               <DropdownMenuItem asChild className="cursor-pointer rounded-xl px-3 py-3 text-sm focus:bg-primary/10 focus:text-primary">
                 <Link href="/pricing" onClick={() => isMobile && setOpenMobile(false)}>Planos</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild className="cursor-pointer rounded-xl px-3 py-3 text-sm focus:bg-primary/10 focus:text-primary">
+                <Link href="/postbacks" onClick={() => isMobile && setOpenMobile(false)}>API</Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-primary/15" />
               <DropdownMenuItem

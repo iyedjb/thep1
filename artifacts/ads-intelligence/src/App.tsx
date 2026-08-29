@@ -19,9 +19,13 @@ import CheckoutPage from "@/pages/checkout";
 import PricingPage from "@/pages/pricing";
 import AdminPage from "@/pages/admin";
 import AdminLoginPage from "@/pages/admin-login";
+import AdminAcceptInvitePage from "@/pages/admin-accept-invite";
 import SupportPage from "@/pages/support";
 import TrackingPage from "@/pages/tracking";
 import DomainsPage from "@/pages/domains";
+import ApiPostbacksPage from "@/pages/api-postbacks";
+import ActivityPage from "@/pages/activity";
+import ApiEventsPage from "@/pages/api-events";
 import { GoogleAdsGate } from "@/components/google-ads/google-ads-gate";
 
 const queryClient = new QueryClient({
@@ -67,6 +71,7 @@ function Router() {
       <Route path="/" component={LandingPage} />
       <Route path="/checkout" component={CheckoutPage} />
       <Route path="/admin/login" component={AdminLoginPage} />
+      <Route path="/admin/accept-invite" component={AdminAcceptInvitePage} />
       <Route path="/admin" component={AdminPage} />
       <ProtectedRoute path="/dashboard" component={Dashboard} requiresGoogleAds />
       <ProtectedRoute path="/campaigns" component={Campaigns} requiresGoogleAds />
@@ -76,7 +81,10 @@ function Router() {
       <ProtectedRoute path="/creator" component={Creator} />
       <ProtectedRoute path="/traffic-manager" component={TrafficManager} />
       <ProtectedRoute path="/tracking" component={TrackingPage} />
+      <ProtectedRoute path="/activity" component={ActivityPage} />
       <ProtectedRoute path="/domains" component={DomainsPage} />
+      <ProtectedRoute path="/postbacks" component={ApiPostbacksPage} />
+      <ProtectedRoute path="/postbacks/:id" component={ApiEventsPage} />
       <ProtectedRoute path="/drcash" component={DrCash} />
       <ProtectedRoute path="/support" component={SupportPage} />
       <ProtectedRoute path="/pricing" component={PricingPage} />
