@@ -12,6 +12,14 @@ type ActivityEvent = {
   siteName: string;
   source: string;
   occurredAt: string;
+  details: {
+    clientId: string | null; visitorId: string | null; countryCode: string | null; country: string | null; city: string | null;
+    device: string | null; browser: string | null; operatingSystem: string | null; userAgent: string | null;
+    viewportWidth: number | null; viewportHeight: number | null; screenWidth: number | null; screenHeight: number | null;
+    origin: string | null; pageUrl: string | null; clickId: string | null; clickIdType: string | null; clickCount: number;
+    parameters: Record<string, string>; sender?: string | null; orderId?: string | null; status?: string | null;
+    payout?: number; currency?: string | null; matched?: boolean; payload?: Record<string, unknown>;
+  };
 };
 
 type ActivityData = {
@@ -47,6 +55,7 @@ function formatMoment(value: string) {
 export default function ActivityPage() {
   const [siteId, setSiteId] = useState("all");
   const [period, setPeriod] = useState("7d");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const activity = useQuery<ActivityData>({
     queryKey: ["tracking-activity", siteId, period],
     queryFn: async () => {
@@ -105,7 +114,8 @@ export default function ActivityPage() {
             const style = EVENT_STYLE[event.type] || EVENT_STYLE.pending;
             const Icon = style.icon;
             return (
-              <div key={event.id} className="flex gap-4 py-5">
+              <div key={event.id} className="py-5">
+                <button type="button" onClick={() => setSelectedId((current) => current === event.id ? null : event.id)} className="flex w-full gap-4 text-left">
                 <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${style.bg} ${style.color}`}>
                   <Icon className="h-4 w-4" />
                 </div>
@@ -116,7 +126,27 @@ export default function ActivityPage() {
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">{event.description}</p>
                   <p className="mt-1.5 text-xs font-medium text-primary/75">{event.siteName}</p>
+                  <p className="mt-2 text-[11px] font-semibold text-primary">{selectedId === event.id ? "Ocultar detalhes" : "Ver detalhes"}</p>
                 </div>
+                </button>
+                {selectedId === event.id ? <div className="ml-[52px] mt-5 rounded-2xl border border-border bg-muted/15 p-5 sm:p-6">
+                  {event.source === "postback" && !event.details.matched ? <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800"><strong>Callback recebido sem Client ID.</strong> A plataforma não devolveu o <code>clickid</code>, então este lead ainda não pode ser ligado a um visitante. Novas presells LemonAD agora enviam esse identificador automaticamente.</div> : null}
+                  <div className="grid gap-x-8 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+                    <Detail label="Client ID" value={event.details.clientId || event.details.clickId}/>
+                    <Detail label="País" value={[event.details.country, event.details.countryCode].filter(Boolean).join(" · ")}/>
+                    <Detail label="Cidade" value={event.details.city}/>
+                    <Detail label="Dispositivo" value={event.details.device === "desktop" ? "Computador" : event.details.device === "mobile" ? "Celular" : event.details.device === "tablet" ? "Tablet" : event.details.device}/>
+                    <Detail label="Viewport" value={event.details.viewportWidth ? `${event.details.viewportWidth} × ${event.details.viewportHeight}` : null}/>
+                    <Detail label="Tela" value={event.details.screenWidth ? `${event.details.screenWidth} × ${event.details.screenHeight}` : null}/>
+                    <Detail label="Navegador" value={[event.details.browser, event.details.operatingSystem].filter(Boolean).join(" · ")}/>
+                    <Detail label="Origem" value={event.details.origin}/>
+                    <Detail label="Cliques" value={event.details.clickCount}/>
+                    {event.source === "postback" ? <><Detail label="Lead / pedido" value={event.details.orderId}/><Detail label="Status" value={event.details.status}/><Detail label="Valor" value={event.details.payout ? `${event.details.currency || ""} ${event.details.payout.toFixed(2)}`.trim() : null}/></> : null}
+                  </div>
+                  <div className="mt-5"><Detail label="URL acessada" value={event.details.pageUrl}/></div>
+                  {Object.keys(event.details.parameters || {}).length ? <div className="mt-5 flex flex-wrap gap-2">{Object.entries(event.details.parameters).map(([key, value]) => <span key={key} className="rounded-full bg-background px-3 py-1.5 text-[11px] text-foreground"><strong>{key}:</strong> {value}</span>)}</div> : null}
+                  {event.source === "postback" ? <div className="mt-6 border-t border-border pt-5"><p className="text-xs font-semibold text-foreground">Payload recebido</p><pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-xl bg-background p-4 text-[11px] text-muted-foreground">{JSON.stringify(event.details.payload || {}, null, 2)}</pre></div> : null}
+                </div> : null}
               </div>
             );
           })}
@@ -124,4 +154,8 @@ export default function ActivityPage() {
       )}
     </div>
   );
+}
+
+function Detail({ label, value }: { label: string; value: unknown }) {
+  return <div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</p><p className="mt-1 break-all text-sm font-medium text-foreground">{value === null || value === undefined || value === "" ? "—" : String(value)}</p></div>;
 }

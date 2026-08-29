@@ -224,8 +224,10 @@ router.get("/postback/integrations/:id/events", requireAuth, async (req: any, re
     const provider = providerId(integration.provider);
     const rows = await getDb().prepare(
       `SELECT e.id, e.external_event_id, e.click_id, e.status, e.status_group, e.payout, e.currency,
-              e.raw_payload, e.received_at, v.id AS visit_id, v.ip_address, v.country_name, v.city,
-              v.device_type, v.browser, v.operating_system, v.page_path, v.referrer,
+              e.raw_payload, e.received_at, v.id AS visit_id, v.visit_token, v.visitor_key,
+              v.country_code, v.country_name, v.city, v.device_type, v.browser, v.operating_system,
+              v.user_agent, v.viewport_width, v.viewport_height, v.screen_width, v.screen_height,
+              v.page_path, v.referrer, v.clicks,
               s.id AS site_id, s.name AS site_name, s.slug AS site_slug
        FROM postback_events e
        LEFT JOIN tracking_visits v ON v.id = e.tracking_visit_id
@@ -262,12 +264,20 @@ router.get("/postback/integrations/:id/events", requireAuth, async (req: any, re
           matched: Boolean(event.visit_id),
           site: event.site_id ? { id: Number(event.site_id), name: event.site_name, slug: event.site_slug } : null,
           visitor: event.visit_id ? {
-            ip: event.ip_address || null,
+            clientId: event.visit_token || null,
+            visitorId: event.visitor_key || null,
+            countryCode: event.country_code || null,
             country: event.country_name || null,
             city: event.city || null,
             device: event.device_type || null,
             browser: event.browser || null,
             operatingSystem: event.operating_system || null,
+            userAgent: event.user_agent || null,
+            viewportWidth: event.viewport_width ? Number(event.viewport_width) : null,
+            viewportHeight: event.viewport_height ? Number(event.viewport_height) : null,
+            screenWidth: event.screen_width ? Number(event.screen_width) : null,
+            screenHeight: event.screen_height ? Number(event.screen_height) : null,
+            clickCount: Number(event.clicks || 0),
             pagePath: event.page_path || null,
             referrer: event.referrer || null,
           } : null,

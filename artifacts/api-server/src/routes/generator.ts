@@ -52,6 +52,17 @@ function publicAppBaseUrl(req: any) {
   return String(process.env.PUBLIC_APP_URL || `${forwardedProtocol || req.protocol}://${forwardedHost || req.get("host")}`).replace(/\/$/, "");
 }
 
+function injectLemonAttribution(html: string) {
+  const script = `<script data-cliclab-lemon-attribution>(function(){
+function q(n){return new URLSearchParams(location.search).get(n)||'';}
+function stamp(f){var t=document.querySelector('script[data-visit-token]'),v={utm_source:q('utm_source'),utm_medium:q('utm_medium'),utm_campaign:q('utm_campaign'),utm_content:q('utm_content'),utm_term:q('utm_term'),clickid:(t&&t.getAttribute('data-visit-token'))||q('clickid')||q('click_id'),fbpxl:q('fbpxl')||q('fbclid')};Object.keys(v).forEach(function(k){var i=f.querySelector('input[name="'+k+'"]');if(!i){i=document.createElement('input');i.type='hidden';i.name=k;f.appendChild(i);}i.value=v[k];});}
+function all(){document.querySelectorAll('form').forEach(stamp);}
+document.addEventListener('submit',function(e){if(e.target&&e.target.tagName==='FORM')stamp(e.target);},true);
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',all,{once:true});else all();
+})();</script>`;
+  return injectTagIntoHead(html, script);
+}
+
 async function serveDomainPresell(req: any, res: any, presell: any, fileName: string, slug: string) {
   if (!presell) return void res.status(404).send("Página não encontrada.");
   if (presell.status === "paused") return void res.status(503).type("html").set("Cache-Control", "no-store").send(PAUSED_PRESELL_HTML);
@@ -68,6 +79,7 @@ async function serveDomainPresell(req: any, res: any, presell: any, fileName: st
         const query = req.originalUrl.includes("?") ? req.originalUrl.slice(req.originalUrl.indexOf("?")) : "";
         const visitToken = await recordTrackingVisit(req, site, `/${slug}${query}`, String(req.headers.referer || ""));
         html = injectClickTracker(html, visitToken);
+        if (presell.lemon_submit_token) html = injectLemonAttribution(html);
       }
     } catch (trackingError: any) {
       logger.warn({ err: trackingError.message, presellId: presell.id }, "Domain presell served without analytics");
@@ -7101,7 +7113,7 @@ router.get(/^\/public\/[^/]+(?:\/[^/]+)?$/, async (req, res) => {
     const slug = String(parts[1] || "").toLowerCase();
     const fileName = path.basename(parts[2] || "index.html");
     const presell = await getDb().prepare(
-      `SELECT p.id, p.user_id, p.product_name, p.status, p.published_html, p.thank_you_html, p.thank_you_file_name
+      `SELECT p.id, p.user_id, p.product_name, p.status, p.published_html, p.thank_you_html, p.thank_you_file_name, p.lemon_submit_token
        FROM tracking_sites t JOIN presells p ON p.id = t.presell_id
        WHERE t.slug = ? AND t.status = 'active' AND p.published_url IS NOT NULL`
     ).get(slug) as any;
@@ -7119,7 +7131,7 @@ router.get(/^\/p\/.+\/[^/]+$/, async (req, res) => {
     const publishPath = parts.join("/");
     if (!publishPath.startsWith("p/") || !fileName) return void res.status(404).send("Página não encontrada.");
     const presell = await getDb().prepare(
-      "SELECT id, user_id, product_name, status, published_html, thank_you_html, thank_you_file_name FROM presells WHERE publish_path = ? AND published_url IS NOT NULL"
+      "SELECT id, user_id, product_name, status, published_html, thank_you_html, thank_you_file_name, lemon_submit_token FROM presells WHERE publish_path = ? AND published_url IS NOT NULL"
     ).get(publishPath) as any;
     if (!presell) return void res.status(404).send("Página não encontrada.");
     if (presell.status === "paused") return void res.status(503).type("html").set("Cache-Control", "no-store").send(PAUSED_PRESELL_HTML);
@@ -7149,9 +7161,11 @@ router.get(/^\/p\/.+\/[^/]+$/, async (req, res) => {
           }
           const visitToken = await recordTrackingVisit(req, selectedSite);
           html = injectClickTracker(html, visitToken);
+          if (presell.lemon_submit_token) html = injectLemonAttribution(html);
         } else {
           const visitToken = await recordPublishedVisit(req, presell);
           html = injectClickTracker(html, visitToken);
+          if (presell.lemon_submit_token) html = injectLemonAttribution(html);
         }
       } catch (trackingError: any) {
         logger.warn({ err: trackingError.message, presellId: presell.id }, "Presell served without analytics");

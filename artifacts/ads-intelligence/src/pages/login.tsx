@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, MailCheck } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { getGetMeQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -51,9 +51,18 @@ export default function Login() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(() => Boolean(localStorage.getItem("ads_token")));
   const [loginPending, setLoginPending] = useState(false);
+  const [otpPending, setOtpPending] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpChallenge, setOtpChallenge] = useState<{ token: string; email: string } | null>(null);
+  const [resendIn, setResendIn] = useState(0);
   const [accessMessage, setAccessMessage] = useState(() => sessionStorage.getItem("account_access_error") || "");
 
   useEffect(() => { sessionStorage.removeItem("account_access_error"); }, []);
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const timer = window.setInterval(() => setResendIn((value) => Math.max(0, value - 1)), 1000);
+    return () => window.clearInterval(timer);
+  }, [resendIn]);
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -148,6 +157,12 @@ export default function Login() {
         if (response.status === 403) { setAccessMessage(result.error || "Seu acesso está indisponível."); return; }
         throw new Error(result.error || "Confira seu e-mail e sua senha.");
       }
+      if (result.requiresOtp) {
+        setOtpChallenge({ token: result.challengeToken, email: result.maskedEmail });
+        setOtpCode("");
+        setResendIn(Number(result.resendAfterSeconds || 45));
+        return;
+      }
       localStorage.setItem("ads_token", result.token);
       queryClient.setQueryData(getGetMeQueryKey(), result.user);
       setLocation("/creator");
@@ -155,13 +170,49 @@ export default function Login() {
     finally { setLoginPending(false); }
   };
 
+  const verifyOtp = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!otpChallenge || otpCode.length !== 6) return;
+    setOtpPending(true);
+    try {
+      const response = await fetch("/api/auth/verify-otp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ challengeToken: otpChallenge.token, code: otpCode }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Código inválido.");
+      localStorage.setItem("ads_token", result.token);
+      queryClient.setQueryData(getGetMeQueryKey(), result.user);
+      setLocation("/creator");
+    } catch (error: any) {
+      toast({ title: "Não foi possível confirmar", description: error.message, variant: "destructive" });
+    } finally { setOtpPending(false); }
+  };
+
+  const resendOtp = async () => {
+    if (!otpChallenge || resendIn > 0) return;
+    setOtpPending(true);
+    try {
+      const response = await fetch("/api/auth/resend-otp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ challengeToken: otpChallenge.token }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Não foi possível reenviar.");
+      setOtpCode("");
+      setResendIn(Number(result.resendAfterSeconds || 45));
+      toast({ title: "Novo código enviado" });
+    } catch (error: any) { toast({ title: "Falha ao reenviar", description: error.message, variant: "destructive" }); }
+    finally { setOtpPending(false); }
+  };
+
   if (checkingSession) {
     return <div className="min-h-screen bg-white" aria-label="Verificando sessão" />;
   }
 
   return (
-    <AuthShell eyebrow="Bem-vindo de volta" title="Entre na sua conta ClicLab" description="Insira seus dados para acessar o painel e gerenciar suas campanhas.">
+    <AuthShell eyebrow={otpChallenge ? "Verificação segura" : "Bem-vindo de volta"} title={otpChallenge ? "Confirme seu acesso" : "Entre na sua conta ClicLab"} description={otpChallenge ? `Enviamos um código de 6 números para ${otpChallenge.email}.` : "Insira seus dados para acessar o painel e gerenciar suas campanhas."}>
       <Dialog open={Boolean(accessMessage)} onOpenChange={(open) => { if (!open) setAccessMessage(""); }}><DialogContent className="max-w-sm rounded-3xl border-slate-200 bg-white p-7 text-slate-950"><DialogTitle className="text-2xl">Acesso indisponível</DialogTitle><DialogDescription className="mt-3 leading-6 text-slate-500">{accessMessage}</DialogDescription><Button onClick={() => setAccessMessage("")} className="mt-5 h-11 w-full rounded-full">Entendi</Button></DialogContent></Dialog>
+      {otpChallenge ? <form onSubmit={verifyOtp} className="space-y-5">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-50 text-primary"><MailCheck className="h-5 w-5" /></div>
+        <div><label htmlFor="login-otp" className="text-xs font-semibold text-slate-600">Código de verificação</label><Input id="login-otp" value={otpCode} onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" autoFocus maxLength={6} placeholder="000000" className="mt-2 h-14 rounded-xl border-slate-200 bg-white text-center font-mono text-2xl font-semibold tracking-[0.22em] text-slate-900 shadow-sm focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary/20" /></div>
+        <Button type="submit" disabled={otpPending || otpCode.length !== 6} className="h-12 w-full rounded-xl bg-primary font-semibold text-primary-foreground shadow-[0_0_20px_rgba(59,130,246,0.25)]">{otpPending ? "Verificando..." : "Confirmar e entrar"}</Button>
+        <div className="flex items-center justify-between text-xs"><button type="button" onClick={() => { setOtpChallenge(null); setOtpCode(""); }} className="inline-flex items-center gap-1.5 font-semibold text-slate-500 hover:text-slate-800"><ArrowLeft className="h-3.5 w-3.5"/>Voltar</button><button type="button" disabled={otpPending || resendIn > 0} onClick={resendOtp} className="font-semibold text-primary disabled:text-slate-400">{resendIn > 0 ? `Reenviar em ${resendIn}s` : "Reenviar código"}</button></div>
+      </form> : <>
       {/* Google OAuth Official Button */}
       <div id="google-button-container" className="w-full flex justify-center h-12 mb-2 [&>div]:w-full [&>div]:flex [&>div]:justify-center"></div>
 
@@ -247,6 +298,7 @@ export default function Login() {
           Criar conta
         </Link>
       </p>
+      </>}
     </AuthShell>
   );
 }

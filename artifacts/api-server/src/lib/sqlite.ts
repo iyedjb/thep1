@@ -63,6 +63,19 @@ async function initPostgresDb() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS login_otp_challenges (
+      id SERIAL PRIMARY KEY,
+      token VARCHAR(64) UNIQUE NOT NULL,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code_hash VARCHAR(64) NOT NULL,
+      attempts_remaining INTEGER NOT NULL DEFAULT 5,
+      expires_at TIMESTAMP NOT NULL,
+      last_sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      consumed_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_login_otp_user_created ON login_otp_challenges(user_id, created_at);
+
     CREATE TABLE IF NOT EXISTS admin_accounts (
       id SERIAL PRIMARY KEY,
       email VARCHAR(255) UNIQUE NOT NULL,
@@ -210,6 +223,10 @@ async function initPostgresDb() {
       browser VARCHAR(80),
       operating_system VARCHAR(80),
       user_agent TEXT,
+      viewport_width INTEGER,
+      viewport_height INTEGER,
+      screen_width INTEGER,
+      screen_height INTEGER,
       referrer TEXT,
       page_path TEXT,
       traffic_source VARCHAR(20) NOT NULL DEFAULT 'organic',
@@ -475,6 +492,9 @@ async function initPostgresDb() {
   try {
     await db.exec("ALTER TABLE tracking_visits ADD COLUMN user_agent TEXT;");
   } catch (e) {}
+  for (const column of ["viewport_width", "viewport_height", "screen_width", "screen_height"]) {
+    try { await db.exec(`ALTER TABLE tracking_visits ADD COLUMN ${column} INTEGER;`); } catch (e) {}
+  }
   try {
     await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_tracking_sites_slug_unique ON tracking_sites(slug) WHERE slug IS NOT NULL;");
   } catch (e) {}
@@ -575,6 +595,19 @@ async function initSqliteDb() {
       subscription_expires_at TIMESTAMP,
       account_status TEXT NOT NULL DEFAULT 'active'
     );
+
+    CREATE TABLE IF NOT EXISTS login_otp_challenges (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT UNIQUE NOT NULL,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      code_hash TEXT NOT NULL,
+      attempts_remaining INTEGER NOT NULL DEFAULT 5,
+      expires_at TIMESTAMP NOT NULL,
+      last_sent_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      consumed_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_login_otp_user_created ON login_otp_challenges(user_id, created_at);
 
     CREATE TABLE IF NOT EXISTS admin_accounts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -723,6 +756,10 @@ async function initSqliteDb() {
       browser TEXT,
       operating_system TEXT,
       user_agent TEXT,
+      viewport_width INTEGER,
+      viewport_height INTEGER,
+      screen_width INTEGER,
+      screen_height INTEGER,
       referrer TEXT,
       page_path TEXT,
       traffic_source TEXT NOT NULL DEFAULT 'organic',
@@ -853,6 +890,10 @@ async function initSqliteDb() {
     "ALTER TABLE tracking_sites ADD COLUMN slug TEXT;",
     "ALTER TABLE tracking_visits ADD COLUMN traffic_source TEXT NOT NULL DEFAULT 'organic';",
     "ALTER TABLE tracking_visits ADD COLUMN user_agent TEXT;",
+    "ALTER TABLE tracking_visits ADD COLUMN viewport_width INTEGER;",
+    "ALTER TABLE tracking_visits ADD COLUMN viewport_height INTEGER;",
+    "ALTER TABLE tracking_visits ADD COLUMN screen_width INTEGER;",
+    "ALTER TABLE tracking_visits ADD COLUMN screen_height INTEGER;",
     "ALTER TABLE postback_integrations ADD COLUMN name TEXT;",
     "ALTER TABLE postback_integrations ADD COLUMN expires_at TIMESTAMP;",
     "ALTER TABLE postback_integrations ADD COLUMN last_tested_at TIMESTAMP;",

@@ -26,6 +26,10 @@ type EventDetails = {
   browser: string | null;
   operatingSystem: string | null;
   userAgent: string | null;
+  viewportWidth: number | null;
+  viewportHeight: number | null;
+  screenWidth: number | null;
+  screenHeight: number | null;
   origin: string | null;
   pageUrl: string | null;
   parameters: Record<string, string>;
@@ -250,9 +254,9 @@ export default function TrackingPage() {
               <div className="space-y-7 px-5 py-6 sm:px-7">
                 {visibleSections.has("identity") ? <div><p className="text-xs font-semibold text-foreground">Identificação</p><div className="mt-2 grid sm:grid-cols-2"><div className="sm:pr-5"><DetailValue label="Client ID" value={selectedEvent.details.clientId} mono/><button type="button" onClick={() => copyValue(selectedEvent.details.clientId, "client")} className="mt-2 text-[11px] font-semibold text-primary">{copiedValue === "client" ? "Copiado" : "Copiar Client ID"}</button></div><div className="sm:border-l sm:border-border sm:pl-5"><DetailValue label="Visitor ID" value={selectedEvent.details.visitorId} mono/></div></div></div> : null}
 
-                {visibleSections.has("location") ? <div><p className="text-xs font-semibold text-foreground">Localização</p><div className="mt-2 grid grid-cols-2 gap-x-5 sm:grid-cols-4"><DetailValue label="País" value={selectedEvent.details.country}/><DetailValue label="Código" value={selectedEvent.details.countryCode}/><DetailValue label="Cidade" value={selectedEvent.details.city}/><DetailValue label="IP" value={selectedEvent.details.ip} mono/></div></div> : null}
+                {visibleSections.has("location") ? <div><p className="text-xs font-semibold text-foreground">Localização</p><div className="mt-2 grid grid-cols-2 gap-x-5 sm:grid-cols-3"><DetailValue label="País" value={selectedEvent.details.country}/><DetailValue label="Código" value={selectedEvent.details.countryCode}/><DetailValue label="Cidade" value={selectedEvent.details.city}/></div></div> : null}
 
-                {visibleSections.has("device") ? <div><p className="text-xs font-semibold text-foreground">Dispositivo</p><div className="mt-2 grid gap-x-5 sm:grid-cols-3"><DetailValue label="Tipo" value={deviceNames[selectedEvent.details.device || ""] || selectedEvent.details.device}/><DetailValue label="Navegador" value={selectedEvent.details.browser}/><DetailValue label="Sistema" value={selectedEvent.details.operatingSystem}/></div><DetailValue label="User agent" value={selectedEvent.details.userAgent} mono/></div> : null}
+                {visibleSections.has("device") ? <div><p className="text-xs font-semibold text-foreground">Dispositivo</p><div className="mt-2 grid gap-x-5 sm:grid-cols-3"><DetailValue label="Tipo" value={deviceNames[selectedEvent.details.device || ""] || selectedEvent.details.device}/><DetailValue label="Viewport" value={selectedEvent.details.viewportWidth ? `${selectedEvent.details.viewportWidth} × ${selectedEvent.details.viewportHeight}` : null}/><DetailValue label="Tela" value={selectedEvent.details.screenWidth ? `${selectedEvent.details.screenWidth} × ${selectedEvent.details.screenHeight}` : null}/><DetailValue label="Navegador" value={selectedEvent.details.browser}/><DetailValue label="Sistema" value={selectedEvent.details.operatingSystem}/></div><DetailValue label="User agent" value={selectedEvent.details.userAgent} mono/></div> : null}
 
                 {visibleSections.has("attribution") ? <div><p className="text-xs font-semibold text-foreground">Origem e cliques</p><div className="mt-2 grid gap-x-5 sm:grid-cols-3"><DetailValue label="Origem" value={selectedEvent.details.origin}/><DetailValue label="Fonte" value={selectedEvent.source === "postback" ? "Postback" : selectedEvent.source === "paid" ? "Pago" : "Orgânico"}/><DetailValue label="Total de cliques" value={selectedEvent.details.clickCount}/><DetailValue label="Tipo do Click ID" value={selectedEvent.details.clickIdType}/><DetailValue label="Click ID" value={selectedEvent.details.clickId} mono/><DetailValue label="Último clique" value={selectedEvent.details.clickedAt ? formatMoment(selectedEvent.details.clickedAt) : null}/></div><DetailValue label="URL acessada" value={selectedEvent.details.pageUrl} mono/><div className="flex gap-4"><button type="button" onClick={() => copyValue(selectedEvent.details.pageUrl, "url")} className="mt-2 text-[11px] font-semibold text-primary">{copiedValue === "url" ? "Copiada" : "Copiar URL"}</button></div><DetailValue label="Referrer / origem" value={selectedEvent.details.origin} mono/></div> : null}
 

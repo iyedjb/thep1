@@ -74,6 +74,10 @@ function visitDetails(visit: any) {
     browser: visit.browser || null,
     operatingSystem: visit.operating_system || null,
     userAgent: visit.user_agent || null,
+    viewportWidth: visit.viewport_width ? Number(visit.viewport_width) : null,
+    viewportHeight: visit.viewport_height ? Number(visit.viewport_height) : null,
+    screenWidth: visit.screen_width ? Number(visit.screen_width) : null,
+    screenHeight: visit.screen_height ? Number(visit.screen_height) : null,
     origin: visit.referrer || null,
     pageUrl: page.pageUrl,
     parameters: page.parameters,
@@ -88,8 +92,9 @@ router.get("/tracker.js", (_req, res) => {
   res.type("application/javascript").set("Cache-Control", "public, max-age=300").send(`(function(){
 var s=document.currentScript,k=s&&s.getAttribute('data-site');if(!k)return;
 var o=new URL(s.src).origin,t=s.getAttribute('data-visit-token')||'';
+function c(){if(!t)return;var b=JSON.stringify({token:t,viewportWidth:window.innerWidth,viewportHeight:window.innerHeight,screenWidth:screen.width,screenHeight:screen.height});try{fetch(o+'/api/tracking/context',{method:'POST',headers:{'Content-Type':'application/json'},body:b,keepalive:true,credentials:'omit'});}catch(_){}}
 function d(){if(!t)return;var r=function(){document.querySelectorAll('a[href]').forEach(function(a){try{var u=new URL(a.getAttribute('href')||'',location.href);if(!/^https?:$/.test(u.protocol)||u.origin===location.origin)return;u.searchParams.set('clickid',t);a.setAttribute('href',u.toString());}catch(_){}});document.querySelectorAll('form').forEach(function(f){var x=f.querySelectorAll('input[name="clickid"]');if(x.length){x.forEach(function(i){i.value=t;});}else{var i=document.createElement('input');i.type='hidden';i.name='clickid';i.value=t;f.appendChild(i);}});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',r,{once:true});else r();}
-if(t)d();else fetch(o+'/api/tracking/visit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({siteKey:k,pageUrl:location.href,referrer:document.referrer}),keepalive:true,credentials:'omit'}).then(function(r){return r.ok?r.json():null}).then(function(v){t=v&&v.token||'';d();}).catch(function(){});
+if(t){d();c();}else fetch(o+'/api/tracking/visit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({siteKey:k,pageUrl:location.href,referrer:document.referrer}),keepalive:true,credentials:'omit'}).then(function(r){return r.ok?r.json():null}).then(function(v){t=v&&v.token||'';d();c();}).catch(function(){});
 document.addEventListener('click',function(e){var n=e.target&&e.target.closest?e.target.closest('a,button,[role="button"],input[type="submit"]'):null;if(!n||!t)return;var b=JSON.stringify({token:t});try{if(navigator.sendBeacon)navigator.sendBeacon(o+'/api/tracking/click',new Blob([b],{type:'application/json'}));else fetch(o+'/api/tracking/click',{method:'POST',headers:{'Content-Type':'application/json'},body:b,keepalive:true,credentials:'omit'});}catch(_){ }},true);
 })();`);
 });
@@ -195,6 +200,30 @@ router.post("/tracking/click", async (req, res) => {
   res.status(204).end();
 });
 
+router.post("/tracking/context", async (req, res) => {
+  const token = String(req.body?.token || "");
+  if (!/^[a-f0-9]{48}$/.test(token)) return void res.status(204).end();
+  const dimension = (value: unknown) => {
+    const parsed = Math.round(Number(value));
+    return Number.isFinite(parsed) && parsed > 0 && parsed <= 16_000 ? parsed : null;
+  };
+  const viewportWidth = dimension(req.body?.viewportWidth);
+  const viewportHeight = dimension(req.body?.viewportHeight);
+  const screenWidth = dimension(req.body?.screenWidth);
+  const screenHeight = dimension(req.body?.screenHeight);
+  const effectiveWidth = viewportWidth || screenWidth;
+  const device = effectiveWidth ? (effectiveWidth <= 767 ? "mobile" : effectiveWidth <= 1100 ? "tablet" : "desktop") : null;
+  try {
+    await getDb().prepare(
+      `UPDATE tracking_visits SET viewport_width = ?, viewport_height = ?, screen_width = ?, screen_height = ?,
+       device_type = COALESCE(?, device_type) WHERE visit_token = ?`
+    ).run(viewportWidth, viewportHeight, screenWidth, screenHeight, device, token);
+  } catch (error: any) {
+    logger.warn({ err: error.message }, "Unable to enrich tracked visit");
+  }
+  res.status(204).end();
+});
+
 router.get("/tracking/activity", requireAuth, async (req: any, res) => {
   try {
     const days = req.query.period === "30d" ? 30 : req.query.period === "90d" ? 90 : 7;
@@ -224,6 +253,7 @@ router.get("/tracking/activity", requireAuth, async (req: any, res) => {
       `SELECT e.*, i.name AS integration_name,
               v.tracking_site_id, v.visit_token, v.visitor_key, v.ip_address, v.country_code,
               v.country_name, v.city, v.device_type, v.browser, v.operating_system, v.user_agent,
+              v.viewport_width, v.viewport_height, v.screen_width, v.screen_height,
               v.referrer, v.page_path, v.traffic_source, v.clicks, v.clicked_at,
               s.name AS site_name
        FROM postback_events e

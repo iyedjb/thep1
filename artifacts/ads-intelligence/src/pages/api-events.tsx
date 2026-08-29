@@ -19,12 +19,20 @@ type ApiEvent = {
   matched: boolean;
   site: { id: number; name: string; slug: string } | null;
   visitor: {
-    ip: string | null;
+    clientId: string | null;
+    visitorId: string | null;
+    countryCode: string | null;
     country: string | null;
     city: string | null;
     device: string | null;
     browser: string | null;
     operatingSystem: string | null;
+    userAgent: string | null;
+    viewportWidth: number | null;
+    viewportHeight: number | null;
+    screenWidth: number | null;
+    screenHeight: number | null;
+    clickCount: number;
     pagePath: string | null;
     referrer: string | null;
   } | null;
@@ -136,12 +144,20 @@ export default function ApiEventsPage() {
 
               <div className="border-b border-border py-7">
                 <h3 className="text-sm font-semibold text-foreground">Visitante atribuído</h3>
+                {!selected.matched ? <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800"><strong>Este callback chegou sem Client ID.</strong> A LemonAD não devolveu o parâmetro <code>clickid</code>, por isso este evento antigo não pode ser ligado retroativamente a um acesso. As presells LemonAD agora enviam o Client ID automaticamente.</div> : null}
                 <div className="mt-5 grid gap-x-8 gap-y-6 sm:grid-cols-2">
-                  <Value label="IP">{selected.visitor?.ip}</Value>
-                  <Value label="Localização">{[selected.visitor?.city, selected.visitor?.country].filter(Boolean).join(", ")}</Value>
-                  <Value label="Dispositivo">{selected.visitor?.device}</Value>
+                  <Value label="Client ID">{selected.visitor?.clientId || selected.clickId}</Value>
+                  <Value label="Visitor ID">{selected.visitor?.visitorId}</Value>
+                  <Value label="País">{[selected.visitor?.country, selected.visitor?.countryCode].filter(Boolean).join(" · ")}</Value>
+                  <Value label="Cidade">{selected.visitor?.city}</Value>
+                  <Value label="Dispositivo">{selected.visitor?.device === "desktop" ? "Computador" : selected.visitor?.device === "mobile" ? "Celular" : selected.visitor?.device === "tablet" ? "Tablet" : selected.visitor?.device}</Value>
+                  <Value label="Viewport">{selected.visitor?.viewportWidth ? `${selected.visitor.viewportWidth} × ${selected.visitor.viewportHeight}` : null}</Value>
+                  <Value label="Tela">{selected.visitor?.screenWidth ? `${selected.visitor.screenWidth} × ${selected.visitor.screenHeight}` : null}</Value>
                   <Value label="Navegador">{[selected.visitor?.browser, selected.visitor?.operatingSystem].filter(Boolean).join(" · ")}</Value>
+                  <Value label="Cliques">{selected.visitor?.clickCount}</Value>
+                  <Value label="Origem">{selected.visitor?.referrer}</Value>
                 </div>
+                <div className="mt-6 space-y-5"><Value label="URL acessada">{selected.visitor?.pagePath}</Value><Value label="User agent">{selected.visitor?.userAgent}</Value></div>
               </div>
 
               <div className="py-7">
