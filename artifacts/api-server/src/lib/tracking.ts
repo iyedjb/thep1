@@ -139,7 +139,41 @@ export async function recordPublishedVisit(req: Request, presell: PublishedPrese
   return recordTrackingVisit(req, site);
 }
 
+export function injectTagIntoHead(html: string, tag: string) {
+  if (/<\/head\s*>/i.test(html)) {
+    return html.replace(/<\/head\s*>/i, `  ${tag}\n</head>`);
+  }
+  if (/<head\b[^>]*>/i.test(html)) {
+    return html.replace(/<head\b[^>]*>/i, (openingTag) => `${openingTag}\n  ${tag}`);
+  }
+  if (/<html\b[^>]*>/i.test(html)) {
+    return html.replace(/<html\b[^>]*>/i, (openingTag) => `${openingTag}\n<head>\n  ${tag}\n</head>`);
+  }
+  const doctype = html.match(/^\s*<!doctype\s+html[^>]*>/i);
+  if (doctype) {
+    return html.replace(doctype[0], `${doctype[0]}\n<head>\n  ${tag}\n</head>`);
+  }
+  return `<head>\n  ${tag}\n</head>\n${html}`;
+}
+
 export function injectClickTracker(html: string, visitToken: string) {
-  const tracker = `<script data-cliclab-tracker>(function(){var t=${JSON.stringify(visitToken)};var u='/api/tracking/click';document.addEventListener('click',function(e){var n=e.target&&e.target.closest?e.target.closest('a,button,[role="button"],input[type="submit"]'):null;if(!n)return;var b=JSON.stringify({token:t});try{if(navigator.sendBeacon){navigator.sendBeacon(u,new Blob([b],{type:'application/json'}));}else{fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:b,keepalive:true});}}catch(_){}} ,true);})();</script>`;
-  return /<\/body\s*>/i.test(html) ? html.replace(/<\/body\s*>/i, `${tracker}</body>`) : `${html}${tracker}`;
+  // Published pages already contain the external tracker in <head>. Give that
+  // script the server-created visit token instead of adding a second listener
+  // in <body>, which used to double-count visits and clicks.
+  const externalTracker = /<script\b(?=[^>]*\bsrc=["'][^"']*\/api\/tracker\.js(?:\?[^"']*)?["'])[^>]*>/i;
+  if (externalTracker.test(html)) {
+    let resolvedTracker = "";
+    const htmlWithoutTracker = html.replace(externalTracker, (scriptTag) => {
+      if (/\bdata-visit-token\s*=/i.test(scriptTag)) {
+        resolvedTracker = scriptTag.replace(/\bdata-visit-token\s*=\s*(["'])[^"']*\1/i, `data-visit-token="${visitToken}"`);
+      } else {
+        resolvedTracker = scriptTag.replace(/>$/, ` data-visit-token="${visitToken}">`);
+      }
+      return "";
+    });
+    return injectTagIntoHead(htmlWithoutTracker, resolvedTracker);
+  }
+
+  const tracker = `<script data-cliclab-tracker data-visit-token="${visitToken}">(function(){var t=${JSON.stringify(visitToken)};var u='/api/tracking/click';function d(){var r=function(){document.querySelectorAll('a[href]').forEach(function(a){try{var x=new URL(a.getAttribute('href')||'',location.href);if(!/^https?:$/.test(x.protocol)||x.origin===location.origin)return;x.searchParams.set('clickid',t);a.setAttribute('href',x.toString());}catch(_){}});document.querySelectorAll('form').forEach(function(f){var x=f.querySelectorAll('input[name="clickid"]');if(x.length)x.forEach(function(i){i.value=t;});else{var i=document.createElement('input');i.type='hidden';i.name='clickid';i.value=t;f.appendChild(i);}});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',r,{once:true});else r();}d();document.addEventListener('click',function(e){var n=e.target&&e.target.closest?e.target.closest('a,button,[role="button"],input[type="submit"]'):null;if(!n)return;var b=JSON.stringify({token:t});try{if(navigator.sendBeacon){navigator.sendBeacon(u,new Blob([b],{type:'application/json'}));}else{fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:b,keepalive:true});}}catch(_){}} ,true);})();</script>`;
+  return injectTagIntoHead(html, tracker);
 }

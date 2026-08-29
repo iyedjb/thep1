@@ -41,14 +41,15 @@ async function ensureSiteSlug(site: any) {
 }
 
 function installationSnippet(baseUrl: string, siteKey: string) {
-  return `<script async src="${baseUrl}/api/tracker.js" data-site="${siteKey}"></script>`;
+  return `<!-- Cole este código dentro de <head> -->\n<script async src="${baseUrl}/api/tracker.js" data-site="${siteKey}"></script>`;
 }
 
 router.get("/tracker.js", (_req, res) => {
   res.type("application/javascript").set("Cache-Control", "public, max-age=300").send(`(function(){
 var s=document.currentScript,k=s&&s.getAttribute('data-site');if(!k)return;
 var o=new URL(s.src).origin,t=s.getAttribute('data-visit-token')||'';
-if(!t)fetch(o+'/api/tracking/visit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({siteKey:k,pageUrl:location.href,referrer:document.referrer}),keepalive:true,credentials:'omit'}).then(function(r){return r.ok?r.json():null}).then(function(d){t=d&&d.token||''}).catch(function(){});
+function d(){if(!t)return;var r=function(){document.querySelectorAll('a[href]').forEach(function(a){try{var u=new URL(a.getAttribute('href')||'',location.href);if(!/^https?:$/.test(u.protocol)||u.origin===location.origin)return;u.searchParams.set('clickid',t);a.setAttribute('href',u.toString());}catch(_){}});document.querySelectorAll('form').forEach(function(f){var x=f.querySelectorAll('input[name="clickid"]');if(x.length){x.forEach(function(i){i.value=t;});}else{var i=document.createElement('input');i.type='hidden';i.name='clickid';i.value=t;f.appendChild(i);}});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',r,{once:true});else r();}
+if(t)d();else fetch(o+'/api/tracking/visit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({siteKey:k,pageUrl:location.href,referrer:document.referrer}),keepalive:true,credentials:'omit'}).then(function(r){return r.ok?r.json():null}).then(function(v){t=v&&v.token||'';d();}).catch(function(){});
 document.addEventListener('click',function(e){var n=e.target&&e.target.closest?e.target.closest('a,button,[role="button"],input[type="submit"]'):null;if(!n||!t)return;var b=JSON.stringify({token:t});try{if(navigator.sendBeacon)navigator.sendBeacon(o+'/api/tracking/click',new Blob([b],{type:'application/json'}));else fetch(o+'/api/tracking/click',{method:'POST',headers:{'Content-Type':'application/json'},body:b,keepalive:true,credentials:'omit'});}catch(_){ }},true);
 })();`);
 });
@@ -177,9 +178,40 @@ router.get("/tracking/overview", requireAuth, async (req: any, res) => {
     const visits = selectedSite
       ? await db.prepare("SELECT * FROM tracking_visits WHERE user_id = ? AND tracking_site_id = ? AND created_at >= ? ORDER BY created_at DESC").all(req.userId, selectedSite, since)
       : await db.prepare("SELECT * FROM tracking_visits WHERE user_id = ? AND created_at >= ? ORDER BY created_at DESC").all(req.userId, since);
+    const postbackEvents = await db.prepare(
+      `SELECT e.*, v.tracking_site_id, v.traffic_source AS visit_traffic_source
+       FROM postback_events e
+       LEFT JOIN tracking_visits v ON v.id = e.tracking_visit_id
+       WHERE e.user_id = ? AND e.received_at >= ?
+       ORDER BY e.received_at DESC, e.id DESC`
+    ).all(req.userId, since) as any[];
 
     const unfilteredRows = visits as any[];
     const rows = source === "all" ? unfilteredRows : unfilteredRows.filter((row) => String(row.traffic_source || "organic") === source);
+    const eventSource = (event: any) => {
+      if (event.visit_traffic_source) return String(event.visit_traffic_source);
+      const medium = String(event.utm_medium || "").toLowerCase();
+      return /^(cpc|ppc|paid|paidsearch|paid-social|display|affiliate)$/.test(medium) ? "paid" : "organic";
+    };
+    const scopedEvents = postbackEvents.filter((event) =>
+      (!selectedSite || Number(event.tracking_site_id) === selectedSite)
+      && (source === "all" || eventSource(event) === source)
+    );
+    const latestLeadEvents = new Map<string, any>();
+    for (const event of scopedEvents) {
+      const leadKey = `${event.provider}:${event.external_event_id || event.click_id || event.event_key}`;
+      if (!latestLeadEvents.has(leadKey)) latestLeadEvents.set(leadKey, event);
+    }
+    const leadEvents = [...latestLeadEvents.values()];
+    const approvedLeadEvents = leadEvents.filter((event) => event.status_group === "approved" || event.status_group === "paid");
+    const paidLeadEvents = leadEvents.filter((event) => event.status_group === "paid");
+    const revenueEvents = paidLeadEvents.length ? paidLeadEvents : approvedLeadEvents;
+    const revenueByCurrencyMap = new Map<string, number>();
+    for (const event of revenueEvents) {
+      const currency = String(event.currency || "USD").toUpperCase();
+      revenueByCurrencyMap.set(currency, (revenueByCurrencyMap.get(currency) || 0) + Number(event.payout || 0));
+    }
+    const revenueByCurrency = [...revenueByCurrencyMap.entries()].map(([currency, amount]) => ({ currency, amount }));
     const uniqueVisitors = new Set(rows.map((row) => row.visitor_key)).size;
     const engagedVisits = rows.filter((row) => Number(row.clicks || 0) > 0).length;
     const clickEvents = rows.reduce((sum, row) => sum + Number(row.clicks || 0), 0);
@@ -198,6 +230,11 @@ router.get("/tracking/overview", requireAuth, async (req: any, res) => {
     const trackedPresellIds = new Set(sites.filter((site) => site.presell_id).map((site) => Number(site.presell_id)));
     const siteStats = sites.map((site) => {
       const pageVisits = rows.filter((row) => Number(row.tracking_site_id) === Number(site.id));
+      const pageLeadEvents = leadEvents.filter((event) => Number(event.tracking_site_id) === Number(site.id));
+      const pageConversions = pageLeadEvents.filter((event) => event.status_group === "approved" || event.status_group === "paid");
+      const pageRevenueEvents = pageLeadEvents.some((event) => event.status_group === "paid")
+        ? pageLeadEvents.filter((event) => event.status_group === "paid")
+        : pageConversions;
       const clicks = pageVisits.filter((row) => Number(row.clicks || 0) > 0).length;
       const total = pageVisits.length;
       return {
@@ -208,6 +245,8 @@ router.get("/tracking/overview", requireAuth, async (req: any, res) => {
         status: site.status,
         visits: total,
         clicks,
+        conversions: pageConversions.length,
+        revenue: pageRevenueEvents.reduce((sum, event) => sum + Number(event.payout || 0), 0),
         clickRate: total ? Math.round((clicks / total) * 100) : 0,
         escapeRate: total ? Math.round(((total - clicks) / total) * 100) : 0,
       };
@@ -216,7 +255,7 @@ router.get("/tracking/overview", requireAuth, async (req: any, res) => {
       const pageVisits = rows.filter((row) => Number(row.presell_id) === Number(presell.id));
       const clicks = pageVisits.filter((row) => Number(row.clicks || 0) > 0).length;
       const total = pageVisits.length;
-      return { id: `presell-${presell.id}`, name: presell.product_name || `Presell ${presell.id}`, url: presell.published_url || presell.destination_url, status: presell.status, visits: total, clicks, clickRate: total ? Math.round((clicks / total) * 100) : 0, escapeRate: total ? Math.round(((total - clicks) / total) * 100) : 0 };
+      return { id: `presell-${presell.id}`, name: presell.product_name || `Presell ${presell.id}`, url: presell.published_url || presell.destination_url, status: presell.status, visits: total, clicks, conversions: 0, revenue: 0, clickRate: total ? Math.round((clicks / total) * 100) : 0, escapeRate: total ? Math.round(((total - clicks) / total) * 100) : 0 };
     });
     const pageStats = [...siteStats, ...legacyPresellStats].sort((a, b) => b.visits - a.visits);
 
@@ -254,6 +293,12 @@ router.get("/tracking/overview", requireAuth, async (req: any, res) => {
         todayVisits,
         engagedVisits,
         clickEvents,
+        leads: leadEvents.length,
+        approvedLeads: approvedLeadEvents.length,
+        paidLeads: paidLeadEvents.length,
+        revenue: revenueByCurrency.length === 1 ? revenueByCurrency[0].amount : 0,
+        revenueCurrency: revenueByCurrency.length === 1 ? revenueByCurrency[0].currency : null,
+        revenueByCurrency,
         escapeRate: rows.length ? Math.round(((rows.length - engagedVisits) / rows.length) * 100) : 0,
       },
       pages: pageStats,
@@ -271,6 +316,19 @@ router.get("/tracking/overview", requireAuth, async (req: any, res) => {
         clicked: Number(row.clicks || 0) > 0,
         source: row.traffic_source || "organic",
         createdAt: row.created_at,
+      })),
+      recentConversions: leadEvents.slice(0, 12).map((event) => ({
+        id: Number(event.id),
+        provider: event.provider,
+        orderId: event.external_event_id || "—",
+        status: event.status,
+        statusGroup: event.status_group,
+        payout: Number(event.payout || 0),
+        currency: event.currency || null,
+        campaign: event.utm_campaign || null,
+        site: sites.find((site) => Number(site.id) === Number(event.tracking_site_id))?.name || "Não atribuído",
+        matched: Boolean(event.tracking_visit_id),
+        receivedAt: event.received_at,
       })),
     });
   } catch (error: any) {

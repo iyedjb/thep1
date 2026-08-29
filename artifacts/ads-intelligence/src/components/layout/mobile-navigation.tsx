@@ -73,6 +73,7 @@ export function MobileProfileMenu({ user }: { user: any }) {
           <div className="border-y border-primary/15 py-1">
             <SheetClose asChild><Link href="/support" className="flex h-12 items-center rounded-2xl px-3 text-sm text-slate-800 hover:bg-primary/[0.06]">Suporte</Link></SheetClose>
             <SheetClose asChild><Link href="/pricing" className="flex h-12 items-center rounded-2xl px-3 text-sm text-slate-800 hover:bg-primary/[0.06]">Planos</Link></SheetClose>
+            <SheetClose asChild><Link href="/postbacks" className="flex h-12 items-center rounded-2xl px-3 text-sm text-slate-800 hover:bg-primary/[0.06]">API</Link></SheetClose>
           </div>
           <SheetClose asChild><button type="button" onClick={() => setLogoutOpen(true)} className="mt-1 flex h-12 w-full items-center rounded-2xl px-3 text-left text-sm text-slate-800 hover:bg-primary/[0.06]">Sair</button></SheetClose>
         </SheetContent>

@@ -63,6 +63,54 @@ function log(serviceName: string, color: string, data: string) {
   }
 }
 
+function startService(service: Service): ChildProcess {
+  const isWindows = process.platform === "win32";
+  const proc = spawn(service.command, service.args, {
+    cwd: service.cwd,
+    env: { ...process.env, ...service.env },
+    shell: isWindows,
+  });
+
+  activeProcesses.push(proc);
+
+  proc.stdout?.on("data", (data) => {
+    log(service.name, service.color, data.toString());
+  });
+
+  proc.stderr?.on("data", (data) => {
+    log(service.name, service.color, data.toString());
+  });
+
+  proc.on("close", (code) => {
+    if (code !== null) {
+      console.log(`\x1b[31m[System] ${service.name} service stopped with code ${code}\x1b[0m`);
+    }
+  });
+
+  return proc;
+}
+
+async function waitForApi(proc: ChildProcess, timeoutMs = 60_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    if (proc.exitCode !== null) {
+      throw new Error(`API service stopped before becoming ready (code ${proc.exitCode})`);
+    }
+
+    try {
+      // Any HTTP response means Express is accepting requests. This endpoint
+      // intentionally returns 401 without a token, which is still "ready".
+      await fetch("http://127.0.0.1:3002/api/auth/me");
+      return;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+
+  throw new Error("API service did not become ready within 60 seconds");
+}
+
 async function runCommand(
   cwd: string,
   command: string,
@@ -112,30 +160,19 @@ async function start() {
 
   console.log("\x1b[1m\x1b[34m[System] Starting all services...\x1b[0m");
 
-  const isWindows = process.platform === "win32";
+  // The Vite app proxies account requests to the API. Starting it first made
+  // the sign-up page look usable while every submission failed with
+  // ECONNREFUSED. Gate the user-facing services on actual API readiness.
+  const [apiService, ...dependentServices] = services;
+  if (!apiService) {
+    throw new Error("API service configuration is missing");
+  }
+  const apiProcess = startService(apiService);
+  await waitForApi(apiProcess);
+  console.log("\x1b[1m\x1b[34m[System] API server is ready. Starting web apps...\x1b[0m");
 
-  for (const service of services) {
-    const proc = spawn(service.command, service.args, {
-      cwd: service.cwd,
-      env: { ...process.env, ...service.env },
-      shell: isWindows,
-    });
-
-    activeProcesses.push(proc);
-
-    proc.stdout?.on("data", (data) => {
-      log(service.name, service.color, data.toString());
-    });
-
-    proc.stderr?.on("data", (data) => {
-      log(service.name, service.color, data.toString());
-    });
-
-    proc.on("close", (code) => {
-      if (code !== null) {
-        console.log(`\x1b[31m[System] ${service.name} service stopped with code ${code}\x1b[0m`);
-      }
-    });
+  for (const service of dependentServices) {
+    startService(service);
   }
 }
 

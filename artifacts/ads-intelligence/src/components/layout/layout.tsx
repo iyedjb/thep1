@@ -21,6 +21,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/traffic-manager": "Gestor de Tráfego",
   "/tracking": "Rastreamento",
   "/domains": "Meus domínios",
+  "/postbacks": "API",
   "/drcash": "Dr. Cash",
   "/pricing": "Planos",
   "/support": "Suporte",

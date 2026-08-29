@@ -6,19 +6,20 @@ type TrackingData = {
   period: string;
   presells: Array<{ id: number; product_name: string | null; published_url: string | null; status: string }>;
   sites: Array<{ id: number; name: string; siteKey: string; status: string; trackingAddress: string; snippet: string }>;
-  summary: { visits: number; uniqueVisitors: number; todayVisits: number; engagedVisits: number; clickEvents: number; escapeRate: number };
-  pages: Array<{ id: number | string; name: string; url: string; snippet?: string; status: string; visits: number; clicks: number; clickRate: number; escapeRate: number }>;
+  summary: { visits: number; uniqueVisitors: number; todayVisits: number; engagedVisits: number; clickEvents: number; leads: number; approvedLeads: number; paidLeads: number; revenue: number; revenueCurrency: string | null; revenueByCurrency: Array<{ currency: string; amount: number }>; escapeRate: number };
+  pages: Array<{ id: number | string; name: string; url: string; snippet?: string; status: string; visits: number; clicks: number; conversions: number; revenue: number; clickRate: number; escapeRate: number }>;
   devices: Array<{ name: string; value: number }>;
   countries: Array<{ name: string; value: number }>;
   daily: Array<{ date: string; visits: number; clicks: number }>;
   recentVisitors: Array<{ id: string; ip: string; country: string; city: string; device: string; browser: string; operatingSystem: string; clicked: boolean; source: string; createdAt: string }>;
+  recentConversions: Array<{ id: number; provider: string; orderId: string; status: string; statusGroup: "pending" | "approved" | "paid" | "rejected"; payout: number; currency: string | null; campaign: string | null; site: string; matched: boolean; receivedAt: string }>;
 };
 
 const emptyData: TrackingData = {
   period: "7d",
   presells: [], sites: [],
-  summary: { visits: 0, uniqueVisitors: 0, todayVisits: 0, engagedVisits: 0, clickEvents: 0, escapeRate: 0 },
-  pages: [], devices: [], countries: [], daily: [], recentVisitors: [],
+  summary: { visits: 0, uniqueVisitors: 0, todayVisits: 0, engagedVisits: 0, clickEvents: 0, leads: 0, approvedLeads: 0, paidLeads: 0, revenue: 0, revenueCurrency: null, revenueByCurrency: [], escapeRate: 0 },
+  pages: [], devices: [], countries: [], daily: [], recentVisitors: [], recentConversions: [],
 };
 
 const deviceNames: Record<string, string> = { desktop: "Desktop", mobile: "Celular", tablet: "Tablet" };
@@ -26,6 +27,17 @@ const deviceNames: Record<string, string> = { desktop: "Desktop", mobile: "Celul
 function formatMoment(value: string) {
   const date = new Date(value);
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(date);
+}
+
+function formatRevenue(data: TrackingData) {
+  if (!data.summary.revenueByCurrency.length) return "—";
+  if (data.summary.revenueByCurrency.length > 1) return `${data.summary.revenueByCurrency.length} moedas`;
+  const item = data.summary.revenueByCurrency[0];
+  try {
+    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: item.currency }).format(item.amount);
+  } catch {
+    return `${item.currency} ${item.amount.toFixed(2)}`;
+  }
 }
 
 export default function TrackingPage() {
@@ -83,14 +95,18 @@ export default function TrackingPage() {
 
       {query.isError ? <div className="my-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">Não foi possível carregar os dados agora.</div> : null}
 
-      <section className="grid grid-cols-2 border-b border-border sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid grid-cols-2 border-b border-border sm:grid-cols-4 xl:grid-cols-8">
         {[
           ["Visitas", data.summary.visits],
           ["Visitantes", data.summary.uniqueVisitors],
           ["Cliques", data.summary.engagedVisits],
           ["Visitas hoje", data.summary.todayVisits],
+          ["Leads", data.summary.leads],
+          ["Aprovados", data.summary.approvedLeads],
+          ["Pagos", data.summary.paidLeads],
+          ["Receita", formatRevenue(data)],
           ["Fuga", `${data.summary.escapeRate}%`],
-        ].map(([label, value], index) => <div key={String(label)} className={`py-6 sm:px-6 ${index === 4 ? "col-span-2 sm:col-span-1" : ""} ${index % 2 === 1 ? "border-l border-border" : ""} ${index > 0 ? "xl:border-l xl:border-border" : ""}`}><p className="text-xs text-muted-foreground">{label}</p><p className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-foreground">{value}</p></div>)}
+        ].map(([label, value], index) => <div key={String(label)} className={`py-6 sm:px-5 ${label === "Fuga" ? "col-span-2 sm:col-span-1 xl:col-span-8 xl:border-t" : ""} ${index % 2 === 1 ? "border-l border-border" : ""} ${index > 0 && index < 8 ? "xl:border-l xl:border-border" : ""}`}><p className="text-xs text-muted-foreground">{label}</p><p className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-foreground">{value}</p></div>)}
       </section>
 
       <section className="border-b border-border py-8">
@@ -111,13 +127,24 @@ export default function TrackingPage() {
         {!data.summary.visits ? <p className="mt-3 text-center text-sm text-muted-foreground">As primeiras visitas aparecerão aqui assim que uma presell publicada for acessada.</p> : null}
       </section>
 
+      <section className="border-b border-border py-8">
+        <div className="mb-5 flex items-center justify-between"><h2 className="text-lg font-semibold">Postbacks recentes</h2><span className="text-xs text-muted-foreground">Tempo real</span></div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left">
+            <thead><tr className="border-y border-border text-[11px] uppercase tracking-[0.12em] text-muted-foreground"><th className="py-3 font-medium">Pedido</th><th className="py-3 font-medium">Site</th><th className="py-3 font-medium">Campanha</th><th className="py-3 font-medium">Status</th><th className="py-3 text-right font-medium">Comissão</th><th className="py-3 text-right font-medium">Recebido</th></tr></thead>
+            <tbody>{data.recentConversions.map((conversion) => <tr key={conversion.id} className="border-b border-border/80"><td className="py-4"><p className="font-mono text-xs font-medium">{conversion.orderId}</p><p className="mt-1 text-[11px] text-muted-foreground">{conversion.matched ? "Atribuído ao clique" : "Sem correspondência"}</p></td><td className="py-4 text-sm">{conversion.site}</td><td className="max-w-48 truncate py-4 text-sm text-muted-foreground">{conversion.campaign || "—"}</td><td className="py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${conversion.statusGroup === "paid" || conversion.statusGroup === "approved" ? "bg-emerald-50 text-emerald-700" : conversion.statusGroup === "rejected" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>{conversion.status}</span></td><td className="py-4 text-right text-sm font-medium">{conversion.payout ? `${conversion.currency || ""} ${conversion.payout.toFixed(2)}`.trim() : "—"}</td><td className="py-4 text-right text-xs text-muted-foreground">{formatMoment(conversion.receivedAt)}</td></tr>)}</tbody>
+          </table>
+          {!data.recentConversions.length ? <p className="py-12 text-center text-sm text-muted-foreground">Os leads e pagamentos aparecerão aqui quando a plataforma enviar o primeiro postback.</p> : null}
+        </div>
+      </section>
+
       <section className="grid border-b border-border lg:grid-cols-[minmax(0,1.65fr)_minmax(300px,.75fr)]">
         <div className="py-8 lg:pr-10">
           <div className="mb-5 flex items-center justify-between"><h2 className="text-lg font-semibold">Desempenho por site</h2></div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] border-collapse text-left">
-              <thead><tr className="border-y border-border text-[11px] uppercase tracking-[0.12em] text-muted-foreground"><th className="py-3 pr-4 font-medium">Site</th><th className="px-3 py-3 text-right font-medium">Visitas</th><th className="px-3 py-3 text-right font-medium">Cliques</th><th className="px-3 py-3 text-right font-medium">Taxa</th><th className="px-3 py-3 text-right font-medium">Fuga</th><th className="py-3 pl-3 text-right font-medium">Ação</th></tr></thead>
-              <tbody>{data.pages.map((page) => <tr key={page.id} className="border-b border-border/80"><td className="max-w-xs py-4 pr-4"><p className="truncate text-sm font-medium">{page.name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{page.url || "Ainda não publicada"}</p></td><td className="px-3 py-4 text-right text-sm">{page.visits}</td><td className="px-3 py-4 text-right text-sm">{page.clicks}</td><td className="px-3 py-4 text-right text-sm">{page.clickRate}%</td><td className="px-3 py-4 text-right text-sm font-medium">{page.escapeRate}%</td><td className="py-4 pl-3 text-right">{page.snippet ? <button type="button" onClick={() => copyScript(page)} className="h-8 rounded-full border border-border px-3 text-xs font-semibold hover:border-primary/35 hover:text-primary">{copiedPage === page.id ? "Copiado" : "Copiar script"}</button> : <span className="text-xs text-muted-foreground">—</span>}</td></tr>)}</tbody>
+              <thead><tr className="border-y border-border text-[11px] uppercase tracking-[0.12em] text-muted-foreground"><th className="py-3 pr-4 font-medium">Site</th><th className="px-3 py-3 text-right font-medium">Visitas</th><th className="px-3 py-3 text-right font-medium">Cliques</th><th className="px-3 py-3 text-right font-medium">Vendas</th><th className="px-3 py-3 text-right font-medium">Taxa</th><th className="px-3 py-3 text-right font-medium">Fuga</th><th className="py-3 pl-3 text-right font-medium">Ação</th></tr></thead>
+              <tbody>{data.pages.map((page) => <tr key={page.id} className="border-b border-border/80"><td className="max-w-xs py-4 pr-4"><p className="truncate text-sm font-medium">{page.name}</p><p className="mt-1 truncate text-xs text-muted-foreground">{page.url || "Ainda não publicada"}</p></td><td className="px-3 py-4 text-right text-sm">{page.visits}</td><td className="px-3 py-4 text-right text-sm">{page.clicks}</td><td className="px-3 py-4 text-right text-sm font-medium">{page.conversions}</td><td className="px-3 py-4 text-right text-sm">{page.clickRate}%</td><td className="px-3 py-4 text-right text-sm font-medium">{page.escapeRate}%</td><td className="py-4 pl-3 text-right">{page.snippet ? <button type="button" onClick={() => copyScript(page)} title="Cole o código dentro da tag <head> da página" className="h-8 rounded-full border border-border px-3 text-xs font-semibold hover:border-primary/35 hover:text-primary">{copiedPage === page.id ? "Copiado" : "Copiar para <head>"}</button> : <span className="text-xs text-muted-foreground">—</span>}</td></tr>)}</tbody>
             </table>
             {!data.pages.length ? <div className="py-14 text-center text-sm text-muted-foreground">Nenhum dado registrado ainda.</div> : null}
           </div>

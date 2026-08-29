@@ -173,6 +173,11 @@ async function initPostgresDb() {
       published_html TEXT,
       thank_you_html TEXT,
       thank_you_file_name VARCHAR(255),
+      lemon_offer_id VARCHAR(255),
+      lemon_webmaster_token TEXT,
+      lemon_cost VARCHAR(40),
+      lemon_success_file VARCHAR(255),
+      lemon_submit_token VARCHAR(64) UNIQUE,
       status VARCHAR(20) NOT NULL DEFAULT 'local',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -214,6 +219,45 @@ async function initPostgresDb() {
     CREATE INDEX IF NOT EXISTS idx_tracking_visits_user_created ON tracking_visits(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_tracking_visits_presell_created ON tracking_visits(presell_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_tracking_visits_visitor ON tracking_visits(visitor_key);
+
+    CREATE TABLE IF NOT EXISTS postback_integrations (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider VARCHAR(40) NOT NULL DEFAULT 'lemonad',
+      token VARCHAR(64) UNIQUE NOT NULL,
+      name VARCHAR(80),
+      expires_at TIMESTAMP,
+      last_tested_at TIMESTAMP,
+      enabled BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, provider)
+    );
+
+    CREATE TABLE IF NOT EXISTS postback_events (
+      id SERIAL PRIMARY KEY,
+      integration_id INTEGER NOT NULL REFERENCES postback_integrations(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tracking_visit_id INTEGER REFERENCES tracking_visits(id) ON DELETE SET NULL,
+      provider VARCHAR(40) NOT NULL DEFAULT 'lemonad',
+      event_key VARCHAR(64) NOT NULL,
+      external_event_id VARCHAR(255),
+      click_id VARCHAR(255),
+      status VARCHAR(100) NOT NULL,
+      status_group VARCHAR(30) NOT NULL DEFAULT 'pending',
+      payout REAL NOT NULL DEFAULT 0,
+      currency VARCHAR(16),
+      utm_campaign TEXT,
+      utm_content TEXT,
+      utm_medium TEXT,
+      utm_source TEXT,
+      utm_term TEXT,
+      raw_payload TEXT,
+      received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(integration_id, event_key)
+    );
+    CREATE INDEX IF NOT EXISTS idx_postback_events_user_received ON postback_events(user_id, received_at);
+    CREATE INDEX IF NOT EXISTS idx_postback_events_visit ON postback_events(tracking_visit_id);
 
     CREATE TABLE IF NOT EXISTS payments (
       id SERIAL PRIMARY KEY,
@@ -379,6 +423,24 @@ async function initPostgresDb() {
     await db.exec("ALTER TABLE presells ADD COLUMN thank_you_file_name VARCHAR(255);");
   } catch (e) {}
   try {
+    await db.exec("ALTER TABLE presells ADD COLUMN lemon_offer_id VARCHAR(255);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE presells ADD COLUMN lemon_webmaster_token TEXT;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE presells ADD COLUMN lemon_cost VARCHAR(40);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE presells ADD COLUMN lemon_success_file VARCHAR(255);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE presells ADD COLUMN lemon_submit_token VARCHAR(64);");
+  } catch (e) {}
+  try {
+    await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_presells_lemon_submit_token ON presells(lemon_submit_token) WHERE lemon_submit_token IS NOT NULL;");
+  } catch (e) {}
+  try {
     await db.exec("ALTER TABLE presells ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'local';");
   } catch (e) {}
   try {
@@ -414,6 +476,56 @@ async function initPostgresDb() {
   } catch (e) {}
   try {
     await db.exec("UPDATE tracking_visits SET country_code = 'LOCAL', country_name = 'Ambiente local', city = 'Localhost' WHERE ip_address IN ('::1', '127.0.0.1') AND (country_name IS NULL OR country_name = 'Não identificado');");
+  } catch (e) {}
+  try {
+    await db.exec(`
+      CREATE TABLE IF NOT EXISTS postback_integrations (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        provider VARCHAR(40) NOT NULL DEFAULT 'lemonad',
+        token VARCHAR(64) UNIQUE NOT NULL,
+        name VARCHAR(80),
+        expires_at TIMESTAMP,
+        last_tested_at TIMESTAMP,
+        enabled BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, provider)
+      );
+      CREATE TABLE IF NOT EXISTS postback_events (
+        id SERIAL PRIMARY KEY,
+        integration_id INTEGER NOT NULL REFERENCES postback_integrations(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        tracking_visit_id INTEGER REFERENCES tracking_visits(id) ON DELETE SET NULL,
+        provider VARCHAR(40) NOT NULL DEFAULT 'lemonad',
+        event_key VARCHAR(64) NOT NULL,
+        external_event_id VARCHAR(255),
+        click_id VARCHAR(255),
+        status VARCHAR(100) NOT NULL,
+        status_group VARCHAR(30) NOT NULL DEFAULT 'pending',
+        payout REAL NOT NULL DEFAULT 0,
+        currency VARCHAR(16),
+        utm_campaign TEXT,
+        utm_content TEXT,
+        utm_medium TEXT,
+        utm_source TEXT,
+        utm_term TEXT,
+        raw_payload TEXT,
+        received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(integration_id, event_key)
+      );
+      CREATE INDEX IF NOT EXISTS idx_postback_events_user_received ON postback_events(user_id, received_at);
+      CREATE INDEX IF NOT EXISTS idx_postback_events_visit ON postback_events(tracking_visit_id);
+    `);
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE postback_integrations ADD COLUMN name VARCHAR(80);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE postback_integrations ADD COLUMN expires_at TIMESTAMP;");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE postback_integrations ADD COLUMN last_tested_at TIMESTAMP;");
   } catch (e) {}
   try {
     await db.exec(`
@@ -570,6 +682,11 @@ async function initSqliteDb() {
       published_html TEXT,
       thank_you_html TEXT,
       thank_you_file_name TEXT,
+      lemon_offer_id TEXT,
+      lemon_webmaster_token TEXT,
+      lemon_cost TEXT,
+      lemon_success_file TEXT,
+      lemon_submit_token TEXT UNIQUE,
       status TEXT NOT NULL DEFAULT 'local',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -611,6 +728,45 @@ async function initSqliteDb() {
     CREATE INDEX IF NOT EXISTS idx_tracking_visits_user_created ON tracking_visits(user_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_tracking_visits_presell_created ON tracking_visits(presell_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_tracking_visits_visitor ON tracking_visits(visitor_key);
+
+    CREATE TABLE IF NOT EXISTS postback_integrations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      provider TEXT NOT NULL DEFAULT 'lemonad',
+      token TEXT UNIQUE NOT NULL,
+      name TEXT,
+      expires_at TIMESTAMP,
+      last_tested_at TIMESTAMP,
+      enabled BOOLEAN NOT NULL DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, provider)
+    );
+
+    CREATE TABLE IF NOT EXISTS postback_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      integration_id INTEGER NOT NULL REFERENCES postback_integrations(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      tracking_visit_id INTEGER REFERENCES tracking_visits(id) ON DELETE SET NULL,
+      provider TEXT NOT NULL DEFAULT 'lemonad',
+      event_key TEXT NOT NULL,
+      external_event_id TEXT,
+      click_id TEXT,
+      status TEXT NOT NULL,
+      status_group TEXT NOT NULL DEFAULT 'pending',
+      payout REAL NOT NULL DEFAULT 0,
+      currency TEXT,
+      utm_campaign TEXT,
+      utm_content TEXT,
+      utm_medium TEXT,
+      utm_source TEXT,
+      utm_term TEXT,
+      raw_payload TEXT,
+      received_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(integration_id, event_key)
+    );
+    CREATE INDEX IF NOT EXISTS idx_postback_events_user_received ON postback_events(user_id, received_at);
+    CREATE INDEX IF NOT EXISTS idx_postback_events_visit ON postback_events(tracking_visit_id);
 
     CREATE TABLE IF NOT EXISTS payments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -682,10 +838,18 @@ async function initSqliteDb() {
     "ALTER TABLE presells ADD COLUMN published_html TEXT;",
     "ALTER TABLE presells ADD COLUMN thank_you_html TEXT;",
     "ALTER TABLE presells ADD COLUMN thank_you_file_name TEXT;",
+    "ALTER TABLE presells ADD COLUMN lemon_offer_id TEXT;",
+    "ALTER TABLE presells ADD COLUMN lemon_webmaster_token TEXT;",
+    "ALTER TABLE presells ADD COLUMN lemon_cost TEXT;",
+    "ALTER TABLE presells ADD COLUMN lemon_success_file TEXT;",
+    "ALTER TABLE presells ADD COLUMN lemon_submit_token TEXT;",
     "ALTER TABLE presells ADD COLUMN status TEXT NOT NULL DEFAULT 'local';",
     "ALTER TABLE tracking_visits ADD COLUMN tracking_site_id INTEGER REFERENCES tracking_sites(id) ON DELETE CASCADE;",
     "ALTER TABLE tracking_sites ADD COLUMN slug TEXT;",
     "ALTER TABLE tracking_visits ADD COLUMN traffic_source TEXT NOT NULL DEFAULT 'organic';",
+    "ALTER TABLE postback_integrations ADD COLUMN name TEXT;",
+    "ALTER TABLE postback_integrations ADD COLUMN expires_at TIMESTAMP;",
+    "ALTER TABLE postback_integrations ADD COLUMN last_tested_at TIMESTAMP;",
   ];
   for (const stmt of alterStatements) {
     try {
@@ -694,6 +858,9 @@ async function initSqliteDb() {
   }
   try {
     db.execSync("CREATE UNIQUE INDEX IF NOT EXISTS idx_tracking_sites_slug_unique ON tracking_sites(slug) WHERE slug IS NOT NULL;");
+  } catch (e) {}
+  try {
+    db.execSync("CREATE UNIQUE INDEX IF NOT EXISTS idx_presells_lemon_submit_token ON presells(lemon_submit_token) WHERE lemon_submit_token IS NOT NULL;");
   } catch (e) {}
   try {
     db.execSync("UPDATE tracking_visits SET country_code = 'LOCAL', country_name = 'Ambiente local', city = 'Localhost' WHERE ip_address IN ('::1', '127.0.0.1') AND (country_name IS NULL OR country_name = 'Não identificado');");
