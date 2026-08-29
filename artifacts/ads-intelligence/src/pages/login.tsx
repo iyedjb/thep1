@@ -45,6 +45,9 @@ function GoogleIcon() {
 
 export default function Login() {
   const [, setLocation] = useLocation();
+  const requestedReturnTo = new URLSearchParams(window.location.search).get("returnTo") || "";
+  const returnTo = requestedReturnTo.startsWith("/oauth/authorize?") ? requestedReturnTo : "/creator";
+  const finishLogin = () => returnTo.startsWith("/oauth/authorize?") ? window.location.assign(returnTo) : setLocation(returnTo);
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
@@ -81,7 +84,7 @@ export default function Login() {
         if (response.ok) {
           const currentUser = await response.json();
           queryClient.setQueryData(getGetMeQueryKey(), currentUser);
-          setLocation("/creator");
+          finishLogin();
           return;
         }
         const denied = await response.json().catch(() => ({}));
@@ -111,7 +114,7 @@ export default function Login() {
       }
       localStorage.setItem("ads_token", data.token);
       queryClient.setQueryData(getGetMeQueryKey(), data.user);
-      setLocation("/creator");
+      finishLogin();
     } catch (error: any) {
       toast({ title: "Erro no login com Google", description: error.message, variant: "destructive" });
     } finally {
@@ -171,7 +174,7 @@ export default function Login() {
       }
       localStorage.setItem("ads_token", result.token);
       queryClient.setQueryData(getGetMeQueryKey(), result.user);
-      setLocation("/creator");
+      finishLogin();
     } catch (error: any) { toast({ title: "Não foi possível entrar", description: error.message, variant: "destructive" }); }
     finally { setLoginPending(false); }
   };
@@ -186,7 +189,7 @@ export default function Login() {
       if (!response.ok) throw new Error(result.error || "Código inválido.");
       localStorage.setItem("ads_token", result.token);
       queryClient.setQueryData(getGetMeQueryKey(), result.user);
-      setLocation("/creator");
+      finishLogin();
     } catch (error: any) {
       toast({ title: "Não foi possível confirmar", description: error.message, variant: "destructive" });
     } finally { setOtpPending(false); }

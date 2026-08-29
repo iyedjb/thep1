@@ -10,7 +10,9 @@ const { Pool } = pg;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname_here = path.dirname(__filename);
 // artifacts/api-server/src/lib -> artifacts/data/database.db
-const LOCAL_SQLITE_PATH = path.resolve(__dirname_here, "../../../data/database.db");
+const LOCAL_SQLITE_PATH = process.env.SQLITE_PATH
+  ? path.resolve(process.env.SQLITE_PATH)
+  : path.resolve(__dirname_here, "../../../data/database.db");
 
 type DbBridge = PostgresDbBridge | SqliteDbBridge;
 
@@ -75,6 +77,55 @@ async function initPostgresDb() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_login_otp_user_created ON login_otp_challenges(user_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS oauth_clients (
+      id SERIAL PRIMARY KEY,
+      client_id VARCHAR(128) UNIQUE NOT NULL,
+      client_name VARCHAR(160) NOT NULL,
+      redirect_uris TEXT NOT NULL,
+      token_endpoint_auth_method VARCHAR(32) NOT NULL DEFAULT 'none',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS oauth_authorization_codes (
+      id SERIAL PRIMARY KEY,
+      code_hash VARCHAR(64) UNIQUE NOT NULL,
+      client_id VARCHAR(128) NOT NULL,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      redirect_uri TEXT NOT NULL,
+      scope TEXT NOT NULL,
+      resource TEXT NOT NULL,
+      code_challenge VARCHAR(128) NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      used_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_oauth_code_client ON oauth_authorization_codes(client_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS oauth_tokens (
+      id SERIAL PRIMARY KEY,
+      token_hash VARCHAR(64) UNIQUE NOT NULL,
+      token_type VARCHAR(16) NOT NULL,
+      client_id VARCHAR(128) NOT NULL,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      scope TEXT NOT NULL,
+      resource TEXT NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      revoked_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_oauth_token_user ON oauth_tokens(user_id, token_type, created_at);
+
+    CREATE TABLE IF NOT EXISTS mcp_audit_logs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      client_id VARCHAR(128),
+      tool_name VARCHAR(100) NOT NULL,
+      success BOOLEAN NOT NULL DEFAULT true,
+      duration_ms INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_mcp_audit_user_created ON mcp_audit_logs(user_id, created_at);
 
     CREATE TABLE IF NOT EXISTS admin_accounts (
       id SERIAL PRIMARY KEY,
@@ -622,6 +673,55 @@ async function initSqliteDb() {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_login_otp_user_created ON login_otp_challenges(user_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS oauth_clients (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id TEXT UNIQUE NOT NULL,
+      client_name TEXT NOT NULL,
+      redirect_uris TEXT NOT NULL,
+      token_endpoint_auth_method TEXT NOT NULL DEFAULT 'none',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS oauth_authorization_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code_hash TEXT UNIQUE NOT NULL,
+      client_id TEXT NOT NULL,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      redirect_uri TEXT NOT NULL,
+      scope TEXT NOT NULL,
+      resource TEXT NOT NULL,
+      code_challenge TEXT NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      used_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_oauth_code_client ON oauth_authorization_codes(client_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS oauth_tokens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      token_hash TEXT UNIQUE NOT NULL,
+      token_type TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      scope TEXT NOT NULL,
+      resource TEXT NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      revoked_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_oauth_token_user ON oauth_tokens(user_id, token_type, created_at);
+
+    CREATE TABLE IF NOT EXISTS mcp_audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      client_id TEXT,
+      tool_name TEXT NOT NULL,
+      success INTEGER NOT NULL DEFAULT 1,
+      duration_ms INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_mcp_audit_user_created ON mcp_audit_logs(user_id, created_at);
 
     CREATE TABLE IF NOT EXISTS admin_accounts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
