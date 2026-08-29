@@ -269,9 +269,37 @@ export default function Trends() {
   // Tab State
   const [activeTab, setActiveTab] = useState<string>("termo");
 
-  // Term search states
-  const [activeKeywords, setActiveKeywords] = useState<string[]>(["marketing digital"]);
-  const [selectedQueryTab, setSelectedQueryTab] = useState<string>("marketing digital");
+  // Term search states — persisted to localStorage so terms the user added
+  // survive navigating to another page and back (empty by default, no
+  // pre-filled keyword).
+  const TRENDS_KEYWORDS_STORAGE_KEY = "clicqlab_trends_keywords";
+  const [activeKeywords, setActiveKeywords] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem(TRENDS_KEYWORDS_STORAGE_KEY);
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) ? parsed.filter((k) => typeof k === "string") : [];
+    } catch {
+      return [];
+    }
+  });
+  const [selectedQueryTab, setSelectedQueryTab] = useState<string>(() => {
+    try {
+      const stored = localStorage.getItem(TRENDS_KEYWORDS_STORAGE_KEY);
+      const parsed = stored ? JSON.parse(stored) : [];
+      return Array.isArray(parsed) && typeof parsed[0] === "string" ? parsed[0] : "";
+    } catch {
+      return "";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(TRENDS_KEYWORDS_STORAGE_KEY, JSON.stringify(activeKeywords));
+    } catch {
+      // Storage unavailable (private mode, quota, etc.) — the search still
+      // works for the current page load, it just won't persist.
+    }
+  }, [activeKeywords]);
   const [inlineInput, setInlineInput] = useState("");
   const [showAddInput, setShowAddInput] = useState(false);
   const [geo, setGeo] = useState("Global");
@@ -572,7 +600,7 @@ export default function Trends() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <TrendingUp className="h-8 w-8 text-primary animate-pulse" /> Trends & Canais de Busca
+            <TrendingUp className="h-8 w-8 text-primary animate-pulse" /> Search Keyword
           </h1>
           <p className="text-muted-foreground mt-1">Dados reais, inteligência geográfica e pesquisa de termos mais buscados por tema</p>
         </div>
