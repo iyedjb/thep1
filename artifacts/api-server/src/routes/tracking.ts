@@ -155,6 +155,103 @@ router.post("/tracking/click", async (req, res) => {
   res.status(204).end();
 });
 
+router.get("/tracking/activity", requireAuth, async (req: any, res) => {
+  try {
+    const days = req.query.period === "30d" ? 30 : req.query.period === "90d" ? 90 : 7;
+    const requestedSite = Number(req.query.siteId || 0);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+      .toISOString().slice(0, 19).replace("T", " ");
+    const db = getDb();
+    const sites = await db.prepare(
+      "SELECT id, name, slug FROM tracking_sites WHERE user_id = ? ORDER BY created_at DESC"
+    ).all(req.userId) as any[];
+    const allowedSiteIds = new Set(sites.map((site) => Number(site.id)));
+    const siteId = requestedSite && allowedSiteIds.has(requestedSite) ? requestedSite : 0;
+    const visits = siteId
+      ? await db.prepare(
+          `SELECT v.*, s.name AS site_name FROM tracking_visits v
+           LEFT JOIN tracking_sites s ON s.id = v.tracking_site_id
+           WHERE v.user_id = ? AND v.tracking_site_id = ? AND v.created_at >= ?
+           ORDER BY v.created_at DESC LIMIT 150`
+        ).all(req.userId, siteId, since) as any[]
+      : await db.prepare(
+          `SELECT v.*, s.name AS site_name FROM tracking_visits v
+           LEFT JOIN tracking_sites s ON s.id = v.tracking_site_id
+           WHERE v.user_id = ? AND v.created_at >= ?
+           ORDER BY v.created_at DESC LIMIT 150`
+        ).all(req.userId, since) as any[];
+    const postbacks = await db.prepare(
+      `SELECT e.*, v.tracking_site_id, s.name AS site_name
+       FROM postback_events e
+       LEFT JOIN tracking_visits v ON v.id = e.tracking_visit_id
+       LEFT JOIN tracking_sites s ON s.id = v.tracking_site_id
+       WHERE e.user_id = ? AND e.received_at >= ?
+       ORDER BY e.received_at DESC LIMIT 150`
+    ).all(req.userId, since) as any[];
+
+    const events: any[] = [];
+    for (const visit of visits) {
+      const location = [visit.city, visit.country_name].filter(Boolean).join(", ") || "Local não identificado";
+      events.push({
+        id: `visit-${visit.id}`,
+        type: "visit",
+        title: "Novo acesso",
+        description: `${location} · ${visit.device_type || "Dispositivo desconhecido"}`,
+        siteId: visit.tracking_site_id ? Number(visit.tracking_site_id) : null,
+        siteName: visit.site_name || "Página publicada",
+        source: visit.traffic_source || "organic",
+        occurredAt: visit.created_at,
+      });
+      if (visit.clicked_at) {
+        events.push({
+          id: `click-${visit.id}`,
+          type: "click",
+          title: Number(visit.clicks || 0) > 1 ? `${visit.clicks} cliques na página` : "Clique na página",
+          description: "O visitante interagiu com uma chamada para ação.",
+          siteId: visit.tracking_site_id ? Number(visit.tracking_site_id) : null,
+          siteName: visit.site_name || "Página publicada",
+          source: visit.traffic_source || "organic",
+          occurredAt: visit.clicked_at,
+        });
+      }
+    }
+
+    const postbackTitles: Record<string, string> = {
+      pending: "Novo lead",
+      approved: "Lead aprovado",
+      rejected: "Lead rejeitado",
+      paid: "Pagamento recebido",
+    };
+    for (const event of postbacks) {
+      if (siteId && Number(event.tracking_site_id) !== siteId) continue;
+      const amount = Number(event.payout || 0);
+      const monetary = amount
+        ? ` · ${String(event.currency || "USD").toUpperCase()} ${amount.toFixed(2)}`
+        : "";
+      events.push({
+        id: `postback-${event.id}`,
+        type: event.status_group,
+        title: postbackTitles[event.status_group] || "Atualização de lead",
+        description: `${event.external_event_id || event.click_id || "Lead sem identificador"}${monetary}`,
+        siteId: event.tracking_site_id ? Number(event.tracking_site_id) : null,
+        siteName: event.site_name || "Sem atribuição a uma página",
+        source: "postback",
+        occurredAt: event.received_at,
+      });
+    }
+
+    const eventPriority: Record<string, number> = { visit: 0, click: 1, pending: 2, approved: 3, rejected: 3, paid: 4 };
+    events.sort((a, b) =>
+      new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime()
+      || (eventPriority[b.type] || 0) - (eventPriority[a.type] || 0)
+    );
+    res.json({ period: `${days}d`, sites, events: events.slice(0, 200) });
+  } catch (error: any) {
+    logger.error({ err: error.message, userId: req.userId }, "Unable to load activity");
+    res.status(500).json({ error: "Não foi possível carregar a atividade." });
+  }
+});
+
 router.get("/tracking/overview", requireAuth, async (req: any, res) => {
   try {
     const days = req.query.period === "30d" ? 30 : req.query.period === "90d" ? 90 : 7;

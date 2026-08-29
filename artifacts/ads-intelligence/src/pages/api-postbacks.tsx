@@ -187,7 +187,7 @@ export default function ApiPostbacksPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary">Integrações</p>
           <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground">APIs</h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Crie uma URL própria para cada plataforma e acompanhe quando ela estiver funcionando.
+            Gere uma URL para receber notificações das plataformas diretamente no ClicLab.
           </p>
         </div>
         {items.length > 0 ? (

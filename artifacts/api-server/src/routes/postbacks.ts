@@ -11,7 +11,7 @@ const PROVIDERS = {
     name: "LemonAD",
     method: "GET",
     template: (endpoint: string) =>
-      `${endpoint}?orderid={leadid}&status={status}&clickid={clickid}&amount={payoutOrZero}&currency={currency}&utm_campaign={utmCampaign}&utm_content={utmContent}&utm_medium={utmMedium}&utm_source={utmSource}&utm_term={utmTerm}&global_source={globalSource}`,
+      `${endpoint}?orderid={leadid}&status={status}&clickid={clickid}&amount={payoutOrZero}&utm_campaign={utmCampaign}&utm_content={utmContent}&utm_medium={utmMedium}&utm_source={utmSource}&utm_term={utmTerm}&global_source={globalSource}`,
   },
 } as const;
 
