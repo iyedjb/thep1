@@ -44,6 +44,46 @@ function installationSnippet(baseUrl: string, siteKey: string) {
   return `<!-- Cole este código dentro de <head> -->\n<script async src="${baseUrl}/api/tracker.js" data-site="${siteKey}"></script>`;
 }
 
+function pageMetadata(pagePath: string) {
+  try {
+    const url = new URL(pagePath || "/", "https://tracking.local");
+    const parameters = Object.fromEntries(url.searchParams.entries());
+    const clickKeys = ["gclid", "wbraid", "gbraid", "msclkid", "ttclid", "fbclid", "raclid", "clickid"];
+    const clickKey = clickKeys.find((key) => Boolean(parameters[key]));
+    return {
+      pageUrl: pagePath || null,
+      parameters,
+      clickIdType: clickKey ? clickKey.toUpperCase() : null,
+      clickId: clickKey ? parameters[clickKey] : null,
+    };
+  } catch {
+    return { pageUrl: pagePath || null, parameters: {}, clickIdType: null, clickId: null };
+  }
+}
+
+function visitDetails(visit: any) {
+  const page = pageMetadata(String(visit.page_path || ""));
+  return {
+    clientId: visit.visit_token || null,
+    visitorId: visit.visitor_key || null,
+    ip: visit.ip_address || null,
+    countryCode: visit.country_code || null,
+    country: visit.country_name || null,
+    city: visit.city || null,
+    device: visit.device_type || null,
+    browser: visit.browser || null,
+    operatingSystem: visit.operating_system || null,
+    userAgent: visit.user_agent || null,
+    origin: visit.referrer || null,
+    pageUrl: page.pageUrl,
+    parameters: page.parameters,
+    clickIdType: page.clickIdType,
+    clickId: page.clickId,
+    clickCount: Number(visit.clicks || 0),
+    clickedAt: visit.clicked_at || null,
+  };
+}
+
 router.get("/tracker.js", (_req, res) => {
   res.type("application/javascript").set("Cache-Control", "public, max-age=300").send(`(function(){
 var s=document.currentScript,k=s&&s.getAttribute('data-site');if(!k)return;
@@ -181,8 +221,13 @@ router.get("/tracking/activity", requireAuth, async (req: any, res) => {
            ORDER BY v.created_at DESC LIMIT 150`
         ).all(req.userId, since) as any[];
     const postbacks = await db.prepare(
-      `SELECT e.*, v.tracking_site_id, s.name AS site_name
+      `SELECT e.*, i.name AS integration_name,
+              v.tracking_site_id, v.visit_token, v.visitor_key, v.ip_address, v.country_code,
+              v.country_name, v.city, v.device_type, v.browser, v.operating_system, v.user_agent,
+              v.referrer, v.page_path, v.traffic_source, v.clicks, v.clicked_at,
+              s.name AS site_name
        FROM postback_events e
+       LEFT JOIN postback_integrations i ON i.id = e.integration_id
        LEFT JOIN tracking_visits v ON v.id = e.tracking_visit_id
        LEFT JOIN tracking_sites s ON s.id = v.tracking_site_id
        WHERE e.user_id = ? AND e.received_at >= ?
@@ -201,6 +246,7 @@ router.get("/tracking/activity", requireAuth, async (req: any, res) => {
         siteName: visit.site_name || "Página publicada",
         source: visit.traffic_source || "organic",
         occurredAt: visit.created_at,
+        details: visitDetails(visit),
       });
       if (visit.clicked_at) {
         events.push({
@@ -212,6 +258,7 @@ router.get("/tracking/activity", requireAuth, async (req: any, res) => {
           siteName: visit.site_name || "Página publicada",
           source: visit.traffic_source || "organic",
           occurredAt: visit.clicked_at,
+          details: visitDetails(visit),
         });
       }
     }
@@ -224,6 +271,7 @@ router.get("/tracking/activity", requireAuth, async (req: any, res) => {
     };
     for (const event of postbacks) {
       if (siteId && Number(event.tracking_site_id) !== siteId) continue;
+      const attributedVisit = visitDetails(event);
       const amount = Number(event.payout || 0);
       const monetary = amount
         ? ` · ${String(event.currency || "USD").toUpperCase()} ${amount.toFixed(2)}`
@@ -237,6 +285,23 @@ router.get("/tracking/activity", requireAuth, async (req: any, res) => {
         siteName: event.site_name || "Sem atribuição a uma página",
         source: "postback",
         occurredAt: event.received_at,
+        details: {
+          ...attributedVisit,
+          sender: event.provider || null,
+          integrationName: event.integration_name || null,
+          orderId: event.external_event_id || null,
+          clickId: event.click_id || attributedVisit.clickId,
+          clickIdType: event.click_id ? "CLICKID" : attributedVisit.clickIdType,
+          status: event.status || null,
+          statusGroup: event.status_group || null,
+          payout: Number(event.payout || 0),
+          currency: event.currency || null,
+          campaign: event.utm_campaign || null,
+          matched: Boolean(event.tracking_visit_id),
+          payload: (() => {
+            try { return JSON.parse(String(event.raw_payload || "{}")); } catch { return {}; }
+          })(),
+        },
       });
     }
 

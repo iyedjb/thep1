@@ -15,6 +15,50 @@ type TrackingData = {
   recentConversions: Array<{ id: number; provider: string; orderId: string; status: string; statusGroup: "pending" | "approved" | "paid" | "rejected"; payout: number; currency: string | null; campaign: string | null; site: string; matched: boolean; receivedAt: string }>;
 };
 
+type EventDetails = {
+  clientId: string | null;
+  visitorId: string | null;
+  ip: string | null;
+  countryCode: string | null;
+  country: string | null;
+  city: string | null;
+  device: string | null;
+  browser: string | null;
+  operatingSystem: string | null;
+  userAgent: string | null;
+  origin: string | null;
+  pageUrl: string | null;
+  parameters: Record<string, string>;
+  clickIdType: string | null;
+  clickId: string | null;
+  clickCount: number;
+  clickedAt: string | null;
+  sender?: string | null;
+  integrationName?: string | null;
+  orderId?: string | null;
+  status?: string | null;
+  statusGroup?: string | null;
+  payout?: number;
+  currency?: string | null;
+  campaign?: string | null;
+  matched?: boolean;
+  payload?: Record<string, unknown>;
+};
+
+type TrackingEvent = {
+  id: string;
+  type: "visit" | "click" | "pending" | "approved" | "paid" | "rejected";
+  title: string;
+  description: string;
+  siteId: number | null;
+  siteName: string;
+  source: "paid" | "organic" | "postback";
+  occurredAt: string;
+  details: EventDetails;
+};
+
+type ActivityData = { events: TrackingEvent[] };
+
 const emptyData: TrackingData = {
   period: "7d",
   presells: [], sites: [],
@@ -23,6 +67,32 @@ const emptyData: TrackingData = {
 };
 
 const deviceNames: Record<string, string> = { desktop: "Desktop", mobile: "Celular", tablet: "Tablet" };
+const eventFilters = [
+  { value: "all", label: "Todos" },
+  { value: "visit", label: "Acessos" },
+  { value: "click", label: "Cliques" },
+  { value: "pending", label: "Leads" },
+  { value: "approved", label: "Aprovados" },
+  { value: "paid", label: "Pagos" },
+  { value: "rejected", label: "Rejeitados" },
+];
+
+const detailSections = [
+  { value: "identity", label: "Identificação" },
+  { value: "location", label: "Localização" },
+  { value: "device", label: "Dispositivo" },
+  { value: "attribution", label: "Origem e cliques" },
+  { value: "parameters", label: "Parâmetros" },
+  { value: "conversion", label: "Conversão" },
+];
+
+function valueOrDash(value: unknown) {
+  return value === null || value === undefined || value === "" ? "—" : String(value);
+}
+
+function DetailValue({ label, value, mono = false }: { label: string; value: unknown; mono?: boolean }) {
+  return <div className="min-w-0 border-b border-border/70 py-3"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">{label}</p><p className={`mt-1 break-all text-sm text-foreground ${mono ? "font-mono text-xs" : ""}`}>{valueOrDash(value)}</p></div>;
+}
 
 function formatMoment(value: string) {
   const date = new Date(value);
@@ -44,6 +114,11 @@ export default function TrackingPage() {
   const [period, setPeriod] = useState("7d");
   const [siteId, setSiteId] = useState("all");
   const [source, setSource] = useState("all");
+  const [eventType, setEventType] = useState("all");
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
+  const [showPersonalization, setShowPersonalization] = useState(false);
+  const [visibleSections, setVisibleSections] = useState(() => new Set(detailSections.map((section) => section.value)));
   const [copiedPage, setCopiedPage] = useState<number | string | null>(null);
   const token = localStorage.getItem("ads_token");
   const query = useQuery<TrackingData>({
@@ -56,9 +131,25 @@ export default function TrackingPage() {
       if (!response.ok) throw new Error("Não foi possível carregar o rastreamento.");
       return response.json();
     },
-    refetchInterval: 30_000,
+    refetchInterval: 10_000,
+  });
+  const activityQuery = useQuery<ActivityData>({
+    queryKey: ["tracking-events", period, siteId],
+    queryFn: async () => {
+      const params = new URLSearchParams({ period });
+      if (siteId !== "all") params.set("siteId", siteId);
+      const response = await fetch(`/api/tracking/activity?${params}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!response.ok) throw new Error("Não foi possível carregar os eventos.");
+      return response.json();
+    },
+    refetchInterval: 5_000,
   });
   const data = query.data || emptyData;
+  const filteredEvents = useMemo(() => (activityQuery.data?.events || []).filter((event) =>
+    (eventType === "all" || event.type === eventType)
+    && (source === "all" || event.source === source || (event.source === "postback" && source === "paid"))
+  ), [activityQuery.data?.events, eventType, source]);
+  const selectedEvent = filteredEvents.find((event) => event.id === selectedEventId) || filteredEvents[0] || null;
   const totalDeviceVisits = data.devices.reduce((sum, item) => sum + item.value, 0);
   const chartData = useMemo(() => data.daily.map((item) => ({
     ...item,
@@ -70,6 +161,17 @@ export default function TrackingPage() {
     setCopiedPage(page.id);
     window.setTimeout(() => setCopiedPage(null), 1600);
   };
+  const copyValue = async (value: string | null, key: string) => {
+    if (!value) return;
+    await navigator.clipboard.writeText(value);
+    setCopiedValue(key);
+    window.setTimeout(() => setCopiedValue(null), 1500);
+  };
+  const toggleSection = (value: string) => setVisibleSections((current) => {
+    const next = new Set(current);
+    if (next.has(value)) next.delete(value); else next.add(value);
+    return next;
+  });
 
   return (
     <div className="mx-auto w-full max-w-[1480px] px-4 py-7 sm:px-7 lg:px-10 lg:py-10">
@@ -110,6 +212,60 @@ export default function TrackingPage() {
       </section>
 
       <section className="border-b border-border py-8">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <div className="flex items-center gap-2"><h2 className="text-lg font-semibold text-foreground">Eventos em tempo real</h2><span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500"/>Ao vivo</span></div>
+            <p className="mt-1 text-sm text-muted-foreground">Selecione um evento para ver todos os dados capturados.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {eventFilters.map((item) => <button key={item.value} type="button" onClick={() => { setEventType(item.value); setSelectedEventId(null); }} className={`h-9 rounded-full border px-4 text-xs font-semibold transition-colors ${eventType === item.value ? "border-primary bg-primary text-white" : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground"}`}>{item.label}</button>)}
+          </div>
+        </div>
+
+        <div className="mt-6 grid overflow-hidden rounded-[26px] border border-border bg-background xl:grid-cols-[380px_minmax(0,1fr)]">
+          <div className="border-b border-border xl:border-b-0 xl:border-r">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">Atividade</p><span className="text-xs text-muted-foreground">{filteredEvents.length}</span></div>
+            <div className="max-h-[700px] overflow-y-auto">
+              {filteredEvents.map((event) => {
+                const active = selectedEvent?.id === event.id;
+                const positive = event.type === "approved" || event.type === "paid";
+                return <button key={event.id} type="button" onClick={() => setSelectedEventId(event.id)} className={`block w-full border-b border-border/70 px-5 py-4 text-left transition-colors ${active ? "bg-primary/[0.06]" : "hover:bg-muted/40"}`}>
+                  <div className="flex items-start gap-3"><span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${positive ? "bg-emerald-500" : event.type === "rejected" ? "bg-red-500" : event.type === "click" ? "bg-violet-500" : "bg-primary"}`}/><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-3"><p className="truncate text-sm font-semibold text-foreground">{event.title}</p><time className="shrink-0 text-[10px] text-muted-foreground">{formatMoment(event.occurredAt)}</time></div><p className="mt-1 truncate text-xs text-muted-foreground">{event.siteName}</p><p className="mt-1 truncate text-[11px] text-muted-foreground">{event.description}</p></div></div>
+                </button>;
+              })}
+              {!filteredEvents.length ? <div className="px-6 py-16 text-center"><p className="text-sm font-medium text-foreground">Nenhum evento neste filtro</p><p className="mt-2 text-xs leading-5 text-muted-foreground">Novos acessos, cliques e postbacks aparecerão aqui automaticamente.</p></div> : null}
+            </div>
+          </div>
+
+          <div className="min-w-0">
+            {selectedEvent ? <>
+              <div className="border-b border-border px-5 py-5 sm:px-7">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary">{selectedEvent.siteName}</p><h3 className="mt-1 text-xl font-semibold tracking-[-0.02em] text-foreground">{selectedEvent.title}</h3><p className="mt-1 text-xs text-muted-foreground">{new Intl.DateTimeFormat("pt-BR", { dateStyle: "long", timeStyle: "medium" }).format(new Date(selectedEvent.occurredAt))}</p></div>
+                  <button type="button" onClick={() => setShowPersonalization((value) => !value)} className="h-9 self-start rounded-full border border-border px-4 text-xs font-semibold text-foreground hover:border-primary/40">Personalizar dados</button>
+                </div>
+                {showPersonalization ? <div className="mt-5 flex flex-wrap gap-2 border-t border-border pt-4">{detailSections.map((section) => <button key={section.value} type="button" onClick={() => toggleSection(section.value)} className={`h-8 rounded-full border px-3 text-[11px] font-semibold ${visibleSections.has(section.value) ? "border-primary/30 bg-primary/[0.07] text-primary" : "border-border text-muted-foreground"}`}>{visibleSections.has(section.value) ? "✓ " : "+ "}{section.label}</button>)}</div> : null}
+              </div>
+
+              <div className="space-y-7 px-5 py-6 sm:px-7">
+                {visibleSections.has("identity") ? <div><p className="text-xs font-semibold text-foreground">Identificação</p><div className="mt-2 grid sm:grid-cols-2"><div className="sm:pr-5"><DetailValue label="Client ID" value={selectedEvent.details.clientId} mono/><button type="button" onClick={() => copyValue(selectedEvent.details.clientId, "client")} className="mt-2 text-[11px] font-semibold text-primary">{copiedValue === "client" ? "Copiado" : "Copiar Client ID"}</button></div><div className="sm:border-l sm:border-border sm:pl-5"><DetailValue label="Visitor ID" value={selectedEvent.details.visitorId} mono/></div></div></div> : null}
+
+                {visibleSections.has("location") ? <div><p className="text-xs font-semibold text-foreground">Localização</p><div className="mt-2 grid grid-cols-2 gap-x-5 sm:grid-cols-4"><DetailValue label="País" value={selectedEvent.details.country}/><DetailValue label="Código" value={selectedEvent.details.countryCode}/><DetailValue label="Cidade" value={selectedEvent.details.city}/><DetailValue label="IP" value={selectedEvent.details.ip} mono/></div></div> : null}
+
+                {visibleSections.has("device") ? <div><p className="text-xs font-semibold text-foreground">Dispositivo</p><div className="mt-2 grid gap-x-5 sm:grid-cols-3"><DetailValue label="Tipo" value={deviceNames[selectedEvent.details.device || ""] || selectedEvent.details.device}/><DetailValue label="Navegador" value={selectedEvent.details.browser}/><DetailValue label="Sistema" value={selectedEvent.details.operatingSystem}/></div><DetailValue label="User agent" value={selectedEvent.details.userAgent} mono/></div> : null}
+
+                {visibleSections.has("attribution") ? <div><p className="text-xs font-semibold text-foreground">Origem e cliques</p><div className="mt-2 grid gap-x-5 sm:grid-cols-3"><DetailValue label="Origem" value={selectedEvent.details.origin}/><DetailValue label="Fonte" value={selectedEvent.source === "postback" ? "Postback" : selectedEvent.source === "paid" ? "Pago" : "Orgânico"}/><DetailValue label="Total de cliques" value={selectedEvent.details.clickCount}/><DetailValue label="Tipo do Click ID" value={selectedEvent.details.clickIdType}/><DetailValue label="Click ID" value={selectedEvent.details.clickId} mono/><DetailValue label="Último clique" value={selectedEvent.details.clickedAt ? formatMoment(selectedEvent.details.clickedAt) : null}/></div><DetailValue label="URL acessada" value={selectedEvent.details.pageUrl} mono/><div className="flex gap-4"><button type="button" onClick={() => copyValue(selectedEvent.details.pageUrl, "url")} className="mt-2 text-[11px] font-semibold text-primary">{copiedValue === "url" ? "Copiada" : "Copiar URL"}</button></div><DetailValue label="Referrer / origem" value={selectedEvent.details.origin} mono/></div> : null}
+
+                {visibleSections.has("parameters") ? <div><p className="text-xs font-semibold text-foreground">Parâmetros da URL</p><div className="mt-3 flex flex-wrap gap-2">{Object.entries(selectedEvent.details.parameters || {}).map(([key, value]) => <span key={key} className="max-w-full break-all rounded-full bg-muted px-3 py-1.5 text-[11px] text-foreground"><strong>{key}:</strong> {value}</span>)}{!Object.keys(selectedEvent.details.parameters || {}).length ? <span className="text-xs text-muted-foreground">Nenhum parâmetro recebido.</span> : null}</div></div> : null}
+
+                {visibleSections.has("conversion") && selectedEvent.source === "postback" ? <div><p className="text-xs font-semibold text-foreground">Conversão recebida</p><div className="mt-2 grid gap-x-5 sm:grid-cols-3"><DetailValue label="Enviado por" value={selectedEvent.details.integrationName || selectedEvent.details.sender}/><DetailValue label="Pedido / Lead" value={selectedEvent.details.orderId} mono/><DetailValue label="Status" value={selectedEvent.details.status}/><DetailValue label="Comissão" value={selectedEvent.details.payout ? `${selectedEvent.details.currency || ""} ${selectedEvent.details.payout.toFixed(2)}`.trim() : null}/><DetailValue label="Campanha" value={selectedEvent.details.campaign}/><DetailValue label="Atribuição" value={selectedEvent.details.matched ? "Ligado ao clique" : "Sem correspondência"}/></div><DetailValue label="Dados enviados pela plataforma" value={JSON.stringify(selectedEvent.details.payload || {}, null, 2)} mono/></div> : null}
+              </div>
+            </> : <div className="flex min-h-[420px] items-center justify-center px-8 text-center"><div><p className="text-sm font-semibold text-foreground">Selecione um evento</p><p className="mt-2 text-xs text-muted-foreground">Os detalhes completos aparecerão aqui.</p></div></div>}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-border py-8">
         <div className="mb-6 flex items-center justify-between"><h2 className="text-lg font-semibold text-foreground">Visitas e cliques</h2><span className="text-xs text-muted-foreground">Atualização automática</span></div>
         <div className="h-72 w-full">
           <ResponsiveContainer width="100%" height="100%">
@@ -125,17 +281,6 @@ export default function TrackingPage() {
           </ResponsiveContainer>
         </div>
         {!data.summary.visits ? <p className="mt-3 text-center text-sm text-muted-foreground">As primeiras visitas aparecerão aqui assim que uma presell publicada for acessada.</p> : null}
-      </section>
-
-      <section className="border-b border-border py-8">
-        <div className="mb-5 flex items-center justify-between"><h2 className="text-lg font-semibold">Postbacks recentes</h2><span className="text-xs text-muted-foreground">Tempo real</span></div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left">
-            <thead><tr className="border-y border-border text-[11px] uppercase tracking-[0.12em] text-muted-foreground"><th className="py-3 font-medium">Pedido</th><th className="py-3 font-medium">Site</th><th className="py-3 font-medium">Campanha</th><th className="py-3 font-medium">Status</th><th className="py-3 text-right font-medium">Comissão</th><th className="py-3 text-right font-medium">Recebido</th></tr></thead>
-            <tbody>{data.recentConversions.map((conversion) => <tr key={conversion.id} className="border-b border-border/80"><td className="py-4"><p className="font-mono text-xs font-medium">{conversion.orderId}</p><p className="mt-1 text-[11px] text-muted-foreground">{conversion.matched ? "Atribuído ao clique" : "Sem correspondência"}</p></td><td className="py-4 text-sm">{conversion.site}</td><td className="max-w-48 truncate py-4 text-sm text-muted-foreground">{conversion.campaign || "—"}</td><td className="py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${conversion.statusGroup === "paid" || conversion.statusGroup === "approved" ? "bg-emerald-50 text-emerald-700" : conversion.statusGroup === "rejected" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}>{conversion.status}</span></td><td className="py-4 text-right text-sm font-medium">{conversion.payout ? `${conversion.currency || ""} ${conversion.payout.toFixed(2)}`.trim() : "—"}</td><td className="py-4 text-right text-xs text-muted-foreground">{formatMoment(conversion.receivedAt)}</td></tr>)}</tbody>
-          </table>
-          {!data.recentConversions.length ? <p className="py-12 text-center text-sm text-muted-foreground">Os leads e pagamentos aparecerão aqui quando a plataforma enviar o primeiro postback.</p> : null}
-        </div>
       </section>
 
       <section className="grid border-b border-border lg:grid-cols-[minmax(0,1.65fr)_minmax(300px,.75fr)]">
@@ -156,13 +301,7 @@ export default function TrackingPage() {
         </div>
       </section>
 
-      <section className="grid lg:grid-cols-[minmax(0,1.4fr)_minmax(300px,.6fr)]">
-        <div className="py-8 lg:pr-10">
-          <h2 className="mb-5 text-lg font-semibold">Visitantes recentes</h2>
-          <div className="overflow-x-auto"><table className="w-full min-w-[660px] text-left"><thead><tr className="border-y border-border text-[11px] uppercase tracking-[0.12em] text-muted-foreground"><th className="py-3 font-medium">Visitante</th><th className="py-3 font-medium">Local</th><th className="py-3 font-medium">Dispositivo</th><th className="py-3 font-medium">Origem</th><th className="py-3 text-right font-medium">Acesso</th></tr></thead><tbody>{data.recentVisitors.map((visitor) => <tr key={visitor.id} className="border-b border-border/80"><td className="py-4"><p className="font-mono text-xs font-medium">{visitor.ip}</p><p className="mt-1 text-[11px] text-muted-foreground">{visitor.clicked ? "Clicou" : "Sem clique"}</p></td><td className="py-4 text-sm"><p>{visitor.city ? `${visitor.city}, ` : ""}{visitor.country}</p></td><td className="py-4 text-sm"><p>{deviceNames[visitor.device] || visitor.device}</p><p className="mt-1 text-xs text-muted-foreground">{visitor.browser} · {visitor.operatingSystem}</p></td><td className="py-4 text-sm">{visitor.source === "paid" ? "Pago" : "Orgânico"}</td><td className="py-4 text-right text-xs text-muted-foreground">{formatMoment(visitor.createdAt)}</td></tr>)}</tbody></table>{!data.recentVisitors.length ? <p className="py-12 text-center text-sm text-muted-foreground">Nenhum visitante registrado neste período.</p> : null}</div>
-        </div>
-        <div className="border-t border-border py-8 lg:border-l lg:border-t-0 lg:pl-10"><h2 className="mb-5 text-lg font-semibold">Países</h2><div className="space-y-4">{data.countries.map((country) => <div key={country.name}><div className="mb-2 flex justify-between text-sm"><span>{country.name}</span><span className="text-muted-foreground">{country.value}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${data.summary.visits ? Math.max(3, (country.value / data.summary.visits) * 100) : 0}%` }}/></div></div>)}{!data.countries.length ? <p className="text-sm text-muted-foreground">Os países aparecerão após os primeiros acessos.</p> : null}</div></div>
-      </section>
+      <section className="py-8"><h2 className="mb-5 text-lg font-semibold">Países</h2><div className="grid gap-x-10 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">{data.countries.map((country) => <div key={country.name}><div className="mb-2 flex justify-between text-sm"><span>{country.name}</span><span className="text-muted-foreground">{country.value}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary" style={{ width: `${data.summary.visits ? Math.max(3, (country.value / data.summary.visits) * 100) : 0}%` }}/></div></div>)}{!data.countries.length ? <p className="text-sm text-muted-foreground">Os países aparecerão após os primeiros acessos.</p> : null}</div></section>
 
     </div>
   );

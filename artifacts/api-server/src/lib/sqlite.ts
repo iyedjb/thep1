@@ -209,6 +209,7 @@ async function initPostgresDb() {
       device_type VARCHAR(30) NOT NULL DEFAULT 'desktop',
       browser VARCHAR(80),
       operating_system VARCHAR(80),
+      user_agent TEXT,
       referrer TEXT,
       page_path TEXT,
       traffic_source VARCHAR(20) NOT NULL DEFAULT 'organic',
@@ -472,6 +473,9 @@ async function initPostgresDb() {
     await db.exec("ALTER TABLE tracking_visits ADD COLUMN traffic_source VARCHAR(20) NOT NULL DEFAULT 'organic';");
   } catch (e) {}
   try {
+    await db.exec("ALTER TABLE tracking_visits ADD COLUMN user_agent TEXT;");
+  } catch (e) {}
+  try {
     await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_tracking_sites_slug_unique ON tracking_sites(slug) WHERE slug IS NOT NULL;");
   } catch (e) {}
   try {
@@ -718,6 +722,7 @@ async function initSqliteDb() {
       device_type TEXT NOT NULL DEFAULT 'desktop',
       browser TEXT,
       operating_system TEXT,
+      user_agent TEXT,
       referrer TEXT,
       page_path TEXT,
       traffic_source TEXT NOT NULL DEFAULT 'organic',
@@ -847,6 +852,7 @@ async function initSqliteDb() {
     "ALTER TABLE tracking_visits ADD COLUMN tracking_site_id INTEGER REFERENCES tracking_sites(id) ON DELETE CASCADE;",
     "ALTER TABLE tracking_sites ADD COLUMN slug TEXT;",
     "ALTER TABLE tracking_visits ADD COLUMN traffic_source TEXT NOT NULL DEFAULT 'organic';",
+    "ALTER TABLE tracking_visits ADD COLUMN user_agent TEXT;",
     "ALTER TABLE postback_integrations ADD COLUMN name TEXT;",
     "ALTER TABLE postback_integrations ADD COLUMN expires_at TIMESTAMP;",
     "ALTER TABLE postback_integrations ADD COLUMN last_tested_at TIMESTAMP;",

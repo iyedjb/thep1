@@ -111,8 +111,8 @@ export async function recordTrackingVisit(req: Request, site: TrackingSite, page
 
   await getDb().prepare(
     `INSERT INTO tracking_visits
-      (presell_id, tracking_site_id, user_id, visit_token, visitor_key, ip_address, country_code, country_name, city, device_type, browser, operating_system, referrer, page_path, traffic_source)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      (presell_id, tracking_site_id, user_id, visit_token, visitor_key, ip_address, country_code, country_name, city, device_type, browser, operating_system, user_agent, referrer, page_path, traffic_source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     site.presell_id || null,
     site.id,
@@ -126,6 +126,7 @@ export async function recordTrackingVisit(req: Request, site: TrackingSite, page
     device,
     browser,
     operatingSystem,
+    userAgent.slice(0, 2048),
     resolvedReferrer,
     resolvedPagePath,
     source,
