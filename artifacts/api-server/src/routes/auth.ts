@@ -390,19 +390,28 @@ router.post("/auth/google", async (req, res) => {
       return;
     }
 
-    const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: "7d" });
-    res.json({
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        createdAt: user.created_at,
-        subscriptionTier: user.subscription_tier || "free",
-        subscriptionStatus: user.subscription_status || "free",
-        subscriptionExpiresAt: user.subscription_expires_at || null,
-      },
-      token,
-    });
+    const recent = await db.prepare(
+      "SELECT last_sent_at FROM login_otp_challenges WHERE user_id = ? AND consumed_at IS NULL ORDER BY created_at DESC LIMIT 1"
+    ).get(user.id) as any;
+    if (recent && Date.now() - dateValue(recent.last_sent_at) < OTP_RESEND_SECONDS * 1000) {
+      res.status(429).json({ error: `Aguarde ${OTP_RESEND_SECONDS} segundos antes de solicitar outro código.` });
+      return;
+    }
+    await db.prepare("DELETE FROM login_otp_challenges WHERE user_id = ?").run(user.id);
+    const challengeToken = crypto.randomUUID();
+    const code = createOtp();
+    await db.prepare(
+      "INSERT INTO login_otp_challenges (token, user_id, code_hash, attempts_remaining, expires_at) VALUES (?, ?, ?, ?, ?)"
+    ).run(challengeToken, user.id, otpHash(challengeToken, code), OTP_MAX_ATTEMPTS, new Date(Date.now() + OTP_TTL_MS).toISOString());
+    try {
+      await sendLoginCode(user.email, user.name, code);
+    } catch (emailError: any) {
+      await db.prepare("DELETE FROM login_otp_challenges WHERE token = ?").run(challengeToken);
+      logger.error({ err: emailError.message }, "Unable to send Google login verification code");
+      res.status(503).json({ error: "Não foi possível enviar o código de verificação agora." });
+      return;
+    }
+    res.json({ requiresOtp: true, challengeToken, maskedEmail: maskedEmail(user.email), expiresInSeconds: OTP_TTL_MS / 1000, resendAfterSeconds: OTP_RESEND_SECONDS });
   } catch (error: any) {
     logger.error({ error: error.message }, "Google OAuth verification failed");
     res.status(500).json({ error: "Failed to verify Google token" });

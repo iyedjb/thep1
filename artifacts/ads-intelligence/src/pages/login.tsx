@@ -103,6 +103,12 @@ export default function Login() {
       });
       const data = await result.json();
       if (!result.ok) throw new Error(data.error || "Não foi possível entrar com Google");
+      if (data.requiresOtp) {
+        setOtpChallenge({ token: data.challengeToken, email: data.maskedEmail });
+        setOtpCode("");
+        setResendIn(Number(data.resendAfterSeconds || 45));
+        return;
+      }
       localStorage.setItem("ads_token", data.token);
       queryClient.setQueryData(getGetMeQueryKey(), data.user);
       setLocation("/creator");
