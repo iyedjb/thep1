@@ -90,7 +90,7 @@ export function Layout({ children }: { children: ReactNode }) {
     }
   };
 
-  const pageTitle = PAGE_TITLES[location] || "ClicLab";
+  const pageTitle = location.startsWith("/postbacks/") ? "Eventos da API" : PAGE_TITLES[location] || "ClicLab";
   const isTrafficManager = location === "/traffic-manager";
 
   const [theme, setTheme] = useState<"light" | "dark">(() => {

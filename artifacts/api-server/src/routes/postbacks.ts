@@ -211,6 +211,76 @@ router.post("/postback/integrations/:id/test", requireAuth, async (req: any, res
   }
 });
 
+router.get("/postback/integrations/:id/events", requireAuth, async (req: any, res) => {
+  try {
+    const integration = await getDb().prepare(
+      "SELECT id, provider, name FROM postback_integrations WHERE id = ? AND user_id = ?"
+    ).get(Number(req.params.id), req.userId) as any;
+    if (!integration || !isProviderId(providerId(integration.provider))) {
+      res.status(404).json({ error: "API não encontrada." });
+      return;
+    }
+
+    const provider = providerId(integration.provider);
+    const rows = await getDb().prepare(
+      `SELECT e.id, e.external_event_id, e.click_id, e.status, e.status_group, e.payout, e.currency,
+              e.raw_payload, e.received_at, v.id AS visit_id, v.ip_address, v.country_name, v.city,
+              v.device_type, v.browser, v.operating_system, v.page_path, v.referrer,
+              s.id AS site_id, s.name AS site_name, s.slug AS site_slug
+       FROM postback_events e
+       LEFT JOIN tracking_visits v ON v.id = e.tracking_visit_id
+       LEFT JOIN tracking_sites s ON s.id = v.tracking_site_id
+       WHERE e.integration_id = ? AND e.user_id = ?
+       ORDER BY e.received_at DESC, e.id DESC
+       LIMIT 200`
+    ).all(integration.id, req.userId) as any[];
+
+    res.json({
+      integration: {
+        id: integration.id,
+        name: integration.name || PROVIDERS[provider].name,
+        provider,
+        providerName: PROVIDERS[provider].name,
+      },
+      events: rows.map((event) => {
+        let payload: Record<string, string> = {};
+        try { payload = JSON.parse(String(event.raw_payload || "{}")); } catch {}
+        const phone = firstValue(payload, ["phone", "phone_number", "telephone", "tel"], 80) || null;
+        const customerName = firstValue(payload, ["name", "customer_name", "customerName", "fio"], 200) || null;
+        return {
+          id: Number(event.id),
+          sender: PROVIDERS[provider].name,
+          orderId: event.external_event_id || null,
+          clickId: event.click_id || null,
+          status: event.status,
+          statusGroup: event.status_group,
+          payout: Number(event.payout || 0),
+          currency: event.currency || null,
+          phone,
+          customerName,
+          receivedAt: event.received_at,
+          matched: Boolean(event.visit_id),
+          site: event.site_id ? { id: Number(event.site_id), name: event.site_name, slug: event.site_slug } : null,
+          visitor: event.visit_id ? {
+            ip: event.ip_address || null,
+            country: event.country_name || null,
+            city: event.city || null,
+            device: event.device_type || null,
+            browser: event.browser || null,
+            operatingSystem: event.operating_system || null,
+            pagePath: event.page_path || null,
+            referrer: event.referrer || null,
+          } : null,
+          payload,
+        };
+      }),
+    });
+  } catch (error: any) {
+    logger.error({ err: error.message, userId: req.userId }, "Unable to load postback events");
+    res.status(500).json({ error: "Não foi possível carregar os eventos da API." });
+  }
+});
+
 async function receivePostback(req: any, res: any) {
   const provider = String(req.params.provider || "").toLowerCase();
   const token = String(req.params.token || "");

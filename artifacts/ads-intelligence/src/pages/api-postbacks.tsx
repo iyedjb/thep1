@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Copy, Loader2, Plus, Radio } from "lucide-react";
+import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -275,6 +276,9 @@ export default function ApiPostbacksPage() {
                   <p className="text-xs text-muted-foreground">
                     {active.lastTestedAt ? `Último teste: ${formatDate(active.lastTestedAt)}` : "Ainda não testada"}
                   </p>
+                  <Button asChild variant="outline" className="rounded-full px-5">
+                    <Link href={`/postbacks/${active.id}`}>Ver eventos recebidos</Link>
+                  </Button>
                 </div>
 
                 <div className="mt-8 grid gap-5 text-sm sm:grid-cols-3">

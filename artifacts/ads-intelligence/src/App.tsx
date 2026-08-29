@@ -24,6 +24,7 @@ import TrackingPage from "@/pages/tracking";
 import DomainsPage from "@/pages/domains";
 import ApiPostbacksPage from "@/pages/api-postbacks";
 import ActivityPage from "@/pages/activity";
+import ApiEventsPage from "@/pages/api-events";
 import { GoogleAdsGate } from "@/components/google-ads/google-ads-gate";
 
 const queryClient = new QueryClient({
@@ -81,6 +82,7 @@ function Router() {
       <ProtectedRoute path="/activity" component={ActivityPage} />
       <ProtectedRoute path="/domains" component={DomainsPage} />
       <ProtectedRoute path="/postbacks" component={ApiPostbacksPage} />
+      <ProtectedRoute path="/postbacks/:id" component={ApiEventsPage} />
       <ProtectedRoute path="/drcash" component={DrCash} />
       <ProtectedRoute path="/support" component={SupportPage} />
       <ProtectedRoute path="/pricing" component={PricingPage} />
