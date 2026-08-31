@@ -50,6 +50,7 @@ import {
   Zap,
   Layers,
   Tag,
+  Bookmark,
 } from "lucide-react";
 
 type Step = "form" | "generating" | "done" | "actions";
@@ -109,6 +110,7 @@ export default function Creator() {
   const [trackingSites, setTrackingSites] = useState<TrackingSiteOption[]>([]);
   const [selectedTrackingSiteId, setSelectedTrackingSiteId] = useState("");
   const [popupLanguage, setPopupLanguage] = useState("auto");
+  const [presellName, setPresellName] = useState("");
   const [productName, setProductName] = useState("");
   const [productHeadline, setProductHeadline] = useState("");
   const [productDescription, setProductDescription] = useState("");
@@ -375,6 +377,7 @@ export default function Creator() {
             "Authorization": token ? `Bearer ${token}` : ""
           },
           body: JSON.stringify({
+            name: presellName,
             referenceUrl: sourceUrl,
             destinationUrl: targetUrl,
             productName: data.productName || productName,
@@ -856,6 +859,25 @@ export default function Creator() {
                     </div>
 
                     <form onSubmit={handleGenerate} className="space-y-6 [&_input]:text-sm [&_textarea]:text-sm" autoComplete="off">
+
+                      {/* Presell Name */}
+                      <div className="space-y-2">
+                        <Label htmlFor="presell-name" className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                          Nome da presell
+                        </Label>
+                        <div className="relative">
+                          <Bookmark className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input
+                            id="presell-name"
+                            type="text"
+                            placeholder="Ex: Flexavive - Campanha BR Fevereiro"
+                            value={presellName}
+                            onChange={(e) => setPresellName(e.target.value)}
+                            className="h-12 rounded-2xl border-border bg-background pl-9 text-sm shadow-none focus-visible:ring-primary placeholder:text-muted-foreground/55"
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">Só pra você identificar essa presell depois — não aparece pro visitante.</p>
+                      </div>
 
                       {/* Reference URL */}
                       <div className="space-y-2">

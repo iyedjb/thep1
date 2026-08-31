@@ -241,6 +241,7 @@ async function initPostgresDb() {
     CREATE TABLE IF NOT EXISTS presells (
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      name VARCHAR(255),
       reference_url TEXT,
       destination_url TEXT NOT NULL,
       product_name VARCHAR(255),
@@ -489,6 +490,9 @@ async function initPostgresDb() {
   } catch (e) {}
   try {
     await db.exec("ALTER TABLE campaigns ADD COLUMN end_date VARCHAR(50);");
+  } catch (e) {}
+  try {
+    await db.exec("ALTER TABLE presells ADD COLUMN name VARCHAR(255);");
   } catch (e) {}
   try {
     await db.exec("ALTER TABLE presells ADD COLUMN published_url TEXT;");
@@ -837,6 +841,7 @@ async function initSqliteDb() {
     CREATE TABLE IF NOT EXISTS presells (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT,
       reference_url TEXT,
       destination_url TEXT NOT NULL,
       product_name TEXT,
@@ -1003,6 +1008,7 @@ async function initSqliteDb() {
     "ALTER TABLE campaigns ADD COLUMN start_date TEXT;",
     "ALTER TABLE campaigns ADD COLUMN end_date TEXT;",
     "ALTER TABLE keywords ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE;",
+    "ALTER TABLE presells ADD COLUMN name TEXT;",
     "ALTER TABLE presells ADD COLUMN published_url TEXT;",
     "ALTER TABLE presells ADD COLUMN publish_path TEXT;",
     "ALTER TABLE presells ADD COLUMN published_html TEXT;",

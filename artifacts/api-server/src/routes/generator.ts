@@ -7338,7 +7338,7 @@ router.get("/presells", requireAuth, async (req: any, res) => {
 });
 
 router.post("/presells", requireAuth, async (req: any, res) => {
-  const { referenceUrl, destinationUrl, productName, productCategory, selectedOption } = req.body || {};
+  const { name, referenceUrl, destinationUrl, productName, productCategory, selectedOption } = req.body || {};
   if (!destinationUrl) {
     res.status(400).json({ error: "destinationUrl is required" });
     return;
@@ -7346,9 +7346,9 @@ router.post("/presells", requireAuth, async (req: any, res) => {
   try {
     const db = getDb();
     const result = await db.prepare(
-      `INSERT INTO presells (user_id, reference_url, destination_url, product_name, product_category, selected_option)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    ).run(req.userId, referenceUrl || "", destinationUrl, productName || "", productCategory || "Saúde & Bem-estar", selectedOption || "a");
+      `INSERT INTO presells (user_id, name, reference_url, destination_url, product_name, product_category, selected_option)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).run(req.userId, name || productName || "", referenceUrl || "", destinationUrl, productName || "", productCategory || "Saúde & Bem-estar", selectedOption || "a");
     res.json({ success: true, id: result.lastInsertRowid });
   } catch (err: any) {
     logger.error({ err: err.message }, "Error inserting presell");

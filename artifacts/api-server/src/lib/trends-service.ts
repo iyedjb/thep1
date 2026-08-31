@@ -42,7 +42,7 @@ Forneça os seguintes dados em formato JSON estrito:
   ]
 }
 Nota: 
-- interestOverTime deve conter pontos correspondentes e coerentes com o período solicitado "${timeRange}". Se for um período curto (ex: 7 dias, 30 dias ou período customizado com datas de início e fim), retorne pontos diários (com datas formatadas como "DD/MM"). Se for 12 meses (12m), retorne exatamente 12 pontos mensais correspondendo aos últimos 12 meses terminando no mês atual (ex: Jun a Mai).
+- interestOverTime deve conter pontos correspondentes e coerentes com o período solicitado "${timeRange}". Se for "4h" (últimas 4 horas), retorne 4 pontos por hora (datas formatadas como "HH:00"). Se for "1d" (último dia), retorne pontos a cada 2 horas (formatadas como "HH:00"). Se for um período curto (ex: 7 dias, 30 dias, "90d" ou período customizado com datas de início e fim), retorne pontos diários (com datas formatadas como "DD/MM") — para "90d" especificamente, agrupe em pontos semanais (13 pontos) em vez de 90 pontos diários, pra não poluir o gráfico. Se for 12 meses (12m), retorne exatamente 12 pontos mensais correspondendo aos últimos 12 meses terminando no mês atual (ex: Jun a Mai).
 - interestByRegion deve conter os 5 principais países ou regiões de maior volume, ordenados por valor (máximo 100).
 - relatedQueries deve conter até 5 consultas relacionadas.
 
@@ -72,7 +72,19 @@ function generateLocalTrendsData(keyword: string, geo: string, timeRange: string
   let dates: string[] = [];
   const normalizedTime = timeRange.trim();
 
-  if (normalizedTime === "7d") {
+  if (normalizedTime === "4h") {
+    for (let i = 3; i >= 0; i--) {
+      const d = new Date();
+      d.setHours(d.getHours() - i);
+      dates.push(`${String(d.getHours()).padStart(2, '0')}:00`);
+    }
+  } else if (normalizedTime === "1d") {
+    for (let i = 23; i >= 0; i -= 2) {
+      const d = new Date();
+      d.setHours(d.getHours() - i);
+      dates.push(`${String(d.getHours()).padStart(2, '0')}:00`);
+    }
+  } else if (normalizedTime === "7d") {
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
@@ -82,6 +94,15 @@ function generateLocalTrendsData(keyword: string, geo: string, timeRange: string
     for (let i = 29; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
+      dates.push(`${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`);
+    }
+  } else if (normalizedTime === "90d") {
+    // Weekly points (not daily) over 90 days, same spirit as the 7d/30d
+    // buckets above but coarser — 90 individual days would be unreadable
+    // packed into the same chart width.
+    for (let i = 12; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i * 7);
       dates.push(`${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`);
     }
   } else if (normalizedTime.includes(" ") || normalizedTime.includes("/") || normalizedTime.includes("-")) {
